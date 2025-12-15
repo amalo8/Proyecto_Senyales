@@ -1,0 +1,25 @@
+---
+title: "Proyecto_Senyales"
+output: html_document
+date: "2025-12-15"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#descomprimimos la carpeta zip de imagenes
+#unzip("archive.zip", exdir = "imagenes")
+```
+
+Dentro de imagenes, tenemos 3 subcarpetas: daytime, nighttime y sunrise. Cargamos las imagenes y las etiquetamos segun de la carpeta de la que provienen.
+
+```{r}
+#cargamos las imagenes
+imgs<-list.files("imagenes", recursive = TRUE, full.names = TRUE)
+labels <- basename(dirname(imgs))
+
+print(table(df_imagenes$etiqueta))
+```
+

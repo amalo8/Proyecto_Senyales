@@ -1,0 +1,112 @@
+---
+title: "AnalisisImagenes"
+output: html_document
+date: "2025-12-15"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(jpeg)
+library(class)
+library(caret)
+
+# Definir la ruta base
+ruta_base_imagenes <- "images"
+
+# lectura de las imagenes de noche
+ruta_noche <- file.path(ruta_base_imagenes, "0")
+archivos_noche <- list.files(
+  path = ruta_noche,
+  pattern = "\\.jpe?g$",
+  full.names = TRUE,
+  recursive = FALSE
+)
+
+df_noche <- data.frame(
+  ruta = archivos_noche,
+  etiqueta = 0 # Noche
+)
+
+
+# Leer y etiquetar imágenes del subdirectorio "1" (Día)
+
+ruta_dia <- file.path(ruta_base_imagenes, "1")
+archivos_dia <- list.files(
+  path = ruta_dia,
+  pattern = "\\.jpe?g$",
+  full.names = TRUE,
+  recursive = FALSE
+)
+
+df_dia <- data.frame(
+  ruta = archivos_dia,
+  etiqueta = 1 # Día
+)
+
+# lectura de las imagenes de día
+
+datos_imagenes <- rbind(df_noche, df_dia)
+
+
+set.seed(42) 
+
+indices_entrenamiento <- createDataPartition(
+  y = datos_imagenes$etiqueta,
+  p = 0.8,
+  list = FALSE 
+)
+
+# Crear los conjuntos de datos de TRAIN y TEST
+datos_train <- datos_imagenes[indices_entrenamiento, ]
+datos_test <- datos_imagenes[-indices_entrenamiento, ]
+
+
+```
+
+```{r}
+
+extraer_y_agregar_rgb <- function(df_datos) {
+  
+  # Inicializar una matriz temporal para almacenar los resultados RGB
+  RGB_features <- matrix(0, nrow = nrow(df_datos), ncol = 3)
+  
+  cat("Iniciando lectura de", nrow(df_datos), "imágenes...\n")
+  
+  for (j in 1:nrow(df_datos)) {
+    z <- readJPEG(df_datos$ruta[j]) 
+    
+    # Manejar imágenes a color (3 canales) 
+    RGB_features[j, 1] = median(z[,,1]) # R
+    RGB_features[j, 2] = median(z[,,2]) # G
+    RGB_features[j, 3] = median(z[,,3]) # B
+    
+    
+    
+  }
+  
+  # Agregar las nuevas columnas al Data Frame original
+  df_datos$R_mediana <- RGB_features[, 1]
+  df_datos$G_mediana <- RGB_features[, 2]
+  df_datos$B_mediana <- RGB_features[, 3]
+  
+  cat("Lectura finalizada. Columnas RGB añadidas.\n")
+  return(df_datos)
+}
+
+
+# Añadir RGB al conjunto de entrenamiento
+datos_train <- extraer_y_agregar_rgb(datos_train)
+
+# Añadir RGB  al conjunto de prueba
+datos_test <- extraer_y_agregar_rgb(datos_test)
+
+
+print(head(datos_train))
+
+
+
+```
+

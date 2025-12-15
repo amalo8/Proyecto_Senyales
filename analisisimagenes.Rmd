@@ -110,3 +110,27 @@ print(head(datos_train))
 
 ```
 
+```{r}
+#plotear en 3D las caracteristicas RGB medianos, con cada punto segun su etiqueta
+library(plotly)
+fig <- plot_ly(
+  data = datos_train,
+  x = ~R_mediana,
+  y = ~G_mediana,
+  z = ~B_mediana,
+  color = ~as.factor(etiqueta),
+  colors = c('blue', 'yellow'),
+  type = 'scatter3d',
+  mode = 'markers'
+)
+fig <- fig %>% layout(
+  scene = list(
+    xaxis = list(title = 'R Mediana'),
+    yaxis = list(title = 'G Mediana'),
+    zaxis = list(title = 'B Mediana')
+  ),
+  title = 'Distribución de Imágenes por Características RGB Medianas'
+)
+fig
+```
+

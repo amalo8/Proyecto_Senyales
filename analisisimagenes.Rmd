@@ -109,6 +109,9 @@ print(head(datos_train))
 
 
 ```
+```{r}
+#Preprocesamiento de imagenes
+```
 
 ```{r}
 #plotear en 3D las caracteristicas RGB medianos, con cada punto segun su etiqueta

@@ -1,0 +1,20 @@
+CLASIFICADOR IMÁGENES 
+
+TAREAS
+- buscar trabajos parecidos si existen, revision
+- recopilar imágenes
+- etiquetar: dia noche primero, y luego soleado o nublado, ¿PUESTA/SALIDA DEL SOL?
+- preprocesado: normalizar imágenes, misma resolución tb, tamaño imágenes.
+- extraer posibles características, brillo, saturación, color? HSV, RGB? analizar espacios de color,
+wavelets para nubes o alguna característica para distinguir nubes o sol. media de grises imagen (dia y noche), saturación de la componente azul de color, para las nubes, analizar texturas de la imagen? usando componentes de frecuencia, mas baja frecuencia cielo mas uniforme, mas alta frecuencia, nubes irregulares? detector de bordes de Canny, evaluar en toda la imagen o solo en el 75%? 
+- analizar si las características son distintivas para distinguir entre clases, plots de características?
+- elegir clasificador, parametros del clasificador
+- dividir datos en entrenamiento 80% y test 20% --> BALANCEO DE CLASES
+- test clasificador, que medida d error vamos a usar por clase, matriz confusión
+
+histograma de colores n pixeles entre dos valores
+
+--> analizar que pasa si metemos otra cosa
+--> analizar que pasa si en imágenes sale poco cielo, lo identifica o no, y si etiqueta bien
+
+

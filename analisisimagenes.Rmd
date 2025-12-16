@@ -67,42 +67,47 @@ datos_test <- datos_imagenes[-indices_entrenamiento, ]
 ```
 
 ```{r}
-
-extraer_y_agregar_rgb <- function(df_datos) {
+extraer_rgb <- function(df_datos) {
   
-  # Inicializar una matriz temporal para almacenar los resultados RGB
-  RGB_features <- matrix(0, nrow = nrow(df_datos), ncol = 3)
+  # Matriz para R, G, B
+  features <- matrix(0, nrow = nrow(df_datos), ncol = 3)
+  colnames(features) <- c("R_mediana", "G_mediana", "B_mediana")
   
-  cat("Iniciando lectura de", nrow(df_datos), "imágenes...\n")
+  cat("Extrayendo RGB de", nrow(df_datos), "imágenes...\n")
   
   for (j in 1:nrow(df_datos)) {
-    z <- readJPEG(df_datos$ruta[j]) 
-    
-    # Manejar imágenes a color (3 canales) 
-    RGB_features[j, 1] = median(z[,,1]) # R
-    RGB_features[j, 2] = median(z[,,2]) # G
-    RGB_features[j, 3] = median(z[,,3]) # B
-    
-    
-    
+    tryCatch({
+      img <- readJPEG(df_datos$ruta[j])
+      
+      # Si la imagen es escala de grises (matriz 2D), replicar canales
+      if (length(dim(img)) == 2) {
+        r <- img; g <- img; b <- img
+      } else {
+        # Si es color (matriz 3D)
+        r <- img[,,1]
+        g <- img[,,2]
+        b <- img[,,3]
+      }
+      
+      features[j, 1] = median(r)
+      features[j, 2] = median(g)
+      features[j, 3] = median(b)
+      
+    }, error = function(e) {
+      cat("Error leyendo:", df_datos$ruta[j], "\n")
+    })
   }
   
-  # Agregar las nuevas columnas al Data Frame original
-  df_datos$R_mediana <- RGB_features[, 1]
-  df_datos$G_mediana <- RGB_features[, 2]
-  df_datos$B_mediana <- RGB_features[, 3]
+  # Unir al dataframe y asegurar que la etiqueta es factor
+  df_final <- cbind(df_datos, features)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
   
-  cat("Lectura finalizada. Columnas RGB añadidas.\n")
-  return(df_datos)
+  return(df_final)
 }
 
-
-# Añadir RGB al conjunto de entrenamiento
-datos_train <- extraer_y_agregar_rgb(datos_train)
-
-# Añadir RGB  al conjunto de prueba
-datos_test <- extraer_y_agregar_rgb(datos_test)
-
+# Aplicamos la función 
+datos_train <- extraer_rgb(datos_train)
+datos_test <- extraer_rgb(datos_test)
 
 print(head(datos_train))
 
@@ -111,7 +116,29 @@ print(head(datos_train))
 ```
 ```{r}
 #Preprocesamiento de imagenes
+#misma resolucion y rango de valores
+
+
+
 ```
+```{r}
+library(ggplot2)
+library(tidyr)
+
+# Transformar datos a formato largo para plotear 
+datos_long <- pivot_longer(datos_train, cols = c("R_mediana", "G_mediana", "B_mediana"), 
+                           names_to = "Feature", values_to = "Valor")
+
+# Plot de Cajas: Compara la distribución de cada canal por etiqueta
+ggplot(datos_long, aes(x = Feature, y = Valor, fill = etiqueta)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("red", "skyblue"), labels = c("Noche", "Día")) +
+  labs(title = "Separación de Clases usando RGB",
+       subtitle = "Si las cajas no se tocan, el clasificador será muy bueno",
+       y = "Intensidad Mediana (0-1)") +
+  theme_minimal()
+```
+Para la etiqueta "1" (Día), las cajas de R, G y B están mucho más altas (cerca de 0.5 - 1.0) y para "0" (Noche) están muy bajas (cerca de 0.0 - 0.2).
 
 ```{r}
 #plotear en 3D las caracteristicas RGB medianos, con cada punto segun su etiqueta
@@ -135,5 +162,26 @@ fig <- fig %>% layout(
   title = 'Distribución de Imágenes por Características RGB Medianas'
 )
 fig
+```
+Probamos a entrenar clasificador KNN 
+Usamos solo R, G y B.
+```{r}
+# Seleccionar solo columnas numéricas RGB
+cols_rgb <- c("R_mediana", "G_mediana", "B_mediana")
+
+train_x <- datos_train[, cols_rgb]
+test_x <- datos_test[, cols_rgb]
+train_y <- datos_train$etiqueta
+test_y <- datos_test$etiqueta
+
+# Entrenar KNN (K=5 vecinos)
+predicciones_rgb <- knn(train = train_x, test = test_x, cl = train_y, k = 5)
+
+# Matriz de Confusión
+cm <- confusionMatrix(predicciones_rgb, test_y)
+print(cm)
+
+# Ver Accuracy 
+cat("Precisión del modelo solo con RGB:", cm$overall['Accuracy'] * 100, "%\n")
 ```
 

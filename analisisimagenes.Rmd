@@ -121,6 +121,8 @@ print(head(datos_train))
 
 
 ```
+
+
 ```{r}
 library(ggplot2)
 library(tidyr)
@@ -174,8 +176,9 @@ test_x <- datos_test[, cols_rgb]
 train_y <- datos_train$etiqueta
 test_y <- datos_test$etiqueta
 
-# Entrenar KNN (K=5 vecinos)
-predicciones_rgb <- knn(train = train_x, test = test_x, cl = train_y, k = 5)
+# Entrenar Random Forest
+set.seed(42)
+predicciones_rgb <- 
 
 # Matriz de Confusión
 cm <- confusionMatrix(predicciones_rgb, test_y)
@@ -183,5 +186,44 @@ print(cm)
 
 # Ver Accuracy 
 cat("Precisión del modelo solo con RGB:", cm$overall['Accuracy'] * 100, "%\n")
+```
+Probamos con otro dataset para test ver si las clasifica correctamente
+```{r}
+# Cargar nuevo dataset de prueba
+ruta_base_nuevo <- "imagenes/nighttime"
+archivos_nuevo <- list.files(
+  path = ruta_base_nuevo,
+  pattern = "\\.jpe?g$",
+  full.names = TRUE,
+  recursive = FALSE
+)
+
+# Agregamos etiqueta = 0 ya que todas las imagenes son de noche
+df_nuevo <- data.frame(
+  ruta = archivos_nuevo,
+  etiqueta = 0 
+)
+
+datos_nuevo <- extraer_rgb(df_nuevo)
+
+# Seleccionar solo columnas numéricas RGB
+cols_rgb <- c("R_mediana", "G_mediana", "B_mediana")
+nuevo_x <- datos_nuevo[, cols_rgb]
+
+# Predecir etiquetas con el modelo KNN entrenado
+predicciones_nuevo <- knn(train = train_x, test = nuevo_x, cl = train_y, k = 5)
+
+# Mostrar predicciones
+datos_nuevo$prediccion <- predicciones_nuevo
+
+# Matriz de confusión
+# Nota: Asegúrate de que los niveles de factor sean iguales (0 y 1)
+etiquetas_verdaderas_nuevo <- factor(datos_nuevo$etiqueta, levels = c(0, 1))
+cm_nuevo <- confusionMatrix(predicciones_nuevo, etiquetas_verdaderas_nuevo)
+
+print(cm_nuevo)
+cat("Precisión del modelo en el nuevo dataset:", cm_nuevo$overall['Accuracy'] * 100, "%\n")
+
+
 ```
 

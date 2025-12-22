@@ -12,12 +12,13 @@ knitr::opts_chunk$set(echo = TRUE)
 library(jpeg)
 library(class)
 library(caret)
+library(randomForest)
 
 # Definir la ruta base
-ruta_base_imagenes <- "images"
+ruta_base_imagenes <- "imagenes"
 
 # lectura de las imagenes de noche
-ruta_noche <- file.path(ruta_base_imagenes, "0")
+ruta_noche <- file.path(ruta_base_imagenes, "nighttime")
 archivos_noche <- list.files(
   path = ruta_noche,
   pattern = "\\.jpe?g$",
@@ -31,9 +32,9 @@ df_noche <- data.frame(
 )
 
 
-# Leer y etiquetar imágenes del subdirectorio "1" (Día)
+# Leer y etiquetar imágenes del subdirectorio dia
 
-ruta_dia <- file.path(ruta_base_imagenes, "1")
+ruta_dia <- file.path(ruta_base_imagenes, "daytime")
 archivos_dia <- list.files(
   path = ruta_dia,
   pattern = "\\.jpe?g$",
@@ -92,6 +93,7 @@ extraer_rgb <- function(df_datos) {
       features[j, 1] = median(r)
       features[j, 2] = median(g)
       features[j, 3] = median(b)
+      
       
     }, error = function(e) {
       cat("Error leyendo:", df_datos$ruta[j], "\n")
@@ -178,52 +180,306 @@ test_y <- datos_test$etiqueta
 
 # Entrenar Random Forest
 set.seed(42)
-predicciones_rgb <- 
-
-# Matriz de Confusión
-cm <- confusionMatrix(predicciones_rgb, test_y)
-print(cm)
-
-# Ver Accuracy 
-cat("Precisión del modelo solo con RGB:", cm$overall['Accuracy'] * 100, "%\n")
-```
-Probamos con otro dataset para test ver si las clasifica correctamente
-```{r}
-# Cargar nuevo dataset de prueba
-ruta_base_nuevo <- "imagenes/nighttime"
-archivos_nuevo <- list.files(
-  path = ruta_base_nuevo,
-  pattern = "\\.jpe?g$",
-  full.names = TRUE,
-  recursive = FALSE
-)
-
-# Agregamos etiqueta = 0 ya que todas las imagenes son de noche
-df_nuevo <- data.frame(
-  ruta = archivos_nuevo,
-  etiqueta = 0 
-)
-
-datos_nuevo <- extraer_rgb(df_nuevo)
-
-# Seleccionar solo columnas numéricas RGB
-cols_rgb <- c("R_mediana", "G_mediana", "B_mediana")
-nuevo_x <- datos_nuevo[, cols_rgb]
-
-# Predecir etiquetas con el modelo KNN entrenado
-predicciones_nuevo <- knn(train = train_x, test = nuevo_x, cl = train_y, k = 5)
-
-# Mostrar predicciones
-datos_nuevo$prediccion <- predicciones_nuevo
-
+rf_model <- randomForest(x = train_x, y = train_y, ntree = 100)
+# Predecir en el conjunto de prueba
+predicciones_rf <- predict(rf_model, newdata = test_x)
 # Matriz de confusión
-# Nota: Asegúrate de que los niveles de factor sean iguales (0 y 1)
-etiquetas_verdaderas_nuevo <- factor(datos_nuevo$etiqueta, levels = c(0, 1))
-cm_nuevo <- confusionMatrix(predicciones_nuevo, etiquetas_verdaderas_nuevo)
+cm_rf <- confusionMatrix(predicciones_rf, test_y)
+print(cm_rf)
+cat("Precisión del modelo Random Forest:", cm_rf$overall['Accuracy'] * 100, "%\n")
 
-print(cm_nuevo)
-cat("Precisión del modelo en el nuevo dataset:", cm_nuevo$overall['Accuracy'] * 100, "%\n")
+```
+```{r}
+# Probar a extraer caracteristicas del espacio HSV
+library(grDevices)
+rgb_a_hsv <- function(r, g, b) {
+  rgb_matrix <- matrix(c(r, g, b), ncol = 3)
+  hsv_matrix <- rgb2hsv(t(rgb_matrix),maxColorValue = 1) #porque los valores ya estan entre 0 y 1
+  return(t(hsv_matrix))
+}
+# Función para extraer características HSV medianas
+extraer_hsv <- function(df_datos) {
+  features <- matrix(0, nrow = nrow(df_datos), ncol = 3)
+  colnames(features) <- c("H_mediana", "S_mediana", "V_mediana")
+  
+  cat("Extrayendo HSV de", nrow(df_datos), "imágenes...\n")
+  
+  for (j in 1:nrow(df_datos)) {
+    tryCatch({
+      img <- readJPEG(df_datos$ruta[j])
+      
+      if (length(dim(img)) == 2) {
+        r <- img; g <- img; b <- img
+      } else {
+        r <- img[,,1]
+        g <- img[,,2]
+        b <- img[,,3]
+      }
+      
+      hsv_vals <- rgb_a_hsv(as.vector(r), as.vector(g), as.vector(b))
+      
+      features[j, 1] = median(hsv_vals[, 1])
+      features[j, 2] = median(hsv_vals[, 2])
+      features[j, 3] = median(hsv_vals[, 3])
+
+      
+    }, error = function(e) {
+      cat("Error leyendo:", df_datos$ruta[j], "\n")
+    })
+  }
+  
+  df_final <- cbind(df_datos, features)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  
+  return(df_final)
+}
+
+# Aplicar la función a los conjuntos de datos
+datos_train_hsv <- extraer_hsv(datos_train)
+datos_test_hsv <- extraer_hsv(datos_test)
+# Seleccionar solo columnas numéricas HSV
+cols_hsv <- c("H_mediana", "S_mediana", "V_mediana")
+train_x_hsv <- datos_train_hsv[, cols_hsv]
+test_x_hsv <- datos_test_hsv[, cols_hsv]
+train_y_hsv <- datos_train_hsv$etiqueta
+test_y_hsv <- datos_test_hsv$etiqueta
+```
+
+```{r}
+
+#Mostrar boxplots de las caracteristicas HSV
+datos_long_hsv <- pivot_longer(datos_train_hsv, cols = c("H_mediana", "S_mediana", "V_mediana"), 
+                           names_to = "Feature", values_to = "Valor")
+ggplot(datos_long_hsv, aes(x = Feature, y = Valor, fill = etiqueta)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("red", "skyblue"), labels = c("Noche", "Día")) +
+  labs(title = "Separación de Clases usando HSV",
+       subtitle = "Si las cajas no se tocan, el clasificador será muy bueno",
+       y = "Valor Mediano (0-1)") +
+  theme_minimal()
+```
+
+```{r}
+#plotear en 3D las caracteristicas HSV medianos, con cada punto segun su etiqueta
+library(plotly)
+fig_hsv <- plot_ly(
+  data = datos_train_hsv,
+  x = ~H_mediana,
+  y = ~S_mediana,
+  z = ~V_mediana,
+  color = ~as.factor(etiqueta),
+  colors = c('blue', 'yellow'),
+  type = 'scatter3d',
+  mode = 'markers'
+)
+fig_hsv <- fig_hsv %>% layout(
+  scene = list(
+    xaxis = list(title = 'H Mediana'),
+    yaxis = list(title = 'S Mediana'),
+    zaxis = list(title = 'V Mediana')
+  ),
+  title = 'Distribución de Imágenes por Características HSV Medianas'
+)
+fig_hsv
+```
 
 
+
+
+
+```{r}
+# Entrenar Random Forest con características HSV
+
+set.seed(42)
+rf_model_hsv <- randomForest(x = train_x_hsv, y = train_y_hsv, ntree = 100)
+# Predecir en el conjunto de prueba
+predicciones_rf_hsv <- predict(rf_model_hsv, newdata = test_x_hsv)
+# Matriz de confusión
+cm_rf_hsv <- confusionMatrix(predicciones_rf_hsv, test_y_hsv)
+print(cm_rf_hsv)
+cat("Precisión del modelo Random Forest con HSV:", cm_rf_hsv$overall['Accuracy'] * 100, "%\n")
+```
+```{r}
+#Entrenar con todas las caracteristicas RGB + HSV
+train_x_todas <- datos_train_hsv[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana")]
+test_x_todas <- datos_test_hsv[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana")]
+train_y_todas <- datos_train_hsv$etiqueta
+test_y_todas <- datos_test_hsv$etiqueta
+
+set.seed(42)
+rf_model_todas <- randomForest(x = train_x_todas, y = train_y_todas, ntree = 100)
+# Predecir en el conjunto de prueba
+predicciones_rf_todas <- predict(rf_model_todas, newdata = test_x_todas)
+# Matriz de confusión
+cm_rf_todas <- confusionMatrix(predicciones_rf_todas, test_y_todas)
+print(cm_rf_todas)
+cat("Precisión del modelo Random Forest con todas las características:", cm_rf_todas$overall['Accuracy'] * 100, "%\n")
+```
+
+```{r}
+#sacar nombre de imagenes mal clasificadas
+mal_clasificadas <- datos_test_hsv[predicciones_rf_todas != test_y_todas, "ruta"]
+cat("Imágenes mal clasificadas:\n")
+print(mal_clasificadas)
+```
+```{r}
+#nueva caracteristica: filtro de Sobel detector de bordes
+library(imager)
+extraer_sobel <- function(df_datos) {
+  features <- numeric(nrow(df_datos))
+  
+  cat("Extrayendo características de Sobel de", nrow(df_datos), "imágenes...\n")
+  
+  for (j in 1:nrow(df_datos)) {
+    tryCatch({
+      img <- load.image(df_datos$ruta[j])
+      img_gray <- grayscale(img)
+      #Calcular gradientes --> Sobel es el método por defecto en imager
+      # xy indica que queremos derivadas en ambas direcciones
+      gradientes <- imgradient(img_gray, "xy")
+      
+      # Calcular la Magnitud del gradiente con pitagoras
+      # gradientes$x es el borde vertical, gradientes$y es el horizontal
+      
+      magnitud <- sqrt(gradientes$x^2 + gradientes$y^2)
+      
+      # característica es el promedio de intensidad de los bordes
+      features[j] <- mean(magnitud)
+      
+    }, error = function(e) {
+      cat("Error leyendo:", df_datos$ruta[j], "\n")
+    })
+  }
+      
+      
+  df_final <- cbind(df_datos, Sobel_mean = features)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  return(df_final)
+}
+
+
+# Aplicar la función a los conjuntos de datos
+datos_train_sobel <- extraer_sobel(datos_train_hsv)
+datos_test_sobel <- extraer_sobel(datos_test_hsv)
+# Entrenar Random Forest con todas las características + Sobel
+train_x_sobel <- datos_train_sobel[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean")]
+test_x_sobel <- datos_test_sobel[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean")]
+train_y_sobel <- datos_train_sobel$etiqueta
+test_y_sobel <- datos_test_sobel$etiqueta
+```
+
+```{r}
+#sacamos boxplot de la caracteristica Sobel
+ggplot(datos_train_sobel, aes(x = etiqueta, y = Sobel_mean, fill = etiqueta)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("red", "skyblue"), labels = c("Noche", "Día")) +
+  labs(title = "Separación de Clases usando Característica Sobel",
+       y = "Valor Medio de Sobel") +
+  theme_minimal()
+
+```
+
+```{r}
+#entrenar modelo con caracteristicas + Sobel
+set.seed(42)
+rf_model_sobel <- randomForest(x = train_x_sobel, y = train_y_sobel, ntree = 100)
+# Predecir en el conjunto de prueba
+predicciones_rf_sobel <- predict(rf_model_sobel, newdata = test_x_sobel)
+# Matriz de confusión
+cm_rf_sobel <- confusionMatrix(predicciones_rf_sobel, test_y_sobel)
+print(cm_rf_sobel)
+cat("Precisión del modelo Random Forest con todas las características + Sobel:", cm_rf_sobel$overall['Accuracy'] * 100, "%\n")
+
+#sacar importancia del Random forest para cada caracteristica
+importancia <- importance(rf_model_sobel)
+print(importancia)
+```
+$$Luminancia = 0.299 \cdot Rojo + \mathbf{0.587 \cdot Verde} + 0.114 \cdot Azul$$
+El canal Verde aporta casi el 60% de la información de brillo de una imagen. 
+
+Probamos a contar el numero de px que superan el 90% del brillo de la imagen, añadiendolo como nueva caracteristica de fuetnes de luz
+```{r}
+extraer_fuentes_luz <- function(df_datos) {
+  features <- numeric(nrow(df_datos))
+  
+  cat("Extrayendo características de Fuentes de Luz de", nrow(df_datos), "imágenes...\n")
+  
+  for (j in 1:nrow(df_datos)) {
+    tryCatch({
+      img <- readJPEG(df_datos$ruta[j])
+      
+      # if (length(dim(img)) == 2) {
+      #   r <- img; g <- img; b <- img
+      # } else {
+      #   r <- img[,,1]
+      #   g <- img[,,2]
+      #   b <- img[,,3]
+      # }
+      # 
+      # # Calcular luminancia
+      # luminancia <- 0.299 * r + 0.587 * g + 0.114 * b
+      
+      # 1. Convertir a escala de grises manualmente
+      # Si la imagen tiene 3 dimensiones (es a color)
+      if (length(dim(img)) == 3) {
+        r <- img[,,1]
+        g <- img[,,2]
+        b <- img[,,3]
+        # Fórmula de luminancia (la que tenías comentada)
+        img_gray <- 0.299 * r + 0.587 * g + 0.114 * b
+      } else {
+        # Si ya es escala de grises (2 dimensiones)
+        img_gray <- img
+      }
+      
+      # 2. Definir umbral de "luz brillante"
+      umbral <- 0.9
+      
+      # 3. Contar píxeles
+      # Esto devuelve la cantidad de píxeles que superan el umbral (puntos blancos)
+      features[j] <- sum(img_gray > umbral)
+      
+    }, error = function(e) {
+      cat("Error leyendo:", df_datos$ruta[j], "\n")
+    })
+  }
+  
+  df_final <- cbind(df_datos, Fuentes_luz = features)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  return(df_final)
+}
+# Aplicar la función a los conjuntos de datos
+datos_train_fuentes <- extraer_fuentes_luz(datos_train_sobel)
+datos_test_fuentes <- extraer_fuentes_luz(datos_test_sobel)
+```   
+```{r}
+#boxplot de la caracteristica Fuentes de Luz
+ggplot(datos_train_fuentes, aes(x = etiqueta, y = Fuentes_luz, fill = etiqueta)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("red", "skyblue"), labels = c("Noche", "Día")) +
+  labs(title = "Separación de Clases usando Característica Fuentes de Luz",
+       y = "Número de Píxeles Brillantes") +
+  theme_minimal()
+```
+
+```{r}
+#entrenar modelo con caracteristicas + Sobel + Fuentes de Luz
+train_x_fuentes <- datos_train_fuentes[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz")]
+test_x_fuentes <- datos_test_fuentes[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz")]
+train_y_fuentes <- datos_train_fuentes$etiqueta
+test_y_fuentes <- datos_test_fuentes$etiqueta
+
+set.seed(42)
+rf_model_fuentes <- randomForest(x = train_x_fuentes, y = train_y_fuentes, ntree = 100)
+# Predecir en el conjunto de prueba
+predicciones_rf_fuentes <- predict(rf_model_fuentes, newdata = test_x_fuentes)
+# Matriz de confusión
+cm_rf_fuentes <- confusionMatrix(predicciones_rf_fuentes, test_y_fuentes)
+print(cm_rf_fuentes)
+cat("Precisión del modelo Random Forest con todas las características + Sobel + Fuentes de Luz:", cm_rf_fuentes$overall['Accuracy'] * 100, "%\n")
+
+#sacar importancia del Random forest para cada caracteristica
+importancia_fuentes <- importance(rf_model_fuentes)
+print(importancia_fuentes)
 ```
 

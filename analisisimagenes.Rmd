@@ -483,3 +483,57 @@ importancia_fuentes <- importance(rf_model_fuentes)
 print(importancia_fuentes)
 ```
 
+
+Vamos a probar con la entropía de las imágenes.
+```{r}
+library(entropy)
+extraer_entropia <- function(df_datos) {
+  features <- numeric(nrow(df_datos))
+  
+  cat("Extrayendo características de Entropía de", nrow(df_datos), "imágenes...\n")
+  
+  for (j in 1:nrow(df_datos)) {
+    tryCatch({
+      img <- load.image(df_datos$ruta[j])
+      img_gray <- grayscale(img)
+      entropia <- entropy(table(as.numeric(img_gray)))
+      features[j] <- entropia
+    }, error = function(e) {
+      cat("Error leyendo:", df_datos$ruta[j], "\n")
+    })
+  }
+
+  df_final <- cbind(df_datos, Entropia = features)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  return(df_final)
+}
+ 
+```
+
+```{r}
+# Aplicar la función a los conjuntos de datos
+datos_train_entropia <- extraer_entropia(datos_train_fuentes)
+datos_test_entropia <- extraer_entropia(datos_test_fuentes)
+```
+
+```{r}
+#entrenar modelo con caracteristicas + Sobel + Fuentes de Luz + Entropía
+train_x_entropia <- datos_train_entropia[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia")]
+test_x_entropia <- datos_test_entropia[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia")]
+train_y_entropia <- datos_train_entropia$etiqueta
+test_y_entropia <- datos_test_entropia$etiqueta
+
+set.seed(42)
+rf_model_entropia <- randomForest(x = train_x_entropia, y = train_y_entropia, ntree = 100)
+# Predecir en el conjunto de prueba
+predicciones_rf_entropia <- predict(rf_model_entropia, newdata = test_x_entropia)
+# Matriz de confusión
+cm_rf_entropia <- confusionMatrix(predicciones_rf_entropia, test_y_entropia)
+print(cm_rf_entropia)
+cat("Precisión del modelo Random Forest con todas las características + Sobel + Fuentes de Luz + Entropía:", cm_rf_entropia$overall['Accuracy'] * 100, "%\n")
+
+#sacar importancia del Random forest para cada caracteristica
+importancia_entropia <- importance(rf_model_entropia)
+print(importancia_entropia)
+```
+

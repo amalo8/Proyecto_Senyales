@@ -6,6 +6,7 @@ date: "2025-12-15"
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+rm(list = ls())
 ```
 
 ```{r}
@@ -348,14 +349,14 @@ extraer_sd_V <- function(df_datos) {
 
 ```{r}
 # Aplicar la función a los conjuntos de datos
-datos_train_sd <- extraer_sd_V(datos_train_blur)
-datos_test_sd <- extraer_sd_V(datos_test_blur)
+datos_train_sd <- extraer_sd_V(datos_train_hsv)
+datos_test_sd <- extraer_sd_V(datos_test_hsv)
 ```
 
 ```{r}
 #entrenar modelo con todas las caracteristicas + SD de V
 train_x_sd <- datos_train_sd[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana","SD_V")]
-test_x_sd <- datos_test_sd[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "V_blurred_mean", "SD_V")]
+test_x_sd <- datos_test_sd[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana",  "SD_V")]
 train_y_sd <- datos_train_sd$etiqueta
 test_y_sd <- datos_test_sd$etiqueta
 

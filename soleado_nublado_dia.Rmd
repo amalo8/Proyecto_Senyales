@@ -8,5 +8,6 @@ date: "2025-12-27"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-Vamos a diferenciar los dias soleados de nublados primero usando solo las imagenes DIURNAS
+Vamos a diferenciar los dias soleado de nublado primero usando solo las imagenes DIURNAS
+
 

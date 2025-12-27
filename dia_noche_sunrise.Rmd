@@ -6,6 +6,7 @@ date: "2025-12-27"
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+rm(list = ls())
 ```
 
 Añadimos funciones del RMD de dia_noche

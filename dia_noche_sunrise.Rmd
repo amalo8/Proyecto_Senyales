@@ -1,0 +1,547 @@
+---
+title: "dia_noche_sunrise"
+output: html_document
+date: "2025-12-27"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Añadimos funciones del RMD de dia_noche
+```{r}
+extraer_rgb <- function(df_datos) {
+  
+  # Matriz para R, G, B
+  features <- matrix(0, nrow = nrow(df_datos), ncol = 3)
+  colnames(features) <- c("R_mediana", "G_mediana", "B_mediana")
+  
+  cat("Extrayendo RGB de", nrow(df_datos), "imágenes...\n")
+  
+  for (j in 1:nrow(df_datos)) {
+    tryCatch({
+      img <- readJPEG(df_datos$ruta[j])
+      
+      # Si la imagen es escala de grises (matriz 2D), replicar canales
+      if (length(dim(img)) == 2) {
+        r <- img; g <- img; b <- img
+      } else {
+        # Si es color (matriz 3D)
+        r <- img[,,1]
+        g <- img[,,2]
+        b <- img[,,3]
+      }
+      
+      features[j, 1] = median(r)
+      features[j, 2] = median(g)
+      features[j, 3] = median(b)
+      
+      
+    }, error = function(e) {
+      cat("Error leyendo:", df_datos$ruta[j], "\n")
+    })
+  }
+  
+  # Unir al dataframe y asegurar que la etiqueta es factor
+  df_final <- cbind(df_datos, features)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  
+  return(df_final)
+}
+
+```
+
+```{r}
+# Probar a extraer caracteristicas del espacio HSV
+library(grDevices)
+rgb_a_hsv <- function(r, g, b) {
+  rgb_matrix <- matrix(c(r, g, b), ncol = 3)
+  hsv_matrix <- rgb2hsv(t(rgb_matrix),maxColorValue = 1) #porque los valores ya estan entre 0 y 1
+  return(t(hsv_matrix))
+}
+# Función para extraer características HSV medianas
+extraer_hsv <- function(df_datos) {
+  features <- matrix(0, nrow = nrow(df_datos), ncol = 3)
+  colnames(features) <- c("H_mediana", "S_mediana", "V_mediana")
+  
+  cat("Extrayendo HSV de", nrow(df_datos), "imágenes...\n")
+  
+  for (j in 1:nrow(df_datos)) {
+    tryCatch({
+      img <- readJPEG(df_datos$ruta[j])
+      
+      if (length(dim(img)) == 2) {
+        r <- img; g <- img; b <- img
+      } else {
+        r <- img[,,1]
+        g <- img[,,2]
+        b <- img[,,3]
+      }
+      
+      hsv_vals <- rgb_a_hsv(as.vector(r), as.vector(g), as.vector(b))
+      
+      features[j, 1] = median(hsv_vals[, 1])
+      features[j, 2] = median(hsv_vals[, 2])
+      features[j, 3] = median(hsv_vals[, 3])
+
+      
+    }, error = function(e) {
+      cat("Error leyendo:", df_datos$ruta[j], "\n")
+    })
+  }
+  
+  df_final <- cbind(df_datos, features)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  
+  return(df_final)
+}
+```
+
+```{r}
+# nueva caracteristica: desviacion estandar de V
+extraer_sd_V <- function(df_datos) {
+  features <- numeric(nrow(df_datos))
+  for (j in 1:nrow(df_datos)) {
+    tryCatch({
+      img <- readJPEG(df_datos$ruta[j])
+      if (length(dim(img)) == 3) {
+        r <- img[,,1]
+        g <- img[,,2]
+        b <- img[,,3]
+        hsv_vals <- rgb_a_hsv(as.vector(r), as.vector(g), as.vector(b))
+        V_channel <- matrix(hsv_vals[, 3], nrow = nrow(r), ncol = ncol(r))
+      } else {
+        V_channel <- img
+      }
+      features[j] <- sd(as.vector(V_channel))
+    }, error = function(e) {
+      cat("Error leyendo:", df_datos$ruta[j], "\n")
+    })
+  }
+  df_final <- cbind(df_datos, SD_V = features)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  return(df_final)
+}
+```
+
+
+Añadimos sunrise para probar a ver como funciona
+```{r}
+# Añadimos una clase: sunrise
+# lectura de las imagenes de sunrise
+ruta_sunrise <- file.path(ruta_base_imagenes, "sunrise")
+archivos_sunrise <- list.files(
+  path = ruta_sunrise,
+  pattern = "\\.jpe?g$",
+  full.names = TRUE,
+  recursive = FALSE
+)
+df_sunrise <- data.frame(
+  ruta = archivos_sunrise,
+  etiqueta = 2 # Sunrise
+)
+# Unir con los datos existentes
+datos_imagenes_multi <- rbind(datos_imagenes, df_sunrise)
+set.seed(42)
+indices_entrenamiento_multi <- createDataPartition(
+  y = datos_imagenes_multi$etiqueta,
+  p = 0.8,
+  list = FALSE 
+)
+# Crear los conjuntos de datos de TRAIN y TEST
+datos_train_multi <- datos_imagenes_multi[indices_entrenamiento_multi, ]
+datos_test_multi <- datos_imagenes_multi[-indices_entrenamiento_multi, ]
+```
+
+```{r}
+# Aplicamos el modelo de extracción de características a los nuevos conjuntos 
+datos_train_multi <- extraer_rgb(datos_train_multi)
+datos_train_multi <- extraer_hsv(datos_train_multi)
+datos_train_multi <- extraer_sd_V(datos_train_multi)
+datos_test_multi <- extraer_rgb(datos_test_multi)
+datos_test_multi <- extraer_hsv(datos_test_multi)
+datos_test_multi <- extraer_sd_V(datos_test_multi)
+```
+
+```{r}
+#entrenar modelo 
+train_x_multi <- datos_train_multi[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "SD_V")]
+test_x_multi <- datos_test_multi[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "SD_V")]
+train_y_multi <- datos_train_multi$etiqueta
+test_y_multi <- datos_test_multi$etiqueta
+
+set.seed(42)
+rf_model_multi <- randomForest(x = train_x_multi, y = train_y_multi, ntree = 100)
+# Predecir en el conjunto de prueba
+predicciones_rf_multi <- predict(rf_model_multi, newdata = test_x_multi)
+# Matriz de confusión
+cm_rf_multi <- confusionMatrix(predicciones_rf_multi, test_y_multi)
+print(cm_rf_multi)
+cat("Precisión del modelo Random Forest con todas las características para 3 clases (Día, Noche, Amanecer):", cm_rf_multi$overall['Accuracy'] * 100, "%\n")
+#sacar importancia del Random forest para cada caracteristica
+importancia_multi <- importance(rf_model_multi)
+print(importancia_multi)
+```
+Característica que mide el porcentaje de píxeles de la imagen cuyo tono (H en HSV) corresponde a colores cálidos
+```{r}
+# nueva caracterisica: porcentaje de tonos cálidos (H entre 0 y 60 grados)
+extraer_tonos_calidos <- function(df_datos) {
+  features <- numeric(nrow(df_datos))
+  for (j in 1:nrow(df_datos)) {
+    tryCatch({
+      img <- readJPEG(df_datos$ruta[j])
+      if (length(dim(img)) == 3) {
+        r <- img[,,1]
+        g <- img[,,2]
+        b <- img[,,3]
+        hsv_vals <- rgb_a_hsv(as.vector(r), as.vector(g), as.vector(b))
+        H_channel <- matrix(hsv_vals[, 1] * 360, nrow = nrow(r), ncol = ncol(r)) # Convertir a grados
+      } else {
+        H_channel <- matrix(0, nrow = nrow(img), ncol = ncol(img)) # Asumir 0 si es escala de grises
+      }
+      total_pixeles <- length(H_channel)
+      tonos_calidos <- sum(H_channel >= 0 & H_channel <= 60)
+      features[j] <- (tonos_calidos / total_pixeles) * 100
+    }, error = function(e) {
+      cat("Error leyendo:", df_datos$ruta[j], "\n")
+    })
+  }
+  df_final <- cbind(df_datos, Tonos_calidos = features)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  return(df_final)
+}
+```
+
+```{r}
+# Aplicar la función a los conjuntos de datos
+datos_train_multi_tonos <- extraer_tonos_calidos(datos_train_multi)
+datos_test_multi_tonos <- extraer_tonos_calidos(datos_test_multi)
+```
+
+```{r}
+#entrenar modelo con todas las caracteristicas + Tonos cálidos
+train_x_multi_tonos <- datos_train_multi_tonos[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "SD_V","Tonos_calidos")]
+test_x_multi_tonos <- datos_test_multi_tonos[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "SD_V","Tonos_calidos")]
+train_y_multi_tonos <- datos_train_multi_tonos$etiqueta
+test_y_multi_tonos <- datos_test_multi_tonos$etiqueta
+
+set.seed(42)
+rf_model_multi_tonos <- randomForest(x = train_x_multi_tonos, y = train_y_multi_tonos, ntree = 100)
+# Predecir en el conjunto de prueba
+predicciones_rf_multi_tonos <- predict(rf_model_multi_tonos, newdata = test_x_multi_tonos)
+# Matriz de confusión
+cm_rf_multi_tonos <- confusionMatrix(predicciones_rf_multi_tonos, test_y_multi_tonos)
+print(cm_rf_multi_tonos)
+cat("Precisión del modelo Random Forest con todas las características + Tonos cálidos para 3 clases (Día, Noche, Amanecer):", cm_rf_multi_tonos$overall['Accuracy'] * 100, "%\n")
+
+#sacar importancia del Random forest para cada caracteristica
+importancia_multi_tonos <- importance(rf_model_multi_tonos)
+print(importancia_multi_tonos)
+```
+
+Variación vertical promedio de color (H) y brillo (V) en la imagen.
+```{r}
+# nueva caracteistica: gradientes verticales de h y v
+extraer_gradientes_hv <- function(df_datos) {
+  features_H <- numeric(nrow(df_datos))
+  features_V <- numeric(nrow(df_datos))
+  for (j in 1:nrow(df_datos)) {
+    tryCatch({
+      img <- readJPEG(df_datos$ruta[j])
+      if (length(dim(img)) == 3) {
+        r <- img[,,1]
+        g <- img[,,2]
+        b <- img[,,3]
+        hsv_vals <- rgb_a_hsv(as.vector(r), as.vector(g), as.vector(b))
+        H_channel <- matrix(hsv_vals[, 1], nrow = nrow(r), ncol = ncol(r))
+        V_channel <- matrix(hsv_vals[, 3], nrow = nrow(r), ncol = ncol(r))
+      } else {
+        H_channel <- matrix(0, nrow = nrow(img), ncol = ncol(img))
+        V_channel <- matrix(0, nrow = nrow(img), ncol = ncol(img))
+      }
+      # Calcular gradiente vertical usando diferencias finitas
+      gradiente_H <- abs(diff(H_channel, differences = 1, axis = 1))
+      gradiente_V <- abs(diff(V_channel, differences = 1, axis = 1))
+      features_H[j] <- mean(gradiente_H, na.rm = TRUE)
+      features_V[j] <- mean(gradiente_V, na.rm = TRUE)
+    }, error = function(e) {
+      cat("Error leyendo:", df_datos$ruta[j], "\n")
+    })
+  }
+  df_final <- cbind(df_datos, Gradiente_H = features_H, Gradiente_V = features_V)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  return(df_final)
+}
+```
+
+```{r}
+# Aplicar la función a los conjuntos de datos
+datos_train_multi_gradientes <- extraer_gradientes_hv(datos_train_multi_tonos)
+datos_test_multi_gradientes <- extraer_gradientes_hv(datos_test_multi_tonos)
+```
+
+```{r}
+#entrenar modelo con todas las caracteristicas hasta tonos cálidos + Gradientes H y V
+train_x_multi_gradientes <- datos_train_multi_gradientes[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "SD_V", "Tonos_calidos", "Gradiente_H", "Gradiente_V")]
+
+test_x_multi_gradientes <- datos_test_multi_gradientes[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "SD_V", "Tonos_calidos", "Gradiente_H", "Gradiente_V")]
+train_y_multi_gradientes <- datos_train_multi_gradientes$etiqueta
+test_y_multi_gradientes <- datos_test_multi_gradientes$etiqueta
+
+set.seed(42)
+rf_model_multi_gradientes <- randomForest(x = train_x_multi_gradientes, y = train_y_multi_gradientes, ntree = 100)
+# Predecir en el conjunto de prueba
+predicciones_rf_multi_gradientes <- predict(rf_model_multi_gradientes, newdata = test_x_multi_gradientes)
+# Matriz de confusión
+cm_rf_multi_gradientes <- confusionMatrix(predicciones_rf_multi_gradientes, test_y_multi_gradientes)
+print(cm_rf_multi_gradientes)
+cat("Precisión del modelo Random Forest con todas las características + Gradientes H y V para 3 clases (Día, Noche, Amanecer):", cm_rf_multi_gradientes$overall['Accuracy'] * 100, "%\n")
+
+#sacar importancia del Random forest para cada caracteristica
+importancia_multi_gradientes <- importance(rf_model_multi_gradientes)
+print(importancia_multi_gradientes)
+```
+
+```{r}
+# gradientes por bandas horizontales
+extraer_gradientes_horizontales <- function(df_datos) {
+  features <- numeric(nrow(df_datos))
+  for (j in 1:nrow(df_datos)) {
+    tryCatch({
+      img <- readJPEG(df_datos$ruta[j])
+      if (length(dim(img)) == 3) {
+        r <- img[,,1]
+        g <- img[,,2]
+        b <- img[,,3]
+        hsv_vals <- rgb_a_hsv(as.vector(r), as.vector(g), as.vector(b))
+        V_channel <- matrix(hsv_vals[, 3], nrow = nrow(r),  ncol = ncol(r))
+      } else {
+        V_channel <- matrix(0, nrow = nrow(img), ncol = ncol(img))
+      }
+      # Dividir en 3 bandas horizontales
+      altura <- nrow(V_channel)
+      banda1 <- V_channel[1:floor(altura/3), ]
+      banda2 <- V_channel[(floor(altura/3)+1):floor(2*altura/3), ]
+      banda3 <- V_channel[(floor(2*altura/3)+1):altura, ]
+      # Calcular gradientes verticales para cada banda
+      gradiente_banda1 <- abs(diff(banda1, differences = 1, axis = 1))
+      gradiente_banda2 <- abs(diff(banda2, differences = 1, axis = 1))
+      gradiente_banda3 <- abs(diff(banda3, differences = 1, axis = 1))
+      # Promediar los gradientes
+      mean_gradiente <- mean(c(mean(gradiente_banda1, na.rm = TRUE),
+                               mean(gradiente_banda2, na.rm = TRUE),
+                               mean(gradiente_banda3, na.rm = TRUE)))
+      features[j] <- mean_gradiente
+    }, error = function(e) {
+      cat("Error leyendo:", df_datos$ruta[j], "\n")
+    })
+  }
+  df_final <- cbind(df_datos, Gradiente_V_bandas = features)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  return(df_final)
+}
+```
+
+```{r}
+# Aplicar la función a los conjuntos de datos
+datos_train_multi_bandas <- extraer_gradientes_horizontales(datos_train_multi_gradientes)
+datos_test_multi_bandas <- extraer_gradientes_horizontales(datos_test_multi_gradientes)
+```
+
+```{r}
+#entrenar modelo con todas las caracteristicas hasta gradientes H y V + Gradientes bandas horizontales
+train_x_multi_bandas <- datos_train_multi_bandas[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "SD_V", "Tonos_calidos", "Gradiente_H", "Gradiente_V", "Gradiente_V_bandas")]
+test_x_multi_bandas <- datos_test_multi_bandas[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "SD_V", "Tonos_calidos", "Gradiente_H", "Gradiente_V", "Gradiente_V_bandas")]
+train_y_multi_bandas <- datos_train_multi_bandas$etiqueta
+test_y_multi_bandas <- datos_test_multi_bandas$etiqueta
+
+
+set.seed(42)
+rf_model_multi_bandas <- randomForest(x = train_x_multi_bandas, y = train_y_multi_bandas, ntree = 100)
+# Predecir en el conjunto de prueba
+predicciones_rf_multi_bandas <- predict(rf_model_multi_bandas, newdata = test_x_multi_bandas)
+# Matriz de confusión
+cm_rf_multi_bandas <- confusionMatrix(predicciones_rf_multi_bandas, test_y_multi_bandas)
+print(cm_rf_multi_bandas)
+cat("Precisión del modelo Random Forest con todas las características + Gradientes bandas horizontales para 3 clases (Día, Noche, Amanecer):", cm_rf_multi_bandas$overall['Accuracy'] * 100, "%\n")
+
+#sacar importancia del Random forest para cada caracteristica
+importancia_multi_bandas <- importance(rf_model_multi_bandas)
+print(importancia_multi_bandas)
+```
+
+```{r}
+# division de la imagen en bloques. para cada bloque calcular mediana de V, desviacion de V, mediana de Hm porcentaje de pixeles brillantes
+extraer_caracteristicas_bloques <- function(df_datos, num_bloques = 4) {
+  features_list <- list()
+  for (j in 1:nrow(df_datos)) {
+    tryCatch({
+      img <- readJPEG(df_datos$ruta[j])
+      if (length(dim(img)) == 3) {
+        r <- img[,,1]
+        g <- img[,,2]
+        b <- img[,,3]
+        hsv_vals <- rgb_a_hsv(as.vector(r), as.vector(g), as.vector(b))
+        H_channel <- matrix(hsv_vals[, 1], nrow = nrow(r), ncol = ncol(r))
+        V_channel <- matrix(hsv_vals[, 3], nrow = nrow(r), ncol = ncol(r))
+      } else {
+        H_channel <- matrix(0, nrow = nrow(img), ncol = ncol(img))
+        V_channel <- matrix(0, nrow = nrow(img), ncol = ncol(img))
+      }
+      altura <- nrow(V_channel)
+      ancho <- ncol(V_channel)
+      bloque_altura <- floor(altura / num_bloques)
+      bloque_ancho <- floor(ancho / num_bloques)
+      caracteristicas_bloques <- c()
+      for (i in 0:(num_bloques - 1)) {
+        for (k in 0:(num_bloques - 1)) {
+          fila_inicio <- i * bloque_altura + 1
+          fila_fin <- ifelse(i == num_bloques - 1, altura, (i + 1) * bloque_altura)
+          col_inicio <- k * bloque_ancho + 1
+          col_fin <- ifelse(k == num_bloques - 1, ancho, (k + 1) * bloque_ancho)
+          bloque_H <- H_channel[fila_inicio:fila_fin, col_inicio:col_fin]
+          bloque_V <- V_channel[fila_inicio:fila_fin, col_inicio:col_fin]
+          mediana_H <- median(bloque_H, na.rm = TRUE)
+          sd_V <- sd(as.vector(bloque_V), na.rm = TRUE)
+          porcentaje_brillantes <- sum(bloque_V > 0.9) / length(bloque_V) * 100
+          caracteristicas_bloques <- c(caracteristicas_bloques, mediana_H, sd_V, porcentaje_brillantes)
+        }
+      }
+      features_list[[j]] <- caracteristicas_bloques
+    }, error = function(e) {
+      cat("Error leyendo:", df_datos$ruta[j], "\n")
+    })
+  }
+  features_matrix <- do.call(rbind, features_list)
+  colnames(features_matrix) <- paste0("Bloque_", rep(1:(num_bloques^2), each = 3),
+                                      c("_Mediana_H", "_SD_V", "_Porcentaje_Brillantes"))
+  df_final <- cbind(df_datos, features_matrix)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  return(df_final)
+}
+```
+
+```{r}
+# Aplicar la función a los conjuntos de datos
+datos_train_multi_bloques <- extraer_caracteristicas_bloques(datos_train_multi_bandas, num_bloques = 4)
+datos_test_multi_bloques <- extraer_caracteristicas_bloques(datos_test_multi_bandas, num_bloques = 4)
+```
+
+```{r}
+#entrenar modelo con todas las caracteristicas hasta gradientes bandas horizontales + caracteristicas de bloques
+train_x_multi_bloques <- datos_train_multi_bloques[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "SD_V", "Tonos_calidos", "Gradiente_H", "Gradiente_V", "Gradiente_V_bandas",
+                                                       grep("Bloque_", colnames(datos_train_multi_bloques), value = TRUE))]
+test_x_multi_bloques <- datos_test_multi_bloques[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "SD_V", "Tonos_calidos", "Gradiente_H", "Gradiente_V", "Gradiente_V_bandas",
+                                                     grep("Bloque_", colnames(datos_test_multi_bloques), value = TRUE))]
+train_y_multi_bloques <- datos_train_multi_bloques$etiqueta
+test_y_multi_bloques <- datos_test_multi_bloques$etiqueta
+
+set.seed(42)
+rf_model_multi_bloques <- randomForest(x = train_x_multi_bloques, y = train_y_multi_bloques, ntree = 100)
+# Predecir en el conjunto de prueba
+predicciones_rf_multi_bloques <- predict(rf_model_multi_bloques, newdata = test_x_multi_bloques)
+# Matriz de confusión
+cm_rf_multi_bloques <- confusionMatrix(predicciones_rf_multi_bloques, test_y_multi_bloques)
+print(cm_rf_multi_bloques)
+cat("Precisión del modelo Random Forest con todas las características + Características de bloques para 3 clases (Día, Noche, Amanecer):", cm_rf_multi_bloques$overall['Accuracy'] * 100, "%\n")
+#sacar importancia del Random forest para cada caracteristica
+importancia_multi_bloques <- importance(rf_model_multi_bloques)
+print(importancia_multi_bloques)
+```
+
+```{r}
+# proporcion de pixeles extremos por bloque (extraer proporción de píxeles muy oscuros y muy brillantes en cada bloque)
+extraer_pixeles_extremos_bloques <- function(df_datos, num_bloques = 4) {
+  features_list <- list()
+  for (j in 1:nrow(df_datos)) {
+    tryCatch({
+      img <- readJPEG(df_datos$ruta[j])
+      if (length(dim(img)) == 3) {
+        r <- img[,,1]
+        g <- img[,,2]
+        b <- img[,,3]
+        hsv_vals <- rgb_a_hsv(as.vector(r), as.vector(g), as.vector(b))
+        V_channel <- matrix(hsv_vals[, 3], nrow = nrow(r), ncol = ncol(r))
+      } else {
+        V_channel <- matrix(0, nrow = nrow(img), ncol = ncol(img))
+      }
+      altura <- nrow(V_channel)
+      ancho <- ncol(V_channel)
+      bloque_altura <- floor(altura / num_bloques)
+      bloque_ancho <- floor(ancho / num_bloques)
+      caracteristicas_bloques <- c()
+      for (i in 0:(num_bloques - 1)) {
+        for (k in 0:(num_bloques - 1)) {
+          fila_inicio <- i * bloque_altura + 1
+          fila_fin <- ifelse(i == num_bloques - 1, altura, (i + 1) * bloque_altura)
+          col_inicio <- k * bloque_ancho + 1
+          col_fin <- ifelse(k == num_bloques - 1, ancho, (k + 1) * bloque_ancho)
+          bloque_V <- V_channel[fila_inicio:fila_fin, col_inicio:col_fin]
+          total_pixeles_bloque <- length(bloque_V)
+          pixeles_oscuros <- sum(bloque_V < 0.1)
+          pixeles_brillantes <- sum(bloque_V > 0.9)
+          proporcion_oscuros <- (pixeles_oscuros / total_pixeles_bloque) * 100
+          proporcion_brillantes <- (pixeles_brillantes / total_pixeles_bloque) * 100
+          caracteristicas_bloques <- c(caracteristicas_bloques, proporcion_oscuros, proporcion_brillantes)
+        }
+      }
+      features_list[[j]] <- caracteristicas_bloques
+    }, error = function(e) {
+      cat("Error leyendo:", df_datos$ruta[j], "\n")
+    })
+  }
+  features_matrix <- do.call(rbind, features_list)
+  colnames(features_matrix) <- paste0("Bloque_", rep(1:(num_bloques^2), each = 2),
+                                      c("_Proporcion_Oscuros", "_Proporcion_Brillantes"))
+  df_final <- cbind(df_datos, features_matrix)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  return(df_final)
+}
+```
+
+```{r}
+# Aplicar la función a los conjuntos de datos
+datos_train_multi_extremos <- extraer_pixeles_extremos_bloques(datos_train_multi_bloques, num_bloques = 4)
+datos_test_multi_extremos <- extraer_pixeles_extremos_bloques(datos_test_multi_bloques, num_bloques = 4)
+```
+
+```{r}
+#entrenar modelo con todas las caracteristicas hasta caracteristicas de bloques + proporcion de pixeles extremos por bloque
+train_x_multi_extremos <- datos_train_multi_extremos[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "SD_V", "Tonos_calidos", "Gradiente_H", "Gradiente_V", "Gradiente_V_bandas",
+                                                         grep("Bloque_", colnames(datos_train_multi_extremos), value = TRUE))]
+test_x_multi_extremos <- datos_test_multi_extremos[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "SD_V", "Tonos_calidos", "Gradiente_H", "Gradiente_V", "Gradiente_V_bandas",
+                                                       grep("Bloque_", colnames(datos_test_multi_extremos), value = TRUE))]
+train_y_multi_extremos <- datos_train_multi_extremos$etiqueta
+test_y_multi_extremos <- datos_test_multi_extremos$etiqueta
+
+set.seed(42)
+rf_model_multi_extremos <- randomForest(x = train_x_multi_extremos, y = train_y_multi_extremos, ntree = 100)
+# Predecir en el conjunto de prueba
+predicciones_rf_multi_extremos <- predict(rf_model_multi_extremos, newdata = test_x_multi_extremos)
+# Matriz de confusión
+cm_rf_multi_extremos <- confusionMatrix(predicciones_rf_multi_extremos, test_y_multi_extremos)
+print(cm_rf_multi_extremos)
+cat("Precisión del modelo Random Forest con todas las características + Proporción de píxeles extremos por bloque para 3 clases (Día, Noche, Amanecer):", cm_rf_multi_extremos$overall['Accuracy'] * 100, "%\n")
+
+#sacar importancia del Random forest para cada caracteristica
+importancia_multi_extremos <- importance(rf_model_multi_extremos)
+print(importancia_multi_extremos)
+```
+
+```{r}
+# sacar imagenes que falla
+indices_fallidos <- which(predicciones_rf_multi_extremos != test_y_multi_extremos)
+imagenes_fallidas <- datos_test_multi_extremos$ruta[indices_fallidos]
+print("Imágenes mal clasificadas:")
+length(imagenes_fallidas)
+
+library(magick)
+imgs <- image_read(imagenes_fallidas)
+grid_imagenes <- image_montage(imgs, 
+                               tile = "9x9", 
+                               geometry = "x150+10+10", # Tamaño + márgenes
+                               shadow = TRUE)
+
+print(grid_imagenes)
+```
+

@@ -17,4 +17,131 @@ histograma de colores n pixeles entre dos valores
 --> analizar que pasa si metemos otra cosa
 --> analizar que pasa si en imágenes sale poco cielo, lo identifica o no, y si etiqueta bien
 
+-------------------------------------
+DIA Y NOCHE  Accuracy : 0.9343  (23 mal clasificadas)
+------------------------------------
+-------------------------------------
+DIA, NOCHE Y SUNRISE  Accuracy : 0.8571   (76 mal clasificadas)
+------------------------------------
 
+1. Espacio de Color RGB (Medianas)
+Función: extraer_rgb
+
+Qué hace: Calcula la mediana de los valores de los canales Rojo (R), Verde (G) y Azul (B) de toda la imagen. Usa la mediana en lugar de la media porque es más robusta frente a valores extremos (ruido).
+
+Por qué ayuda:
+
+Día: Suele tener valores altos en los tres canales (luz blanca) o dominancia de Azul (cielo).
+
+Noche: Valores muy bajos en los tres canales (oscuridad).
+
+Sunrise: Predominio del canal Rojo (R) sobre el Azul (B) debido a los tonos anaranjados.
+
+2. Espacio de Color HSV (Medianas)
+Función: extraer_hsv
+
+Qué hace: Convierte la imagen a un espacio más perceptivo:
+
+H (Hue/Matiz): El tipo de color (rojo, verde, azul...).
+
+S (Saturation/Saturación): Qué tan puro o grisáceo es el color.
+
+V (Value/Brillo): Qué tan claro u oscuro es.
+
+Por qué ayuda:
+
+H (Matiz): Es crítico para el Sunrise. Un amanecer tiene un matiz específico (naranjas/rojos) muy diferente al azul del día.
+
+V (Brillo): Es el discriminador más fuerte para Día vs. Noche. (Día = V alto, Noche = V bajo).
+
+3. Contraste Global (Desviación Estándar de V)
+Función: extraer_sd_V
+
+Qué hace: Calcula la desviación estándar (sd) del canal de brillo (V). Mide cuánto varía la luz dentro de la imagen.
+
+Por qué ayuda:
+
+Noche: Suele ser muy plana (todo negro), por lo que la SD es baja, excepto si hay farolas (picos de luz).
+
+Día: Tiene sombras y luces fuertes, generando una SD alta.
+
+Sunrise: Tiene un contraste moderado pero específico (el sol brillante contra un entorno más oscuro).
+
+4. Porcentaje de Tonos Cálidos
+Función: extraer_tonos_calidos
+
+Qué hace matemáticamente:
+
+Convierte la imagen a HSV.
+
+Toma el canal H (Hue/Matiz). En R, este valor suele venir normalizado de 0 a 1. Tu código lo multiplica por 360 para convertirlo a grados estándar del círculo cromático.
+
+Filtra y cuenta los píxeles que caen en el rango [0, 60] grados.
+
+Calcula qué porcentaje del total de píxeles representa esa cuenta.
+
+¿Qué colores son esos?
+
+0° - 15°: Rojos intensos.
+
+15° - 40°: Naranjas.
+
+40° - 60°: Amarillos.
+
+Por qué es crucial para tu modelo:
+
+Sunrise (Amanecer): Se define físicamente por la dispersión de Rayleigh en la atmósfera, que deja pasar los colores de onda larga (rojo/naranja). Esperamos un porcentaje muy alto de tonos cálidos aquí.
+
+Día: El cielo es azul (aprox. 200°-240°) y las nubes son blancas (baja saturación). A menos que sea un desierto o un campo de trigo, el porcentaje de tonos cálidos suele ser bajo.
+
+Noche: Generalmente es negra o azul oscuro.
+
+Ojo: Las farolas de sodio (luz naranja) pueden generar falsos positivos aquí. Por eso es importante que el modelo combine esta característica con la de Brillo (V) (el amanecer es naranja y brillante en el horizonte; la noche es naranja solo en puntos pequeños y el resto oscuro).
+
+5. Gradientes Verticales de Color y Brillo
+Función: extraer_gradientes_hv
+
+Qué hace: Mide cómo cambian los valores de H (color) y V (brillo) al moverse verticalmente por la imagen (de arriba a abajo). Usa diff para ver la diferencia entre filas adyacentes.
+
+Por qué ayuda: Esta es una característica clave para Amaneceres.
+
+Día/Noche: Suelen ser uniformes verticalmente (o todo oscuro, o todo cielo azul). Tienen gradientes bajos.
+
+Sunrise: Tiene un cambio drástico vertical. Pasas de un cielo oscuro/azul arriba a un horizonte brillante/naranja abajo. Eso genera un Gradiente V y H alto.
+
+6. Gradientes por Bandas Horizontales
+Función: extraer_gradientes_horizontales
+
+Qué hace: Divide la imagen en 3 franjas horizontales (Cielo, Horizonte, Suelo) y calcula el gradiente vertical promedio en cada una.
+
+Por qué ayuda: Refina la característica anterior.
+
+En un Amanecer, el cambio fuerte de luz suele ocurrir en la banda central o inferior (el horizonte), mientras que en el Día, el cielo (banda superior) puede ser plano. Esto ayuda al modelo a buscar "dónde está el horizonte".
+
+7. Características Locales por Bloques (Grilla)
+Función: extraer_caracteristicas_bloques
+
+Qué hace: Divide la imagen en una cuadrícula (ej. 4x4 = 16 bloques). Para cada bloque calcula:
+
+Mediana del color (H).
+
+Variación del brillo (SD de V).
+
+Porcentaje de píxeles muy brillantes (>0.9).
+
+Por qué ayuda: Introduce información espacial.
+
+Una foto de Noche con una luna tendrá 15 bloques oscuros y 1 bloque muy brillante.
+
+Una foto de Día tendrá casi todos los bloques brillantes.
+
+Un Sunrise tendrá bloques inferiores anaranjados y bloques superiores azules/oscuros. Esto permite al modelo detectar la estructura de la escena, no solo el color promedio.
+
+8. Píxeles Extremos por Bloque (Histograma Local)
+Función: extraer_pixeles_extremos_bloques
+
+Qué hace: En cada bloque de la cuadrícula, cuenta qué porcentaje de píxeles son "negros puros" (<0.1) o "blancos puros" (>0.9).
+
+Por qué ayuda:
+
+Ayuda a distinguir Noches con luz artificial (muchos negros + pocos blancos intensos) de Días nublados (pocos negros + pocos blancos intensos, todo gris medio).

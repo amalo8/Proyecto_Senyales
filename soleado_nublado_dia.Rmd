@@ -18,10 +18,10 @@ library(caret)
 library(randomForest)
 
 # Definir la ruta base
-ruta_base_imagenes <- "imagenes/weather"
+ruta_base_imagenes <- "clouds_train"
 
-# lectura de las imagenes de cloudy
-ruta_cloudy <- file.path(ruta_base_imagenes, "Cloudy")
+# lectura de las imagenes de Nublado
+ruta_cloudy <- file.path(ruta_base_imagenes, "nublado")
 archivos_cloudy <- list.files(
   path = ruta_cloudy,
   pattern = "\\.jpe?g$",
@@ -35,9 +35,9 @@ df_cloudy <- data.frame(
 )
 
 
-# Leer y etiquetar imágenes del subdirectorio Shine
+# Leer y etiquetar imágenes del subdirectorio Despejado
 
-ruta_shine <- file.path(ruta_base_imagenes, "Shine")
+ruta_shine <- file.path(ruta_base_imagenes, "despejado")
 archivos_shine <- list.files(
   path = ruta_shine,
   pattern = "\\.jpe?g$",
@@ -193,7 +193,7 @@ confusionMatrix(predicciones_hsv, datos_test_hsv$etiqueta)
 Vemos cual ha clasificado mal
 ```{r}
 misclasificados_hsv <- datos_test_hsv[predicciones_hsv != datos_test_hsv$etiqueta, ]
-misclasificados_hsv
+misclasificados_hsv 
 ```
 
 Entrenamos y evaluamos el modelo con las caracteristicas RGB+HSV
@@ -220,3 +220,235 @@ predicciones_completo <- predict(modelo_rf_completo, newdata = datos_test_comple
 confusionMatrix(predicciones_completo, datos_test_completo$etiqueta)
 ```
 
+
+Representamos las caracterísiticas:
+
+```{r}
+library(ggplot2)
+library(tidyr)
+```
+
+
+```{r}
+
+# Transformar datos a formato largo para plotear 
+datos_long <- pivot_longer(datos_train_rgb, cols = c("R_mediana", "G_mediana", "B_mediana"), 
+                           names_to = "Feature", values_to = "Valor")
+
+ggplot(datos_long, aes(x = Feature, y = Valor, fill = etiqueta)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Soleado")) +
+  labs(title = "Separación de Clases usando RGB",
+       y = "Intensidad Mediana (0-1)") +
+  theme_minimal()
+```
+
+
+```{r}
+# Transformar datos a formato largo para plotear 
+datos_long_hsv <- pivot_longer(datos_train_hsv, cols = c("H_mediana", "S_mediana", "V_mediana"), 
+                           names_to = "Feature", values_to = "Valor")
+
+ggplot(datos_long_hsv, aes(x = Feature, y = Valor, fill = etiqueta)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Soleado")) +
+  labs(title = "Separación de Clases usando RGB",
+       y = "Intensidad Mediana (0-1)") +
+  theme_minimal()
+```
+
+```{r}
+extraer_ratio_azul <- function(df_datos) {
+  features <- numeric(nrow(df_datos))
+  for (j in 1:nrow(df_datos)) {
+    tryCatch({
+      img <- readJPEG(df_datos$ruta[j])
+      if (length(dim(img)) == 3) {
+        r <- as.vector(img[,,1])
+        g <- as.vector(img[,,2])
+        b <- as.vector(img[,,3])
+        
+        # Un pixel es "Azul cielo" si el canal Azul es mayor que el Rojo y el Verde
+        # y además tiene cierto brillo (para no confundir con objetos oscuros azules)
+        pixeles_azules <- sum(b > r & b > g & b > 0.4) 
+        features[j] <- (pixeles_azules / length(b)) * 100
+      } else {
+        features[j] <- 0
+      }
+    }, error = function(e) cat("Error:", df_datos$ruta[j], "\n"))
+  }
+  df_final <- cbind(df_datos, Ratio_Azul = features)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  return(df_final)
+}
+```
+
+
+```{r}
+# Extraer característica ratio azul para los conjuntos de entrenamiento y prueba
+datos_train_ratio_azul <- extraer_ratio_azul(datos_train)
+datos_test_ratio_azul <- extraer_ratio_azul(datos_test)
+# Entrenar el modelo Random Forest con características RGB
+modelo_ratio_azul <- randomForest(
+  etiqueta ~ Ratio_Azul,
+  data = datos_train_ratio_azul,
+  ntree = 100
+)
+# Evaluar el modelo en el conjunto de prueba
+predicciones_ratio_azul <- predict(modelo_ratio_azul, newdata = datos_test_ratio_azul)
+confusionMatrix(predicciones_ratio_azul, datos_test_ratio_azul$etiqueta)
+```
+
+Probamos un modelo con caracterísitcas S y ratio de azul:
+
+```{r}
+train_s_azul <- extraer_ratio_azul(datos_train_hsv)
+test_s_azul <- extraer_ratio_azul(datos_test_hsv)
+```
+
+
+```{r}
+# Entrenar el modelo Random Forest con características RGB
+modelo_s_azul <- randomForest(
+  etiqueta ~ S_mediana + Ratio_Azul,
+  data = train_s_azul,
+  ntree = 100
+)
+# Evaluar el modelo en el conjunto de prueba
+predicciones_s_azul <- predict(modelo_s_azul, newdata = test_s_azul)
+confusionMatrix(predicciones_s_azul, test_s_azul$etiqueta)
+```
+
+```{r}
+# Combinar características RGB y HSV
+datos_train_mas_completo <- cbind(
+  datos_train_rgb[, c("R_mediana", "G_mediana", "B_mediana")],
+  datos_train_hsv[, c("H_mediana", "S_mediana", "V_mediana")],
+  Ratio_Azul = train_s_azul$Ratio_Azul,
+  etiqueta = datos_train_rgb$etiqueta,
+  ruta = datos_train_rgb$ruta
+)
+datos_test_mas_completo <- cbind(
+  datos_test_rgb[, c("R_mediana", "G_mediana", "B_mediana")],
+  datos_test_hsv[, c("H_mediana", "S_mediana", "V_mediana")],
+  etiqueta = datos_test_rgb$etiqueta,
+  Ratio_Azul = test_s_azul$Ratio_Azul,
+  ruta = datos_test_rgb$ruta
+)
+
+modelo_mas_completo <- randomForest(
+  etiqueta ~ R_mediana + G_mediana + B_mediana + H_mediana + S_mediana + V_mediana + Ratio_Azul,
+  data = datos_train_mas_completo,
+  ntree = 100
+)
+# Evaluar el modelo en el conjunto de prueba
+predicciones_mas_completas <- predict(modelo_mas_completo, newdata = datos_test_mas_completo)
+confusionMatrix(predicciones_mas_completas, datos_test_mas_completo$etiqueta)
+modelo_mas_completo$importance
+```
+
+Probamos solo con el S
+
+```{r}
+modelo_s <- randomForest(
+  etiqueta ~  S_mediana ,
+  data = datos_train_mas_completo,
+  ntree = 100
+)
+# Evaluar el modelo en el conjunto de prueba
+predicciones_s <- predict(modelo_s, newdata = datos_test_mas_completo)
+confusionMatrix(predicciones_s, datos_test_mas_completo$etiqueta)
+modelo_s$importance
+```
+
+
+Probamos a incluir al modelo más completo las características brillo y contraste:
+
+```{r}
+library(jpeg)
+
+# Función para extraer Brillo (Media) y Contraste (SD) sobre la imagen en escala de grises
+extraer_brillo_contraste <- function(df_datos) {
+  
+  # Inicializamos vectores para las dos nuevas características
+  features_brillo <- numeric(nrow(df_datos))
+  features_contraste <- numeric(nrow(df_datos))
+  
+  cat("Extrayendo Brillo y Contraste (Gris) de", nrow(df_datos), "imágenes...\n")
+  
+  for (j in 1:nrow(df_datos)) {
+    tryCatch({
+      img <- readJPEG(df_datos$ruta[j])
+      
+      # 1. CONVERSIÓN A ESCALA DE GRISES
+      # Comprobamos si la imagen tiene 3 canales (Color RGB)
+      if (length(dim(img)) == 3) {
+        r <- img[,,1]
+        g <- img[,,2]
+        b <- img[,,3]
+        
+        # Usamos la fórmula estándar de luminancia (percepción humana)
+        # Y = 0.299*R + 0.587*G + 0.114*B
+        gris_matrix <- 0.299 * r + 0.587 * g + 0.114 * b
+        
+      } else {
+        # Si ya tiene 2 dimensiones, asumimos que ya es escala de grises
+        gris_matrix <- img
+      }
+      
+      # Convertimos la matriz a un vector para los cálculos estadísticos
+      gris_vector <- as.vector(gris_matrix)
+      
+      # 2. CÁLCULO DE BRILLO (Media)
+      # Un valor alto (cercano a 1) significa una imagen muy clara (Soleado/Día)
+      # Un valor bajo (cercano a 0) significa una imagen oscura (Noche)
+      features_brillo[j] <- mean(gris_vector, na.rm = TRUE)
+      
+      # 3. CÁLCULO DE CONTRASTE (Desviación Estándar)
+      # Un valor alto significa mucha diferencia entre luces y sombras (Soleado duro)
+      # Un valor bajo significa que todo es de un gris similar (Nublado plano o Noche cerrada)
+      features_contraste[j] <- sd(gris_vector, na.rm = TRUE)
+      
+    }, error = function(e) {
+      cat("Error leyendo:", df_datos$ruta[j], "\n")
+      # En caso de error, asignamos NA o 0 (opcional)
+      features_brillo[j] <- NA
+      features_contraste[j] <- NA
+    })
+  }
+  
+  # Unir las nuevas columnas al dataframe original
+  df_final <- cbind(df_datos, 
+                    Brillo = features_brillo, 
+                    Contraste = features_contraste)
+  
+  return(df_final)
+}
+```
+
+```{r}
+datos_train_bc <- extraer_brillo_contraste(datos_train_mas_completo)
+datos_test_bc <- extraer_brillo_contraste(datos_test_mas_completo)
+
+modelo_bc <- randomForest(
+  etiqueta ~  R_mediana + G_mediana + B_mediana + H_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste,
+  data = datos_train_bc,
+  ntree = 100
+)
+# Evaluar el modelo en el conjunto de prueba
+predicciones_bc <- predict(modelo_bc, newdata = datos_test_bc)
+confusionMatrix(predicciones_bc, datos_test_bc$etiqueta)
+modelo_bc$importance
+```
+
+```{r}
+modelo_3_mejores <- randomForest(
+  etiqueta ~  S_mediana + Ratio_Azul + Contraste,
+  data = datos_train_bc,
+  ntree = 100
+)
+# Evaluar el modelo en el conjunto de prueba
+predicciones_3_mejores <- predict(modelo_3_mejores, newdata = datos_test_bc)
+confusionMatrix(predicciones_3_mejores, datos_test_bc$etiqueta)
+modelo_3_mejores$importance
+```

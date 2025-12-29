@@ -16,7 +16,7 @@ library(caret)
 library(randomForest)
 
 # Definir la ruta base
-ruta_base_imagenes <- "imagenes"
+ruta_base_imagenes <- "imagenes/daynight"
 
 # lectura de las imagenes de noche
 ruta_noche <- file.path(ruta_base_imagenes, "nighttime")

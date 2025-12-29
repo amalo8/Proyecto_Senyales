@@ -6,8 +6,217 @@ date: "2025-12-27"
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+rm(list = ls())
 ```
 
-Vamos a diferenciar los dias soleado de nublado primero usando solo las imagenes DIURNAS
+Vamos a diferenciar los dias soleado de nublado
+Cargamos las imagenes de weather, y cogemos las carpetas Cloudy y Shine. 
+```{r}
+library(jpeg)
+library(class)
+library(caret)
+library(randomForest)
 
+# Definir la ruta base
+ruta_base_imagenes <- "imagenes/weather"
+
+# lectura de las imagenes de cloudy
+ruta_cloudy <- file.path(ruta_base_imagenes, "Cloudy")
+archivos_cloudy <- list.files(
+  path = ruta_cloudy,
+  pattern = "\\.jpe?g$",
+  full.names = TRUE,
+  recursive = FALSE
+)
+
+df_cloudy <- data.frame(
+  ruta = archivos_cloudy,
+  etiqueta = 0 # Cloudy
+)
+
+
+# Leer y etiquetar imágenes del subdirectorio Shine
+
+ruta_shine <- file.path(ruta_base_imagenes, "Shine")
+archivos_shine <- list.files(
+  path = ruta_shine,
+  pattern = "\\.jpe?g$",
+  full.names = TRUE,
+  recursive = FALSE
+)
+
+df_shine <- data.frame(
+  ruta = archivos_shine,
+  etiqueta = 1 # Shine
+)
+
+# lectura de las imagenes 
+
+datos_imagenes <- rbind(df_cloudy, df_shine)
+
+
+set.seed(42) 
+
+indices_entrenamiento <- createDataPartition(
+  y = datos_imagenes$etiqueta,
+  p = 0.8,
+  list = FALSE 
+)
+
+# Crear los conjuntos de datos de TRAIN y TEST
+datos_train <- datos_imagenes[indices_entrenamiento, ]
+datos_test <- datos_imagenes[-indices_entrenamiento, ]
+
+
+```
+Probamos como primeras caracteristicas RGB:
+
+```{r}
+extraer_rgb <- function(df_datos) {
+  
+  # Matriz para R, G, B
+  features <- matrix(0, nrow = nrow(df_datos), ncol = 3)
+  colnames(features) <- c("R_mediana", "G_mediana", "B_mediana")
+  
+  cat("Extrayendo RGB de", nrow(df_datos), "imágenes...\n")
+  
+  for (j in 1:nrow(df_datos)) {
+    tryCatch({
+      img <- readJPEG(df_datos$ruta[j])
+      
+      # Si la imagen es escala de grises (matriz 2D), replicar canales
+      if (length(dim(img)) == 2) {
+        r <- img; g <- img; b <- img
+      } else {
+        # Si es color (matriz 3D)
+        r <- img[,,1]
+        g <- img[,,2]
+        b <- img[,,3]
+      }
+      
+      features[j, 1] = median(r)
+      features[j, 2] = median(g)
+      features[j, 3] = median(b)
+      
+      
+    }, error = function(e) {
+      cat("Error leyendo:", df_datos$ruta[j], "\n")
+    })
+  }
+  
+  # Unir al dataframe y asegurar que la etiqueta es factor
+  df_final <- cbind(df_datos, features)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  
+  return(df_final)
+}
+
+```
+
+
+```{r}
+# Extraer características RGB para los conjuntos de entrenamiento y prueba
+datos_train_rgb <- extraer_rgb(datos_train)
+datos_test_rgb <- extraer_rgb(datos_test)
+# Entrenar el modelo Random Forest con características RGB
+modelo_rf_rgb <- randomForest(
+  etiqueta ~ R_mediana + G_mediana + B_mediana,
+  data = datos_train_rgb,
+  ntree = 100
+)
+# Evaluar el modelo en el conjunto de prueba
+predicciones_rgb <- predict(modelo_rf_rgb, newdata = datos_test_rgb)
+confusionMatrix(predicciones_rgb, datos_test_rgb$etiqueta)
+```
+
+
+```{r}
+# Probar a extraer caracteristicas del espacio HSV
+library(grDevices)
+rgb_a_hsv <- function(r, g, b) {
+  rgb_matrix <- matrix(c(r, g, b), ncol = 3)
+  hsv_matrix <- rgb2hsv(t(rgb_matrix),maxColorValue = 1) #porque los valores ya estan entre 0 y 1
+  return(t(hsv_matrix))
+}
+# Función para extraer características HSV medianas
+extraer_hsv <- function(df_datos) {
+  features <- matrix(0, nrow = nrow(df_datos), ncol = 3)
+  colnames(features) <- c("H_mediana", "S_mediana", "V_mediana")
+  
+  cat("Extrayendo HSV de", nrow(df_datos), "imágenes...\n")
+  
+  for (j in 1:nrow(df_datos)) {
+    tryCatch({
+      img <- readJPEG(df_datos$ruta[j])
+      
+      if (length(dim(img)) == 2) {
+        r <- img; g <- img; b <- img
+      } else {
+        r <- img[,,1]
+        g <- img[,,2]
+        b <- img[,,3]
+      }
+      
+      hsv_vals <- rgb_a_hsv(as.vector(r), as.vector(g), as.vector(b))
+      
+      features[j, 1] = median(hsv_vals[, 1])
+      features[j, 2] = median(hsv_vals[, 2])
+      features[j, 3] = median(hsv_vals[, 3])
+
+      
+    }, error = function(e) {
+      cat("Error leyendo:", df_datos$ruta[j], "\n")
+    })
+  }
+  
+  df_final <- cbind(df_datos, features)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  
+  return(df_final)
+}
+```
+Entrenamos y evaluamos el modelo con las caracteristicas HSV
+```{r}
+# Extraer características HSV para los conjuntos de entrenamiento y prueba
+datos_train_hsv <- extraer_hsv(datos_train)
+datos_test_hsv <- extraer_hsv(datos_test)
+# Entrenar el modelo Random Forest con características HSV
+modelo_rf_hsv <- randomForest(
+  etiqueta ~ H_mediana + S_mediana + V_mediana,
+  data = datos_train_hsv,
+  ntree = 100
+)
+# Evaluar el modelo en el conjunto de prueba
+predicciones_hsv <- predict(modelo_rf_hsv, newdata = datos_test_hsv)
+confusionMatrix(predicciones_hsv, datos_test_hsv$etiqueta)
+```
+Vemos cual ha clasificado mal
+```{r}
+misclasificados_hsv <- datos_test_hsv[predicciones_hsv != datos_test_hsv$etiqueta, ]
+misclasificados_hsv
+```
+
+Entrenamos y evaluamos el modelo con las caracteristicas RGB+HSV
+```{r}
+# Combinar características RGB y HSV
+datos_train_completo <- cbind(
+  datos_train_rgb[, c("R_mediana", "G_mediana", "B_mediana")],
+  datos_train_hsv[, c("H_mediana", "S_mediana", "V_mediana")],
+  etiqueta = datos_train_rgb$etiqueta
+)
+datos_test_completo <- cbind(
+  datos_test_rgb[, c("R_mediana", "G_mediana", "B_mediana")],
+  datos_test_hsv[, c("H_mediana", "S_mediana", "V_mediana")],
+  etiqueta = datos_test_rgb$etiqueta
+)
+# Entrenar el modelo Random Forest con características combinadas
+modelo_rf_completo <- randomForest(
+  etiqueta ~ R_mediana + G_mediana + B_mediana + H_mediana + S_mediana + V_mediana,
+  data = datos_train_completo,
+  ntree = 100
+)
+# Evaluar el modelo en el conjunto de prueba
+predicciones_completo <- predict(modelo_rf_completo, newdata = datos_test_completo)
+confusionMatrix(predicciones_completo, datos_test_completo$etiqueta)
+```
 

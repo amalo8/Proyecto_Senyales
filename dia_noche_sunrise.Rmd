@@ -128,6 +128,8 @@ extraer_sd_V <- function(df_datos) {
 
 Añadimos sunrise para probar a ver como funciona
 ```{r}
+# Definir la ruta base
+ruta_base_imagenes <- "imagenes/daynight"
 # Añadimos una clase: sunrise
 # lectura de las imagenes de sunrise
 ruta_sunrise <- file.path(ruta_base_imagenes, "sunrise")

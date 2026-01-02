@@ -145,3 +145,16 @@ Qué hace: En cada bloque de la cuadrícula, cuenta qué porcentaje de píxeles 
 Por qué ayuda:
 
 Ayuda a distinguir Noches con luz artificial (muchos negros + pocos blancos intensos) de Días nublados (pocos negros + pocos blancos intensos, todo gris medio).
+
+----------------------------------------
+¿DE DÓNDE HEMOS SACADO LOS DATOS?
+----------------------------------------
+
+- carpeta "imagenes": 
+https://www.kaggle.com/datasets/aymenkhouja/timeofdaydataset?select=sunrise
+(es de donde sacamos las fotos de entrenamiento para clasificar entre día, noche y amanecer)
+
+- carpeta ""clouds_train:
+
+
+

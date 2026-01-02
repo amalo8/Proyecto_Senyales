@@ -154,7 +154,7 @@ Ayuda a distinguir Noches con luz artificial (muchos negros + pocos blancos inte
 https://www.kaggle.com/datasets/aymenkhouja/timeofdaydataset?select=sunrise
 (es de donde sacamos las fotos de entrenamiento para clasificar entre día, noche y amanecer)
 
-- carpeta ""clouds_train:
-
-
+- carpeta "clouds_train":
+https://www.kaggle.com/datasets/jockeroika/clouds-photos
+(las fotos usadas para entrenar el clasificador de soleado/nublado son las fotos de las subcarpetas clear sky, cirriform clouds y stratocumulus clouds de la carpeta clouds train)
 

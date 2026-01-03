@@ -1,0 +1,231 @@
+---
+title: "Seleccionar Cielo"
+author: "Lucía Benages Guijarro"
+date: "2026-01-03"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(jpeg)
+library(class)
+library(caret)
+library(randomForest)
+library(magick)
+library(fields)
+library(dplyr)
+```
+
+
+```{r}
+ruta_prueba <- 'imagenes/daynight/daytime/daylight_7.jpeg'
+img <- readJPEG(ruta_prueba)
+img2 <- image_read(ruta_prueba)
+print(img2)
+plot(as.raster(img))
+
+k <- matrix(c(-1,-1,-1,-1,8,-1,-1,-1,-1), ncol = 3, nrow = 3)
+print(k)
+img3 <- img2 %>% image_convolve(kernel = k)
+plot(as.raster(img3))
+```
+```{r}
+nublado <- paste0('Nublado-Despejado(54de100)/Nublado(34de50)/',list.files('/home/lucia/Escritorio/MCD/AS/Proyecto_Senyales/Nublado-Despejado(54de100)/Nublado(34de50)'))
+k <- matrix(c(-1,-1,-1,-1,8,-1,-1,-1,-1), ncol = 3, nrow = 3)
+i <- 1
+while(i<=length(nublado)){
+  img <- image_read(nublado[i])
+  img <- image_scale(img,"500x500!")
+  imgf <- img %>% image_convolve(kernel=k)
+  plot(as.raster(img))
+  plot(as.raster(imgf))
+  i <- i+1
+}
+img <- image_read(nublado[6])
+img <- image_scale(img,"500x500!")
+imgf <- img %>% image_convolve(kernel=k)
+plot(as.raster(img))
+plot(as.raster(imgf))
+```
+
+```{r}
+for (i in seq(from=0, to=500, by=50)){
+  print(i)
+}
+```
+
+
+
+```{r}
+rgb_im <- image_data(img, channels = "rgb")
+rgb_num <- as.integer(rgb_im)
+plot(as.raster(aperm(rgb_im, c(2,3,1))))
+for (i in seq(from=51,to=500,by=50)) {
+  for (j in seq(from=51,to=500,by=50)) {
+    var <- sd(image_data(imgf)[,(i-50):i,(j-50):j])
+    if (var<20){
+      b <- mean(rgb_num[(i-50):i,(j-50):j,3])
+      g <- mean(rgb_num[(i-50):i,(j-50):j,2])
+      r <- mean(rgb_num[(i-50):i,(j-50):j,1])
+      if (g<b&r<b){
+        print('rgb')
+        #print(g)
+        #print(b)
+        #print(r)
+        print('hsv')
+        hsv_num <- rgb2hsv(matrix(aperm(rgb_num,c(3,1,2)),nrow = 3))
+        hsv_num <- array(hsv_num, dim = dim(rgb_num))
+        h <- mean(hsv_num[(i-50):i,(j-50):j,1])
+        s <- mean(hsv_num[(i-50):i,(j-50):j,2])
+        v <- mean(hsv_num[(i-50):i,(j-50):j,3])
+        if(v<0.29){
+         print(h)
+         print(s)
+         print(v)
+         plot(as.raster(aperm(rgb_im[,(i-50):i,(j-50):j], c(2,3,1))))  
+        }
+      }
+    }
+    
+  }
+}
+```
+
+```{r}
+img <- image_read(nublado[12])
+img <- image_scale(img,"501x501!")
+imgf <- img %>% image_convolve(kernel = k) 
+plot(as.raster(imgf))
+imgf <- imgf %>% image_quantize(colorspace = 'gray') %>% image_data(channels = 'gray')
+imgf <- as.numeric(imgf)
+rgb_im <- image_data(img, channels = "rgb")
+
+girar <- FALSE
+if(girar){
+  imgf<- aperm(imgf,c(2,1,3))
+  rgb_im <- aperm(rgb_im, c(2,3,1))
+} else{
+  rgb_im <- aperm(rgb_im,c(3,2,1))
+}
+
+plot(as.raster(imgf[,,1]))
+rgb_num <- as.integer(rgb_im)/255
+dim(rgb_num) <- dim(rgb_im)
+plot(as.raster(rgb_num)) #, c(2,3,1))))
+
+for(i in seq(51, 501, by=50)){
+  print(sum(as.numeric(imgf[(i-50):i,1:50,1])))
+  plot(as.raster(imgf[(i-50):i,1:50,1]))
+  imgf[(i-50):i,1:50,1] <- 0.8
+  plot(as.raster(imgf[,,1]))
+  rgb_num[(i-50):i,1:50,] <- 0
+  plot(as.raster(rgb_num)) 
+}
+# 1: sum 10-8 -> 171
+# 2: 100-> 292 g
+# 3: 51 -> 102, 256 g
+# 4: 59 -> 143 g
+# 12: 53 -> 231
+
+```
+
+```{r}
+SoloCielo <- function(ruta, corte, girar=FALSE){
+  k <- matrix(c(-1,-1,-1,-1,8,-1,-1,-1,-1), ncol = 3, nrow = 3)
+  
+  img <- image_read(ruta)
+  img <- image_scale(img,"501x501!")
+  imgf <- img %>% image_convolve(kernel = k)
+  imgf <- imgf %>% image_quantize(colorspace = 'gray') %>% image_data(channels = 'gray')
+  imgf <- as.numeric(imgf)
+  rgb_im <- image_data(img, channels = "rgb")
+  
+  if(girar){
+    imgf<- aperm(imgf,c(2,1,3))
+    rgb_im <- aperm(rgb_im, c(2,3,1))
+  } else{
+    rgb_im <- aperm(rgb_im,c(3,2,1))
+  }
+
+  #plot(as.raster(imgf[,,1]))
+  rgb_num <- as.integer(rgb_im)/255
+  dim(rgb_num) <- dim(rgb_im)
+  plot(as.raster(rgb_num))
+  
+  for(i in seq(51, 501, by=50)){
+    for(j in seq(51, 501, by=50)){
+        a <- sum(as.numeric(imgf[(j-50):j,(i-50):i,1]))
+      if(a>corte){
+        rgb_num[(j-50):nrow(rgb_num),(i-50):i,] <- 0 
+      }
+    }
+  }
+  plot(as.raster(rgb_num)) 
+}
+
+#SoloCielo(nublado[7],150,TRUE)
+giros <- c(F,T,T,T,T,T,T,T,T,T,T,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,T,T,F,F,F) 
+for(i in seq(1,length(nublado))){
+  SoloCielo(nublado[i], 150, giros[i])
+}
+```
+```{r}
+despejado <- paste0('Nublado-Despejado(54de100)/Despejado(20de50)/',list.files('/home/lucia/Escritorio/MCD/AS/Proyecto_Senyales/Nublado-Despejado(54de100)/Despejado(20de50)'))
+
+#giros <- c(F,T,T,T,T,T,T,T,T,T,T,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,T,T,F,F,F) 
+giros <- c(T,F,F,T,F,F,F,F,F,F,F,F,F,F,T,T,T,T,T,T)
+for(i in seq(1,length(despejado))){
+  SoloCielo(despejado[i], 140, giros[i])
+}
+```
+
+
+
+```{r}
+graphics.off()
+par(
+  mfrow = c(1,1),
+  mar   = c(0,0,0,0),
+  bg    = "white",
+  xaxs  = "i",
+  yaxs  = "i"
+)
+for(ruta in nublado){
+  print(ruta)
+  img <- image_read(ruta)
+  img <- image_scale(img,"501x501!")
+  rgb_im <- image_data(img, channels = "rgb")
+  rgb_num <- as.numeric(rgb_im)
+  dim(rgb_num) <- dim(rgb_im)
+  plot(as.raster(aperm(rgb_num,c(2,3,1))))
+}
+```
+
+
+```{r}
+rgb_im <- image_data(img, channels = "rgb")
+rgb_num <- as.integer(rgb_im)
+plot(as.raster(aperm(rgb_im, c(2,3,1))))
+for (i in seq(from=51,to=501,by=50)) {
+  var <- sd(imgf[1,(i-50):i,1:50])
+  print(var)
+  print(paste0('as.numeric(imgf[1,(',i,'-50):',i,',1:50])'))
+  print(max(as.numeric(imgf[1,(i-50):i,1:50])))
+  print(sum(as.numeric(imgf[1,(i-50):i,1:50])))
+  rgb_num[(i-50):i,1:50,] <- 0
+  plot(as.raster(rgb_num/255)) 
+}
+
+for (i in seq(from=51,to=501,by=50)) {
+  var <- sd(imgf[1,1:50,(i-50):i])
+  print(var)
+  print(max(as.numeric(imgf[1,1:50,(i-50):i])))
+  rgb_num[1:50,(i-50):i,] <- 0
+  plot(as.raster(aperm(rgb_num/255,c(2,1,3)))) 
+}
+# 9: max 34, maxt: 50
+```
+

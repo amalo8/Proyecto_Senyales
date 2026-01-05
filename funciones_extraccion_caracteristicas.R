@@ -246,7 +246,7 @@ extraer_brillo_contraste <- function(df, lista) {
 # parámetros de entrada: 
 #   - dataframe con las rutas locales a las imágenes en la columna "ruta"
 #   - lista con la info de los 3 canales de cada imagen obtenida con la función 
-#     leer_images
+#     leer_imagenes
 # parámetros de salida:
 #   - dataframe original con la adición de la columna sd_V
 
@@ -284,7 +284,7 @@ extraer_sd_V <- function(df, lista){
 # parámetros de entrada: 
 #   - dataframe con las rutas locales a las imágenes en la columna "ruta"
 #   - lista con la info de los 3 canales de cada imagen obtenida con la función 
-#     leer_images
+#     leer_imagenes
 # parámetros de salida:
 #   - dataframe original con la adición de la columna Porcentaje_Calidos
 
@@ -333,7 +333,7 @@ extraer_tonos_calidos <- function(df, lista){
 # parámetros de entrada: 
 #   - dataframe con las rutas locales a las imágenes en la columna "ruta"
 #   - lista con la info de los 3 canales de cada imagen obtenida con la función 
-#     leer_images
+#     leer_imagenes
 # parámetros de salida:
 #   - dataframe original con la adición de la columna Gradiente_H y Gradiente_V
 
@@ -381,4 +381,235 @@ extraer_gradientes_hv <- function(df, lista){
   return(df_final)
 }
 
+# Extracción de gradientes verticales por bandas horizontales
 
+# parámetros de entrada: 
+#   - dataframe con las rutas locales a las imágenes en la columna "ruta"
+#   - lista con la info de los 3 canales de cada imagen obtenida con la función 
+#     leer_imagenes
+# parámetros de salida:
+#   - dataframe original con la adición de la columna Gradiente_V_Bandas
+
+extraer_gradientes_horizontales <- function(df, lista){
+  # vector vacío para guardar los valores
+  features <- numeric(nrow(df))
+  
+  cat("Extrayendo gradientes por bandas de", nrow(df), "imágenes...\n")
+  
+  j <- 1
+  for (nombre in df$ruta){
+    # dimensiones originales para construir las matrices
+    filas <- nrow(lista[[nombre]]$r)
+    columnas <- ncol(lista[[nombre]]$r)
+    
+    # extraemos los canales HSV
+    hsv_vals <- rgb_a_hsv(
+      as.vector(lista[[nombre]]$r), 
+      as.vector(lista[[nombre]]$g), 
+      as.vector(lista[[nombre]]$b)
+    )
+    
+    # matriz de V
+    V_matrix <- matrix(hsv_vals[, 3], nrow = filas, ncol = columnas)
+    
+    # dividir en 3 bandas horizontales
+    altura <- nrow(V_matrix)
+    banda1 <- V_matrix[1:floor(altura/3), ]
+    banda2 <- V_matrix[(floor(altura/3)+1):floor(2*altura/3), ]
+    banda3 <- V_matrix[(floor(2*altura/3)+1):altura, ]
+    
+    # cálculo de los gradientes verticales para cada banda
+    gradiente_banda1 <- abs(diff(banda1))
+    gradiente_banda2 <- abs(diff(banda2))
+    gradiente_banda3 <- abs(diff(banda3))
+    
+    # promedio de los gradientes
+    mean_gradiente <- mean(c(mean(gradiente_banda1, na.rm = TRUE),
+                             mean(gradiente_banda2, na.rm = TRUE),
+                             mean(gradiente_banda3, na.rm = TRUE)))
+    
+    # guardamos la nueva característica
+    features[j] <- mean_gradiente
+    
+    j <- j + 1
+  }
+  
+  # unimos la nueva info al dataframe y nos aseguramos de que la etiqueta es 
+  # de tipo factor
+  df_final <- cbind(df, Gradiente_V_Bandas = features)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  
+  # devolvemos el dataframe original con los nuevos datos añadidos
+  return(df_final)
+}
+
+# Extracción de características por bloques (cuadrícula)
+
+# parámetros de entrada: 
+#   - dataframe con las rutas locales a las imágenes en la columna "ruta"
+#   - lista con la info de los 3 canales de cada imagen obtenida con la función 
+#     leer_imagenes
+#   - num_bloques: número de divisiones por eje 
+# parámetros de salida:
+#   - dataframe original con características de Mediana_H, sd_V y Porcentaje_Brillantes por bloque
+
+extraer_caracteristicas_bloques <- function(df, lista, num_bloques = 4) {
+  
+  # lista para guardar los vectores de características de cada imagen
+  features_list <- list()
+  
+  cat("Extrayendo características por bloques de", nrow(df), "imágenes...\n")
+  
+  for (j in 1:nrow(df)) {
+    nombre <- df$ruta[j]
+    
+    # dimensiones originales
+    altura <- nrow(lista[[nombre]]$r)
+    ancho <- ncol(lista[[nombre]]$r)
+    
+    # extraer canales HSV
+    hsv_vals <- rgb_a_hsv(
+      as.vector(lista[[nombre]]$r), 
+      as.vector(lista[[nombre]]$g), 
+      as.vector(lista[[nombre]]$b)
+    )
+    
+    # reconstruimos matrices H y V
+    H_matrix <- matrix(hsv_vals[, 1], nrow = altura, ncol = ancho)
+    V_matrix <- matrix(hsv_vals[, 3], nrow = altura, ncol = ancho)
+    
+    # calculamos el tamaño de cada bloque
+    bloque_altura <- floor(altura / num_bloques)
+    bloque_ancho <- floor(ancho / num_bloques)
+    
+    # vector para las características de la imagen actual
+    caracteristicas_imagen <- c()
+    
+    # doble bucle para recorrer la cuadrícula
+    for (i in 0:(num_bloques - 1)) {
+      for (k in 0:(num_bloques - 1)) {
+        
+        # índices de inicio y fin del bloque
+        fila_inicio <- i * bloque_altura + 1
+        fila_fin <- ifelse(i == num_bloques - 1, altura, (i + 1) * bloque_altura)
+        col_inicio <- k * bloque_ancho + 1
+        col_fin <- ifelse(k == num_bloques - 1, ancho, (k + 1) * bloque_ancho)
+        
+        # extraemos cada bloques
+        bloque_H <- H_matrix[fila_inicio:fila_fin, col_inicio:col_fin]
+        bloque_V <- V_matrix[fila_inicio:fila_fin, col_inicio:col_fin]
+        
+        # cálculo de la mediana de H y la desviación estándar de V
+        mediana_H <- median(bloque_H, na.rm = TRUE)
+        sd_V <- sd(as.vector(bloque_V), na.rm = TRUE)
+        
+        # consideramos que un pixel es brillante si su valor V > 0.9
+        porcentaje_brillantes <- (sum(bloque_V > 0.9) / length(bloque_V)) * 100
+        
+        # acumulamos en el vector de la imagen
+        caracteristicas_imagen <- c(caracteristicas_imagen, mediana_H, sd_V, porcentaje_brillantes)
+      }
+    }
+    features_list[[j]] <- caracteristicas_imagen
+  }
+  
+  # convertimos la lista a matriz y asignamos nombres a las columnas
+  features_matrix <- do.call(rbind, features_list)
+  
+  colnames(features_matrix) <- paste0("Bloque_", rep(1:(num_bloques^2), each = 3), 
+                                      c("_Mediana_H", "_sd_V", "_Porcentaje_Brillantes"))
+  
+  # unimos la nueva info al dataframe y nos aseguramos de que la etiqueta es 
+  # de tipo factor
+  df_final <- cbind(df, features_matrix)
+  # devolvemos el dataframe original con los nuevos datos añadidos
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  
+  return(df_final)
+}
+
+# Extracción de proporción de píxeles extremos por bloque
+
+# parámetros de entrada: 
+#   - dataframe con las rutas locales a las imágenes en la columna "ruta"
+#   - lista con la info de los 3 canales de cada imagen obtenida con la función 
+#     leer_imagenes
+#   - num_bloques: número de divisiones por eje 
+# parámetros de salida:
+#   - dataframe original con las columnas de proporción de oscuros y brillantes por bloque
+
+extraer_pixeles_extremos_bloques <- function(df, lista, num_bloques = 4) {
+  
+  # lista para guardar los vectores de características
+  features_list <- list()
+  
+  cat("Extrayendo píxeles extremos por bloques de", nrow(df), "imágenes...\n")
+  
+  for (j in 1:nrow(df)) {
+    nombre <- df$ruta[j]
+    
+    # dimensiones originales
+    altura <- nrow(lista[[nombre]]$r)
+    ancho <- ncol(lista[[nombre]]$r)
+    
+    # extraemos canales HSV 
+    hsv_vals <- rgb_a_hsv(
+      as.vector(lista[[nombre]]$r), 
+      as.vector(lista[[nombre]]$g), 
+      as.vector(lista[[nombre]]$b)
+    )
+    
+    # reconstruimos la matriz V
+    V_matrix <- matrix(hsv_vals[, 3], nrow = altura, ncol = ancho)
+    
+    # calculamos el tamaño de cada bloque
+    bloque_altura <- floor(altura / num_bloques)
+    bloque_ancho <- floor(ancho / num_bloques)
+    
+    # vector para las características 
+    caracteristicas_imagen <- c()
+    
+    # doble bucle para recorrer la cuadrícula
+    for (i in 0:(num_bloques - 1)) {
+      for (k in 0:(num_bloques - 1)) {
+        
+        # índices de inicio y fin del bloque
+        fila_inicio <- i * bloque_altura + 1
+        fila_fin <- ifelse(i == num_bloques - 1, altura, (i + 1) * bloque_altura)
+        col_inicio <- k * bloque_ancho + 1
+        col_fin <- ifelse(k == num_bloques - 1, ancho, (k + 1) * bloque_ancho)
+        
+        # extraemos el bloque del canal V
+        bloque_V <- V_matrix[fila_inicio:fila_fin, col_inicio:col_fin]
+        total_pixeles_bloque <- length(bloque_V)
+        
+        # calculamos píxeles extremos
+        # oscuros (V < 0.1) y brillantes (V > 0.9)
+        pixeles_oscuros <- sum(bloque_V < 0.1)
+        pixeles_brillantes <- sum(bloque_V > 0.9)
+        
+        proporcion_oscuros <- (pixeles_oscuros / total_pixeles_bloque) * 100
+        proporcion_brillantes <- (pixeles_brillantes / total_pixeles_bloque) * 100
+        
+        # acumulamos los dos valores por bloque
+        caracteristicas_imagen <- c(caracteristicas_imagen, proporcion_oscuros, proporcion_brillantes)
+      }
+    }
+    features_list[[j]] <- caracteristicas_imagen
+  }
+  
+  # convertimos la lista a matriz
+  features_matrix <- do.call(rbind, features_list)
+  
+  # asignamos nombres a las columnas 
+  colnames(features_matrix) <- paste0("Bloque_", rep(1:(num_bloques^2), each = 2),
+                                      c("_Proporcion_Oscuros", "_Proporcion_Brillantes"))
+  
+  # unimos la nueva info al dataframe y nos aseguramos de que la etiqueta es 
+  # de tipo factor
+  df_final <- cbind(df, features_matrix)
+  # devolvemos el dataframe original con los nuevos datos añadidos
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  
+  return(df_final)
+}

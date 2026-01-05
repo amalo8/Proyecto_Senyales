@@ -211,25 +211,11 @@ extraer_brillo_contraste <- function(df, lista) {
   
   cat("Extrayendo Brillo y Contraste (Gris) de", nrow(df), "imágenes...\n")
   
-  for (nombre in 1:nrow(df)) {
-    tryCatch({
-      img <- readJPEG(df$ruta[j])
-      
-      # 1. CONVERSIÓN A ESCALA DE GRISES
-      # Comprobamos si la imagen tiene 3 canales (Color RGB)
-      if (length(dim(img)) == 3) {
-        r <- img[,,1]
-        g <- img[,,2]
-        b <- img[,,3]
-        
-        # Usamos la fórmula estándar de luminancia (percepción humana)
-        # Y = 0.299*R + 0.587*G + 0.114*B
-        gris_matrix <- 0.299 * r + 0.587 * g + 0.114 * b
-        
-      } else {
-        # Si ya tiene 2 dimensiones, asumimos que ya es escala de grises
-        gris_matrix <- img
-      }
+  j <- 1
+  for (nombre in df$ruta) {
+    
+      # matriz de grises
+      gris_matrix <- 0.299 * lista[nombre]$r + 0.587 * lista[nombre]$g + 0.114 * lista[nombre]$b
       
       # Convertimos la matriz a un vector para los cálculos estadísticos
       gris_vector <- as.vector(gris_matrix)
@@ -244,12 +230,7 @@ extraer_brillo_contraste <- function(df, lista) {
       # Un valor bajo significa que todo es de un gris similar (Nublado plano o Noche cerrada)
       features_contraste[j] <- sd(gris_vector, na.rm = TRUE)
       
-    }, error = function(e) {
-      cat("Error leyendo:", df$ruta[j], "\n")
-      # En caso de error, asignamos NA o 0 (opcional)
-      features_brillo[j] <- NA
-      features_contraste[j] <- NA
-    })
+      j <- j+1
   }
   
   # Unir las nuevas columnas al dataframe original
@@ -259,3 +240,4 @@ extraer_brillo_contraste <- function(df, lista) {
   
   return(df_final)
 }
+

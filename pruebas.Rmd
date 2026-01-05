@@ -64,63 +64,20 @@ indices_entrenamiento <- createDataPartition(
 datos_train <- datos_imagenes[indices_entrenamiento, ]
 datos_test <- datos_imagenes[-indices_entrenamiento, ]
 
-
+# Cargamos las funciones de lectura y extracción de características
+source("funciones_extraccion_caracteristicas.R")
 ```
 
 ```{r}
-extraer_rgb <- function(df_datos) {
-  
-  # Matriz para R, G, B
-  features <- matrix(0, nrow = nrow(df_datos), ncol = 3)
-  colnames(features) <- c("R_mediana", "G_mediana", "B_mediana")
-  
-  cat("Extrayendo RGB de", nrow(df_datos), "imágenes...\n")
-  
-  for (j in 1:nrow(df_datos)) {
-    tryCatch({
-      img <- readJPEG(df_datos$ruta[j])
-      
-      # Si la imagen es escala de grises (matriz 2D), replicar canales
-      if (length(dim(img)) == 2) {
-        r <- img; g <- img; b <- img
-      } else {
-        # Si es color (matriz 3D)
-        r <- img[,,1]
-        g <- img[,,2]
-        b <- img[,,3]
-      }
-      
-      features[j, 1] = median(r)
-      features[j, 2] = median(g)
-      features[j, 3] = median(b)
-      
-      
-    }, error = function(e) {
-      cat("Error leyendo:", df_datos$ruta[j], "\n")
-    })
-  }
-  
-  # Unir al dataframe y asegurar que la etiqueta es factor
-  df_final <- cbind(df_datos, features)
-  df_final$etiqueta <- as.factor(df_final$etiqueta)
-  
-  return(df_final)
-}
+# Leemos las imagenes
+lista_train <- leer_imagenes(datos_train)
+lista_test <- leer_imagenes(datos_test)
 
-# Aplicamos la función 
-datos_train <- extraer_rgb(datos_train)
-datos_test <- extraer_rgb(datos_test)
+# Aplicamos la función para extraer las medianas de los canales RGB
+datos_train <- extraer_rgb(datos_train, lista_train)
+datos_test <- extraer_rgb(datos_test, lista_test)
 
 print(head(datos_train))
-
-
-
-```
-```{r}
-#Preprocesamiento de imagenes
-#misma resolucion y rango de valores
-
-
 
 ```
 
@@ -191,64 +148,21 @@ cat("Precisión del modelo Random Forest:", cm_rf$overall['Accuracy'] * 100, "%\
 ```
 ```{r}
 # Probar a extraer caracteristicas del espacio HSV
-library(grDevices)
-rgb_a_hsv <- function(r, g, b) {
-  rgb_matrix <- matrix(c(r, g, b), ncol = 3)
-  hsv_matrix <- rgb2hsv(t(rgb_matrix),maxColorValue = 1) #porque los valores ya estan entre 0 y 1
-  return(t(hsv_matrix))
-}
-# Función para extraer características HSV medianas
-extraer_hsv <- function(df_datos) {
-  features <- matrix(0, nrow = nrow(df_datos), ncol = 3)
-  colnames(features) <- c("H_mediana", "S_mediana", "V_mediana")
-  
-  cat("Extrayendo HSV de", nrow(df_datos), "imágenes...\n")
-  
-  for (j in 1:nrow(df_datos)) {
-    tryCatch({
-      img <- readJPEG(df_datos$ruta[j])
-      
-      if (length(dim(img)) == 2) {
-        r <- img; g <- img; b <- img
-      } else {
-        r <- img[,,1]
-        g <- img[,,2]
-        b <- img[,,3]
-      }
-      
-      hsv_vals <- rgb_a_hsv(as.vector(r), as.vector(g), as.vector(b))
-      
-      features[j, 1] = median(hsv_vals[, 1])
-      features[j, 2] = median(hsv_vals[, 2])
-      features[j, 3] = median(hsv_vals[, 3])
-
-      
-    }, error = function(e) {
-      cat("Error leyendo:", df_datos$ruta[j], "\n")
-    })
-  }
-  
-  df_final <- cbind(df_datos, features)
-  df_final$etiqueta <- as.factor(df_final$etiqueta)
-  
-  return(df_final)
-}
-
 # Aplicar la función a los conjuntos de datos
-datos_train_hsv <- extraer_hsv(datos_train)
-datos_test_hsv <- extraer_hsv(datos_test)
+datos_train <- extraer_hsv(datos_train, lista_train)
+datos_test <- extraer_hsv(datos_test, lista_test)
 # Seleccionar solo columnas numéricas HSV
 cols_hsv <- c("H_mediana", "S_mediana", "V_mediana")
-train_x_hsv <- datos_train_hsv[, cols_hsv]
-test_x_hsv <- datos_test_hsv[, cols_hsv]
-train_y_hsv <- datos_train_hsv$etiqueta
-test_y_hsv <- datos_test_hsv$etiqueta
+train_x_hsv <- datos_train[, cols_hsv]
+test_x_hsv <- datos_test[, cols_hsv]
+train_y_hsv <- datos_train$etiqueta
+test_y_hsv <- datos_test$etiqueta
 ```
 
 ```{r}
 
 #Mostrar boxplots de las caracteristicas HSV
-datos_long_hsv <- pivot_longer(datos_train_hsv, cols = c("H_mediana", "S_mediana", "V_mediana"), 
+datos_long_hsv <- pivot_longer(datos_train, cols = c("H_mediana", "S_mediana", "V_mediana"), 
                            names_to = "Feature", values_to = "Valor")
 ggplot(datos_long_hsv, aes(x = Feature, y = Valor, fill = etiqueta)) +
   geom_boxplot() +
@@ -263,7 +177,7 @@ ggplot(datos_long_hsv, aes(x = Feature, y = Valor, fill = etiqueta)) +
 #plotear en 3D las caracteristicas HSV medianos, con cada punto segun su etiqueta
 library(plotly)
 fig_hsv <- plot_ly(
-  data = datos_train_hsv,
+  data = datos_train,
   x = ~H_mediana,
   y = ~S_mediana,
   z = ~V_mediana,
@@ -301,10 +215,10 @@ cat("Precisión del modelo Random Forest con HSV:", cm_rf_hsv$overall['Accuracy'
 ```
 ```{r}
 #Entrenar con todas las caracteristicas RGB + HSV
-train_x_todas <- datos_train_hsv[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana")]
-test_x_todas <- datos_test_hsv[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana")]
-train_y_todas <- datos_train_hsv$etiqueta
-test_y_todas <- datos_test_hsv$etiqueta
+train_x_todas <- datos_train[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana")]
+test_x_todas <- datos_test[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana")]
+train_y_todas <- datos_train$etiqueta
+test_y_todas <- datos_test$etiqueta
 
 set.seed(42)
 rf_model_todas <- randomForest(x = train_x_todas, y = train_y_todas, ntree = 100)
@@ -318,7 +232,7 @@ cat("Precisión del modelo Random Forest con todas las características:", cm_rf
 
 ```{r}
 #sacar nombre de imagenes mal clasificadas
-mal_clasificadas <- datos_test_hsv[predicciones_rf_todas != test_y_todas, "ruta"]
+mal_clasificadas <- datos_test[predicciones_rf_todas != test_y_todas, "ruta"]
 cat("Imágenes mal clasificadas:\n")
 print(mal_clasificadas)
 ```

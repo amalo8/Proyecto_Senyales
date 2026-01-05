@@ -77,7 +77,7 @@ extraer_rgb <- function(df, lista) {
   
   # calculamos las medianas de los 3 canales de cada imagen
   j <- 1
-  for (nombre in names(df)) {
+  for (nombre in df$ruta) {
       features[j, 1] = median(lista[nombre]$r)
       features[j, 2] = median(lista[nombre]$g)
       features[j, 3] = median(lista[nombre]$b)
@@ -132,7 +132,7 @@ extraer_hsv <- function(df, lista) {
   
   # calculamos las medianas de los 3 canales de cada imagen
   j <- 1
-  for (nombre in names(df)) {
+  for (nombre in df$ruta) {
 
       hsv_vals <- rgb_a_hsv(
         as.vector(lista[nombre]$r), 
@@ -166,7 +166,7 @@ extraer_hsv <- function(df, lista) {
 # parámetros de salida:
 #   - dataframe original con la adición de las columna Ratio_Azul
 
-extraer_ratio_azul <- function(df) {
+extraer_ratio_azul <- function(df, lista) {
   
   # vector vacío para guardar las ratios
   features <- numeric(nrow(df))
@@ -174,7 +174,7 @@ extraer_ratio_azul <- function(df) {
   cat("Extrayendo ratios de", nrow(df), "imágenes...\n")
   
   j <- 1
-  for (nombre in names(df)) {
+  for (nombre in df$ruta) {
         
       # Un pixel es "Azul cielo" si el canal Azul es mayor que el Rojo y el Verde
       # y además tiene cierto brillo (para no confundir con objetos oscuros azules)
@@ -191,5 +191,71 @@ extraer_ratio_azul <- function(df) {
   df_final$etiqueta <- as.factor(df_final$etiqueta)
   
   # devolvemos el dataframe original con los nuevos datos añadidos
+  return(df_final)
+}
+
+# Extracción del brillo y contraste de la imagen
+
+# parámetros de entrada: 
+#   - dataframe con las rutas locales a las imágenes en la columna "ruta"
+#   - lista con la info de los 3 canales de cada imagen obtenida con la función 
+#     read_images
+# parámetros de salida:
+#   - dataframe original con la adición de las columna Brillo y Contraste
+
+extraer_brillo_contraste <- function(df, lista) {
+  
+  # inicializamos vectores para las dos nuevas características
+  features_brillo <- numeric(nrow(df))
+  features_contraste <- numeric(nrow(df))
+  
+  cat("Extrayendo Brillo y Contraste (Gris) de", nrow(df), "imágenes...\n")
+  
+  for (nombre in 1:nrow(df)) {
+    tryCatch({
+      img <- readJPEG(df$ruta[j])
+      
+      # 1. CONVERSIÓN A ESCALA DE GRISES
+      # Comprobamos si la imagen tiene 3 canales (Color RGB)
+      if (length(dim(img)) == 3) {
+        r <- img[,,1]
+        g <- img[,,2]
+        b <- img[,,3]
+        
+        # Usamos la fórmula estándar de luminancia (percepción humana)
+        # Y = 0.299*R + 0.587*G + 0.114*B
+        gris_matrix <- 0.299 * r + 0.587 * g + 0.114 * b
+        
+      } else {
+        # Si ya tiene 2 dimensiones, asumimos que ya es escala de grises
+        gris_matrix <- img
+      }
+      
+      # Convertimos la matriz a un vector para los cálculos estadísticos
+      gris_vector <- as.vector(gris_matrix)
+      
+      # 2. CÁLCULO DE BRILLO (Media)
+      # Un valor alto (cercano a 1) significa una imagen muy clara (Soleado/Día)
+      # Un valor bajo (cercano a 0) significa una imagen oscura (Noche)
+      features_brillo[j] <- mean(gris_vector, na.rm = TRUE)
+      
+      # 3. CÁLCULO DE CONTRASTE (Desviación Estándar)
+      # Un valor alto significa mucha diferencia entre luces y sombras (Soleado duro)
+      # Un valor bajo significa que todo es de un gris similar (Nublado plano o Noche cerrada)
+      features_contraste[j] <- sd(gris_vector, na.rm = TRUE)
+      
+    }, error = function(e) {
+      cat("Error leyendo:", df$ruta[j], "\n")
+      # En caso de error, asignamos NA o 0 (opcional)
+      features_brillo[j] <- NA
+      features_contraste[j] <- NA
+    })
+  }
+  
+  # Unir las nuevas columnas al dataframe original
+  df_final <- cbind(df, 
+                    Brillo = features_brillo, 
+                    Contraste = features_contraste)
+  
   return(df_final)
 }

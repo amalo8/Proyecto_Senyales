@@ -18,7 +18,7 @@ leer_imagenes <- function(df){
   # creamos una lista vacía dónde guardaremos los valores de cada imagen
   lista_imagenes <- list()
   
-  at("Leyendo", nrow(df), "imágenes...\n")
+  cat("Leyendo", nrow(df), "imágenes...\n")
   
   for (j in 1:nrow(df)) {
     tryCatch({
@@ -41,12 +41,12 @@ leer_imagenes <- function(df){
       }
       
       # guardamos los canales
-      lista_canales["r"] <- r
-      lista_canales["g"] <- g
-      lista_canales["b"] <- b
+      lista_canales$r <- r
+      lista_canales$g <- g
+      lista_canales$b <- b
       
       # guardamos la lista   
-      lista_imagenes[df$ruta[j]] <- lista_canales
+      lista_imagenes[[df$ruta[j]]] <- lista_canales
       
     }, error = function(e) {
       cat("Error leyendo:", df$ruta[j], "\n")
@@ -78,9 +78,9 @@ extraer_rgb <- function(df, lista) {
   # calculamos las medianas de los 3 canales de cada imagen
   j <- 1
   for (nombre in df$ruta) {
-      features[j, 1] = median(lista[nombre]$r)
-      features[j, 2] = median(lista[nombre]$g)
-      features[j, 3] = median(lista[nombre]$b)
+      features[j, 1] <- median(lista[[nombre]]$r)
+      features[j, 2] <- median(lista[[nombre]]$g)
+      features[j, 3] <- median(lista[[nombre]]$b)
       j <- j + 1
   }
   
@@ -135,9 +135,9 @@ extraer_hsv <- function(df, lista) {
   for (nombre in df$ruta) {
 
       hsv_vals <- rgb_a_hsv(
-        as.vector(lista[nombre]$r), 
-        as.vector(lista[nombre]$g), 
-        as.vector(lista[nombre]$b)
+        as.vector(lista[[nombre]]$r), 
+        as.vector(lista[[nombre]]$g), 
+        as.vector(lista[[nombre]]$b)
         )
       
       features[j, 1] = median(hsv_vals[, 1])
@@ -178,8 +178,8 @@ extraer_ratio_azul <- function(df, lista) {
         
       # Un pixel es "Azul cielo" si el canal Azul es mayor que el Rojo y el Verde
       # y además tiene cierto brillo (para no confundir con objetos oscuros azules)
-      pixeles_azules <- sum(lista[nombre]$b > lista[nombre]$r & lista[nombre]$b > lista[nombre]$g & lista[nombre]$b > 0.4) 
-      features[j] <- (pixeles_azules / length(lista[nombre]$b)) * 100
+      pixeles_azules <- sum(lista[[nombre]]$b > lista[[nombre]]$r & lista[[nombre]]$b > lista[[nombre]]$g & lista[[nombre]]$b > 0.4) 
+      features[j] <- (pixeles_azules / length(lista[[nombre]]$b)) * 100
       
       j <- j+1
       
@@ -215,7 +215,7 @@ extraer_brillo_contraste <- function(df, lista) {
   for (nombre in df$ruta) {
     
       # matriz de grises
-      gris_matrix <- 0.299 * lista[nombre]$r + 0.587 * lista[nombre]$g + 0.114 * lista[nombre]$b
+      gris_matrix <- 0.299 * lista[[nombre]]$r + 0.587 * lista[[nombre]]$g + 0.114 * lista[[nombre]]$b
       
       # Convertimos la matriz a un vector para los cálculos estadísticos
       gris_vector <- as.vector(gris_matrix)

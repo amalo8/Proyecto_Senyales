@@ -106,9 +106,9 @@ lista_test2 <- leer_imagenes(datos_test2)
 
 Extracción de características de las imágenes.
 ```{r}
-datos_train_final2 <- datos_train2 %>% extraer_rgb(lista_train2) %>% extraer_hsv(lista_train2) %>% extraer_sd_V(lista_train2) %>% extraer_tonos_calidos(lista_train2) %>% extraer_gradientes_hv(lista_train2) %>% extraer_gradientes_horizontales(lista_train2) %>% extraer_caracteristicas_bloques(lista_train2) %>% extraer_pixeles_extremos_bloques(lista_train2) %>% extraer_ratio_azul(lista_train2) %>% extraer_brillo_contraste(lista_train2)
+datos_train_final2 <- datos_train2 %>% extraer_rgb(lista_train2) %>% extraer_hsv(lista_train2) %>% extraer_sd_V(lista_train2) %>% extraer_tonos_calidos(lista_train2) %>% extraer_gradientes_hv(lista_train2) %>% extraer_gradientes_horizontales(lista_train2) %>% extraer_ratio_azul(lista_train2) %>% extraer_brillo_contraste(lista_train2)
 
-datos_test_final2 <- datos_test2 %>% extraer_rgb(lista_test2) %>% extraer_hsv(lista_test2) %>% extraer_sd_V(lista_test2) %>% extraer_tonos_calidos(lista_test2) %>% extraer_gradientes_hv(lista_test2) %>% extraer_gradientes_horizontales(lista_test2) %>% extraer_caracteristicas_bloques(lista_test2) %>% extraer_pixeles_extremos_bloques(lista_test2) %>% extraer_ratio_azul(lista_test2) %>% extraer_brillo_contraste(lista_test2)
+datos_test_final2 <- datos_test2 %>% extraer_rgb(lista_test2) %>% extraer_hsv(lista_test2) %>% extraer_sd_V(lista_test2) %>% extraer_tonos_calidos(lista_test2) %>% extraer_gradientes_hv(lista_test2) %>% extraer_gradientes_horizontales(lista_test2)  %>% extraer_ratio_azul(lista_test2) %>% extraer_brillo_contraste(lista_test2)
 ```
 Entrenamiento del modelo de clasificación.
 ```{r}
@@ -119,6 +119,10 @@ matriz_confusion2 <- table(datos_test_final2$etiqueta, predicciones2)
 print(matriz_confusion2)
 precision2 <- sum(diag(matriz_confusion2)) / sum(matriz_confusion2)
 cat("Precisión del modelo de clasificación despejado y nublado:", precision2, "\n")
+
+# Importancia de las características
+importancia_caracteristicas <- importance(modelo_clasificacion2)
+print(importancia_caracteristicas)
 ```
 
 

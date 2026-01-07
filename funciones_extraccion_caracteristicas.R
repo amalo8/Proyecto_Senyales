@@ -10,8 +10,8 @@ library(grDevices)
 # parámetros de entrada: 
 #   - dataframe con las rutas locales a las imágenes en la columna "ruta"
 # parámetros de salida:
-#   - lista que tiene como índices las rutas a las imágenes y contiene listas 
-#     con los canales RGB (índices r, g, b)
+#   - lista que tiene como índices las rutas a las imágenes y contiene las
+#     imágenes en RGB
 
 leer_imagenes <- function(df){
   
@@ -26,27 +26,8 @@ leer_imagenes <- function(df){
       # leemos la imagen
       img <- readJPEG(df$ruta[j])
       
-      # creamos lista vacía para guardar después los canales
-      lista_canales <- list()
-      
-      # Si la imagen es escala de grises (matriz 2D), replicar canales
-      if (length(dim(img)) == 2) {
-        r <- img; g <- img; b <- img
-        cat("Warning: imagen en escala de grises, ruta: ",df$ruta[j], "\n")
-      } else {
-        # Si es color (matriz 3D)
-        r <- img[,,1]
-        g <- img[,,2]
-        b <- img[,,3]
-      }
-      
-      # guardamos los canales
-      lista_canales$r <- r
-      lista_canales$g <- g
-      lista_canales$b <- b
-      
-      # guardamos la lista   
-      lista_imagenes[[df$ruta[j]]] <- lista_canales
+      # guardamos la imagen   
+      lista_imagenes[[df$ruta[j]]] <- img
       
     }, error = function(e) {
       cat("Error leyendo:", df$ruta[j], "\n")
@@ -78,9 +59,9 @@ extraer_rgb <- function(df, lista) {
   # calculamos las medianas de los 3 canales de cada imagen
   j <- 1
   for (nombre in df$ruta) {
-      features[j, 1] <- median(lista[[nombre]]$r)
-      features[j, 2] <- median(lista[[nombre]]$g)
-      features[j, 3] <- median(lista[[nombre]]$b)
+      features[j, 1] <- median(lista[[nombre]][,,1])
+      features[j, 2] <- median(lista[[nombre]][,,2])
+      features[j, 3] <- median(lista[[nombre]][,,3])
       j <- j + 1
   }
   
@@ -135,9 +116,9 @@ extraer_hsv <- function(df, lista) {
   for (nombre in df$ruta) {
 
       hsv_vals <- rgb_a_hsv(
-        as.vector(lista[[nombre]]$r), 
-        as.vector(lista[[nombre]]$g), 
-        as.vector(lista[[nombre]]$b)
+        as.vector(lista[[nombre]][,,1]), # R
+        as.vector(lista[[nombre]][,,2]), # G
+        as.vector(lista[[nombre]][,,3])  # B
         )
       
       features[j, 1] = median(hsv_vals[, 1])
@@ -178,8 +159,8 @@ extraer_ratio_azul <- function(df, lista) {
         
       # Un pixel es "Azul cielo" si el canal Azul es mayor que el Rojo y el Verde
       # y además tiene cierto brillo (para no confundir con objetos oscuros azules)
-      pixeles_azules <- sum(lista[[nombre]]$b > lista[[nombre]]$r & lista[[nombre]]$b > lista[[nombre]]$g & lista[[nombre]]$b > 0.4) 
-      features[j] <- (pixeles_azules / length(lista[[nombre]]$b)) * 100
+      pixeles_azules <- sum(lista[[nombre]][,,3] > lista[[nombre]][,,1] & lista[[nombre]][,,3] > lista[[nombre]][,,2] & lista[[nombre]][,,3] > 0.4) 
+      features[j] <- (pixeles_azules / length(lista[[nombre]][,,3])) * 100
       
       j <- j+1
       
@@ -215,7 +196,7 @@ extraer_brillo_contraste <- function(df, lista) {
   for (nombre in df$ruta) {
     
       # matriz de grises
-      gris_matrix <- 0.299 * lista[[nombre]]$r + 0.587 * lista[[nombre]]$g + 0.114 * lista[[nombre]]$b
+      gris_matrix <- 0.299 * lista[[nombre]][,,1] + 0.587 * lista[[nombre]][,,2] + 0.114 * lista[[nombre]][,,3]
       
       # Convertimos la matriz a un vector para los cálculos estadísticos
       gris_vector <- as.vector(gris_matrix)
@@ -260,9 +241,9 @@ extraer_sd_V <- function(df, lista){
   for (nombre in df$ruta){
     # extraemos los canales HSV
     hsv_vals <- rgb_a_hsv(
-      as.vector(lista[[nombre]]$r), 
-      as.vector(lista[[nombre]]$g), 
-      as.vector(lista[[nombre]]$b)
+      as.vector(lista[[nombre]][,,1]), 
+      as.vector(lista[[nombre]][,,2]), 
+      as.vector(lista[[nombre]][,,3])
     )
     
     # Cálculo de la desviación estándar de V
@@ -298,9 +279,9 @@ extraer_tonos_calidos <- function(df, lista){
   for (nombre in df$ruta){
     # extraemos los canales HSV
     hsv_vals <- rgb_a_hsv(
-      as.vector(lista[[nombre]]$r), 
-      as.vector(lista[[nombre]]$g), 
-      as.vector(lista[[nombre]]$b)
+      as.vector(lista[[nombre]][,,1]), 
+      as.vector(lista[[nombre]][,,2]), 
+      as.vector(lista[[nombre]][,,3])
     )
     
     # obtenemos el canal H en grados
@@ -347,14 +328,14 @@ extraer_gradientes_hv <- function(df, lista){
   j <- 1
   for (nombre in df$ruta){
     # dimensiones originales para construir las matrices
-    filas <- nrow(lista[[nombre]]$r)
-    columnas <- ncol(lista[[nombre]]$r)
+    filas <- nrow(lista[[nombre]][,,1])
+    columnas <- ncol(lista[[nombre]][,,1])
     
     # extraemos los canales HSV
     hsv_vals <- rgb_a_hsv(
-      as.vector(lista[[nombre]]$r), 
-      as.vector(lista[[nombre]]$g), 
-      as.vector(lista[[nombre]]$b)
+      as.vector(lista[[nombre]][,,1]), 
+      as.vector(lista[[nombre]][,,2]), 
+      as.vector(lista[[nombre]][,,3])
     )
     
     # matrices de H y V
@@ -399,14 +380,14 @@ extraer_gradientes_horizontales <- function(df, lista){
   j <- 1
   for (nombre in df$ruta){
     # dimensiones originales para construir las matrices
-    filas <- nrow(lista[[nombre]]$r)
-    columnas <- ncol(lista[[nombre]]$r)
+    filas <- nrow(lista[[nombre]][,,1])
+    columnas <- ncol(lista[[nombre]][,,1])
     
     # extraemos los canales HSV
     hsv_vals <- rgb_a_hsv(
-      as.vector(lista[[nombre]]$r), 
-      as.vector(lista[[nombre]]$g), 
-      as.vector(lista[[nombre]]$b)
+      as.vector(lista[[nombre]][,,1]), 
+      as.vector(lista[[nombre]][,,2]), 
+      as.vector(lista[[nombre]][,,3])
     )
     
     # matriz de V
@@ -464,14 +445,14 @@ extraer_caracteristicas_bloques <- function(df, lista, num_bloques = 4) {
     nombre <- df$ruta[j]
     
     # dimensiones originales
-    altura <- nrow(lista[[nombre]]$r)
-    ancho <- ncol(lista[[nombre]]$r)
+    altura <- nrow(lista[[nombre]][,,1])
+    ancho <- ncol(lista[[nombre]][,,1])
     
     # extraer canales HSV
     hsv_vals <- rgb_a_hsv(
-      as.vector(lista[[nombre]]$r), 
-      as.vector(lista[[nombre]]$g), 
-      as.vector(lista[[nombre]]$b)
+      as.vector(lista[[nombre]][,,1]), 
+      as.vector(lista[[nombre]][,,2]), 
+      as.vector(lista[[nombre]][,,3])
     )
     
     # reconstruimos matrices H y V
@@ -549,14 +530,14 @@ extraer_pixeles_extremos_bloques <- function(df, lista, num_bloques = 4) {
     nombre <- df$ruta[j]
     
     # dimensiones originales
-    altura <- nrow(lista[[nombre]]$r)
-    ancho <- ncol(lista[[nombre]]$r)
+    altura <- nrow(lista[[nombre]][,,1])
+    ancho <- ncol(lista[[nombre]][,,1])
     
     # extraemos canales HSV 
     hsv_vals <- rgb_a_hsv(
-      as.vector(lista[[nombre]]$r), 
-      as.vector(lista[[nombre]]$g), 
-      as.vector(lista[[nombre]]$b)
+      as.vector(lista[[nombre]][,,1]), 
+      as.vector(lista[[nombre]][,,2]), 
+      as.vector(lista[[nombre]][,,3])
     )
     
     # reconstruimos la matriz V
@@ -613,3 +594,4 @@ extraer_pixeles_extremos_bloques <- function(df, lista, num_bloques = 4) {
   
   return(df_final)
 }
+

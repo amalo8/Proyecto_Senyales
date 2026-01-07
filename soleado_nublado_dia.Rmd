@@ -117,8 +117,11 @@ confusionMatrix(predicciones_hsv, datos_test$etiqueta)
 ```
 Vemos cual ha clasificado mal
 ```{r}
-misclasificados_hsv <- datos_test[predicciones_hsv != datos_test$etiqueta, ]
-misclasificados_hsv 
+mal_clasificados <- datos_test[predicciones_hsv != datos_test$etiqueta, ]
+ruta_mal_clasificados <- misclasificados_hsv$ruta 
+for (ruta in ruta_mal_clasificados){
+  plot(as.raster(lista_test[[ruta]]))
+}
 ```
 
 Entrenamos y evaluamos el modelo con las caracteristicas RGB+HSV

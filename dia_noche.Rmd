@@ -1,6 +1,7 @@
 ---
-title: "AnalisisImagenes"
-output: html_document
+title: "Entrenamiento y validación del modelo de clasificación día y noche"
+output: pdf_document
+always_allow_html: true
 date: "2025-12-15"
 ---
 
@@ -9,146 +10,86 @@ knitr::opts_chunk$set(echo = TRUE)
 rm(list = ls())
 ```
 
-```{r}
+```{r, include=FALSE}
+# Carga de librerías
 library(jpeg)
 library(class)
 library(caret)
 library(randomForest)
-
-# Definir la ruta base
-ruta_base_imagenes <- "imagenes/daynight"
-
-# lectura de las imagenes de noche
-ruta_noche <- file.path(ruta_base_imagenes, "nighttime")
-archivos_noche <- list.files(
-  path = ruta_noche,
-  pattern = "\\.jpe?g$",
-  full.names = TRUE,
-  recursive = FALSE
-)
-
-df_noche <- data.frame(
-  ruta = archivos_noche,
-  etiqueta = 0 # Noche
-)
-
-
-# Leer y etiquetar imágenes del subdirectorio dia
-
-ruta_dia <- file.path(ruta_base_imagenes, "daytime")
-archivos_dia <- list.files(
-  path = ruta_dia,
-  pattern = "\\.jpe?g$",
-  full.names = TRUE,
-  recursive = FALSE
-)
-
-df_dia <- data.frame(
-  ruta = archivos_dia,
-  etiqueta = 1 # Día
-)
-
-# lectura de las imagenes de día
-
-datos_imagenes <- rbind(df_noche, df_dia)
-
-
-set.seed(42) 
-
-indices_entrenamiento <- createDataPartition(
-  y = datos_imagenes$etiqueta,
-  p = 0.8,
-  list = FALSE 
-)
-
-# Crear los conjuntos de datos de TRAIN y TEST
-datos_train <- datos_imagenes[indices_entrenamiento, ]
-datos_test <- datos_imagenes[-indices_entrenamiento, ]
-
-
-```
-
-```{r}
-extraer_rgb <- function(df_datos) {
-  
-  # Matriz para R, G, B
-  features <- matrix(0, nrow = nrow(df_datos), ncol = 3)
-  colnames(features) <- c("R_mediana", "G_mediana", "B_mediana")
-  
-  cat("Extrayendo RGB de", nrow(df_datos), "imágenes...\n")
-  
-  for (j in 1:nrow(df_datos)) {
-    tryCatch({
-      img <- readJPEG(df_datos$ruta[j])
-      
-      # Si la imagen es escala de grises (matriz 2D), replicar canales
-      if (length(dim(img)) == 2) {
-        r <- img; g <- img; b <- img
-      } else {
-        # Si es color (matriz 3D)
-        r <- img[,,1]
-        g <- img[,,2]
-        b <- img[,,3]
-      }
-      
-      features[j, 1] = median(r)
-      features[j, 2] = median(g)
-      features[j, 3] = median(b)
-      
-      
-    }, error = function(e) {
-      cat("Error leyendo:", df_datos$ruta[j], "\n")
-    })
-  }
-  
-  # Unir al dataframe y asegurar que la etiqueta es factor
-  df_final <- cbind(df_datos, features)
-  df_final$etiqueta <- as.factor(df_final$etiqueta)
-  
-  return(df_final)
-}
-
-# Aplicamos la función 
-datos_train <- extraer_rgb(datos_train)
-datos_test <- extraer_rgb(datos_test)
-
-print(head(datos_train))
-
-
-
-```
-
-```{r}
-#Preprocesamiento de imagenes
-#misma resolucion y rango de valores
-
-
-
-```
-
-
-```{r}
 library(ggplot2)
 library(tidyr)
+library(plotly)
+library(grDevices)
+library(magick)
+```
 
-# Transformar datos a formato largo para plotear 
-datos_long <- pivot_longer(datos_train, cols = c("R_mediana", "G_mediana", "B_mediana"), 
-                           names_to = "Feature", values_to = "Valor")
+## Introducción a la fase de entrenamiento y validación: Clasificación de imágenes de día y de noche
+El proceso de clasificación de imágenes diurnas y nocturnas requiere un proceso previo de extracción de características. En esta sección, nos centraremos en la determinación de estas características y en el entrenamiento y validación de nuestro algoritmo para distinguir entre imágenes tomadas durante el día y durante la noche. Como hemos mencionado anteriormente, se han empleado un conjunto de imágenes extraídas de repositorios públicos, que nos garantizan una gran variedad de imágenes en diferentes contextos geográficos.
 
-# Plot de Cajas: Compara la distribución de cada canal por etiqueta
-ggplot(datos_long, aes(x = Feature, y = Valor, fill = etiqueta)) +
-  geom_boxplot() +
-  scale_fill_manual(values = c("red", "skyblue"), labels = c("Noche", "Día")) +
-  labs(title = "Separación de Clases usando RGB",
-       subtitle = "Si las cajas no se tocan, el clasificador será muy bueno",
-       y = "Intensidad Mediana (0-1)") +
+El objetivo es construir un modelo de aprendizaje supervisado que permita diferenciar claramente entre las dos categorías y, posteriormente, tenga la capacidad de generalizar correctamente para clasificar las imágenes capturadas por nosotros. Cabe destacar que primero abordaremos este problema como una clasificación binaria (día/noche) para tener una primera toma de contacto en la extracción de características y en el entrenamiento del modelo. En el siguiente apartado, añadiremos una nueva categoría (amanecer/atardecer) para lograr un modelo más completo.
+
+El procedimiento que hemos seguido para construir el clasificador ha sido el siguiente: incorporar sucesivamente características al modelo (de una en una). Esta decisión se ha tomado para poder observar si al añadir una característica, mejora, empeora nuestro clasificador. Esto nos da un control completo, en el que podemos identificar claramente que características funcionan mejor para diferenciar entre imagen de día y de noche.
+
+Además, hemos optado por utilizar el algoritmo Random Forest porque es rápido de implementar, permite capturar relaciones complejas entre características (construye múltiples árboles de decisión donde cada split selecciona un subconjunto de las características, garantizando la aleatoriedad y reduciendo la correlación entre estas). También, es robusto ante outliers, lo cual es interesante ya que en el conjunto de datos utilizado en esta parte pueden haber ruidos visuales o iluminaciones extremas.
+
+En primer lugar, la primera característica es la mediana de la intensidad de los canales RGB (rojo, verde y azul) de las imágenes. 
+
+```{r, include=FALSE}
+# Ruta base imágenes
+ruta_base_imagenes <- "imagenes/train"
+
+# Ruta imágenes día/noche
+ruta_noche <- file.path(ruta_base_imagenes, "daynight/nighttime")
+ruta_dia <- file.path(ruta_base_imagenes, "daynight/daytime")
+
+# Lectura del nombre de las imágenes
+archivos_noche <- list.files(path = ruta_noche, pattern = "\\.jpe?g$", full.names = TRUE, recursive = FALSE)
+archivos_dia <- list.files(path = ruta_dia, pattern = "\\.jpe?g$", full.names = TRUE, recursive = FALSE)
+
+# Dataframe de cada clase y su etiqueta (0: noche, 1: día)
+df_noche <- data.frame(ruta = archivos_noche, etiqueta = 0)
+df_dia <- data.frame(ruta = archivos_dia, etiqueta = 1)
+
+# Combinación de los dataframes
+datos_imagenes <- rbind(df_noche, df_dia)
+
+# Semilla para reproducibilidad
+set.seed(42) 
+
+# División en conjunto de entrenamiento (80%) y validación (20%)
+indices_entrenamiento <- createDataPartition(y = datos_imagenes$etiqueta,p = 0.8, list = FALSE)
+
+# Conjuntos de entrenamiento y validación
+datos_train <- datos_imagenes[indices_entrenamiento, ]
+datos_test <- datos_imagenes[-indices_entrenamiento, ]
+```
+
+
+```{r, include=FALSE}
+# Cargamos las funciones de lectura de imágenes y extracción de características
+source("funciones_extraccion_caracteristicas.R")
+
+####### LECTURA IMÁGENES ########
+lista_train <- leer_imagenes(datos_train)
+lista_test <- leer_imagenes(datos_test)
+
+######## MEDIANAS RGB ########
+datos_train <- extraer_rgb(datos_train, lista_train)
+datos_test <- extraer_rgb(datos_test, lista_test)
+```
+
+```{r, echo=FALSE}
+datos_long <- pivot_longer(datos_train, cols = c("R_mediana", "G_mediana", "B_mediana"), names_to = "Característica", values_to = "Valor")
+
+####### BOXPLOT MEDIANAS RGB ########
+ggplot(datos_long, aes(x = Característica, y = Valor, fill = etiqueta)) + 
+  geom_boxplot() + 
+  scale_fill_manual(values = c("#104E8B", "#C7D9F5"), labels = c("Noche", "Día")) +
+  labs(title = "Medianas RGB", subtitle = "Para cada clase (Día/Noche)", y = "Mediana RGB (0-1)", fill = "Etiqueta") +
   theme_minimal()
 ```
-Para la etiqueta "1" (Día), las cajas de R, G y B están mucho más altas (cerca de 0.5 - 1.0) y para "0" (Noche) están muy bajas (cerca de 0.0 - 0.2).
 
-```{r}
-#plotear en 3D las caracteristicas RGB medianos, con cada punto segun su etiqueta
-library(plotly)
+```{r, include=FALSE}
 fig <- plot_ly(
   data = datos_train,
   x = ~R_mediana,
@@ -169,78 +110,31 @@ fig <- fig %>% layout(
 )
 fig
 ```
-Probamos a entrenar clasificador KNN 
-Usamos solo R, G y B.
-```{r}
-# Seleccionar solo columnas numéricas RGB
+```{r, include=FALSE}
 cols_rgb <- c("R_mediana", "G_mediana", "B_mediana")
-
 train_x <- datos_train[, cols_rgb]
 test_x <- datos_test[, cols_rgb]
 train_y <- datos_train$etiqueta
 test_y <- datos_test$etiqueta
 
-# Entrenar Random Forest
+####### RANDOM FOREST CON CARACTERÍSTICAS RGB ########
 set.seed(42)
 rf_model <- randomForest(x = train_x, y = train_y, ntree = 100)
-# Predecir en el conjunto de prueba
+
+# Predecir en el conjunto de validación
 predicciones_rf <- predict(rf_model, newdata = test_x)
+
 # Matriz de confusión
 cm_rf <- confusionMatrix(predicciones_rf, test_y)
 print(cm_rf)
 cat("Precisión del modelo Random Forest:", cm_rf$overall['Accuracy'] * 100, "%\n")
-
 ```
 
-```{r}
-# Probar a extraer caracteristicas del espacio HSV
-library(grDevices)
-rgb_a_hsv <- function(r, g, b) {
-  rgb_matrix <- matrix(c(r, g, b), ncol = 3)
-  hsv_matrix <- rgb2hsv(t(rgb_matrix),maxColorValue = 1) #porque los valores ya estan entre 0 y 1
-  return(t(hsv_matrix))
-}
-# Función para extraer características HSV medianas
-extraer_hsv <- function(df_datos) {
-  features <- matrix(0, nrow = nrow(df_datos), ncol = 3)
-  colnames(features) <- c("H_mediana", "S_mediana", "V_mediana")
-  
-  cat("Extrayendo HSV de", nrow(df_datos), "imágenes...\n")
-  
-  for (j in 1:nrow(df_datos)) {
-    tryCatch({
-      img <- readJPEG(df_datos$ruta[j])
-      
-      if (length(dim(img)) == 2) {
-        r <- img; g <- img; b <- img
-      } else {
-        r <- img[,,1]
-        g <- img[,,2]
-        b <- img[,,3]
-      }
-      
-      hsv_vals <- rgb_a_hsv(as.vector(r), as.vector(g), as.vector(b))
-      
-      features[j, 1] = median(hsv_vals[, 1])
-      features[j, 2] = median(hsv_vals[, 2])
-      features[j, 3] = median(hsv_vals[, 3])
+```{r, include=FALSE}
+######## MEDIANAS HSV ########
+datos_train_hsv <- extraer_hsv(datos_train, lista_train)
+datos_test_hsv <- extraer_hsv(datos_test, lista_test)
 
-      
-    }, error = function(e) {
-      cat("Error leyendo:", df_datos$ruta[j], "\n")
-    })
-  }
-  
-  df_final <- cbind(df_datos, features)
-  df_final$etiqueta <- as.factor(df_final$etiqueta)
-  
-  return(df_final)
-}
-
-# Aplicar la función a los conjuntos de datos
-datos_train_hsv <- extraer_hsv(datos_train)
-datos_test_hsv <- extraer_hsv(datos_test)
-# Seleccionar solo columnas numéricas HSV
 cols_hsv <- c("H_mediana", "S_mediana", "V_mediana")
 train_x_hsv <- datos_train_hsv[, cols_hsv]
 test_x_hsv <- datos_test_hsv[, cols_hsv]
@@ -248,23 +142,19 @@ train_y_hsv <- datos_train_hsv$etiqueta
 test_y_hsv <- datos_test_hsv$etiqueta
 ```
 
-```{r}
+```{r, echo=FALSE}
+######## BOXPLOT MEDIANAS HSV ########
+datos_long_hsv <- pivot_longer(datos_train_hsv, cols = c("H_mediana", "S_mediana", "V_mediana"), names_to = "Característica", values_to = "Valor")
 
-#Mostrar boxplots de las caracteristicas HSV
-datos_long_hsv <- pivot_longer(datos_train_hsv, cols = c("H_mediana", "S_mediana", "V_mediana"), 
-                           names_to = "Feature", values_to = "Valor")
-ggplot(datos_long_hsv, aes(x = Feature, y = Valor, fill = etiqueta)) +
-  geom_boxplot() +
-  scale_fill_manual(values = c("red", "skyblue"), labels = c("Noche", "Día")) +
-  labs(title = "Separación de Clases usando HSV",
-       subtitle = "Si las cajas no se tocan, el clasificador será muy bueno",
-       y = "Valor Mediano (0-1)") +
+####### BOXPLOT MEDIANAS RGB ########
+ggplot(datos_long_hsv, aes(x = Característica, y = Valor, fill = etiqueta)) + 
+  geom_boxplot() + 
+  scale_fill_manual(values = c("#104E8B", "#C7D9F5"), labels = c("Noche", "Día")) +
+  labs(title = "Medianas HSV", subtitle = "Para cada clase (Día/Noche)", y = "Mediana HSV (0-1)", fill = "Etiqueta") +
   theme_minimal()
 ```
 
-```{r}
-#plotear en 3D las caracteristicas HSV medianos, con cada punto segun su etiqueta
-library(plotly)
+```{r, include=FALSE}
 fig_hsv <- plot_ly(
   data = datos_train_hsv,
   x = ~H_mediana,
@@ -285,25 +175,23 @@ fig_hsv <- fig_hsv %>% layout(
 )
 fig_hsv
 ```
-
-
-
-
-
-```{r}
-# Entrenar Random Forest con características HSV
-
+```{r, include=FALSE}
+####### RANDOM FOREST CON CARACTERÍSTICAS HSV ########
 set.seed(42)
 rf_model_hsv <- randomForest(x = train_x_hsv, y = train_y_hsv, ntree = 100)
+
 # Predecir en el conjunto de prueba
 predicciones_rf_hsv <- predict(rf_model_hsv, newdata = test_x_hsv)
+
 # Matriz de confusión
 cm_rf_hsv <- confusionMatrix(predicciones_rf_hsv, test_y_hsv)
 print(cm_rf_hsv)
+
 cat("Precisión del modelo Random Forest con HSV:", cm_rf_hsv$overall['Accuracy'] * 100, "%\n")
 ```
-```{r}
-#Entrenar con todas las caracteristicas RGB + HSV
+
+```{r, include=FALSE}
+####### RANDOM FOREST CON LAS CARACTERÍSTICAS RGB + HSV ########
 train_x_todas <- datos_train_hsv[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana")]
 test_x_todas <- datos_test_hsv[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana")]
 train_y_todas <- datos_train_hsv$etiqueta
@@ -311,76 +199,63 @@ test_y_todas <- datos_test_hsv$etiqueta
 
 set.seed(42)
 rf_model_todas <- randomForest(x = train_x_todas, y = train_y_todas, ntree = 100)
+
 # Predecir en el conjunto de prueba
 predicciones_rf_todas <- predict(rf_model_todas, newdata = test_x_todas)
+
 # Matriz de confusión
 cm_rf_todas <- confusionMatrix(predicciones_rf_todas, test_y_todas)
 print(cm_rf_todas)
+
 cat("Precisión del modelo Random Forest con todas las características:", cm_rf_todas$overall['Accuracy'] * 100, "%\n")
 ```
 
-Añadimos nueva característica: desviación estándar del canal V. Esta característica puede capturar la variabilidad de brillo en la imagen, lo que podría ser útil para distinguir entre imágenes diurnas y nocturnas.
-```{r}
-# nueva caracteristica: desviacion estandar de V
-extraer_sd_V <- function(df_datos) {
-  features <- numeric(nrow(df_datos))
-  for (j in 1:nrow(df_datos)) {
-    tryCatch({
-      img <- readJPEG(df_datos$ruta[j])
-      if (length(dim(img)) == 3) {
-        r <- img[,,1]
-        g <- img[,,2]
-        b <- img[,,3]
-        hsv_vals <- rgb_a_hsv(as.vector(r), as.vector(g), as.vector(b))
-        V_channel <- matrix(hsv_vals[, 3], nrow = nrow(r), ncol = ncol(r))
-      } else {
-        V_channel <- img
-      }
-      features[j] <- sd(as.vector(V_channel))
-    }, error = function(e) {
-      cat("Error leyendo:", df_datos$ruta[j], "\n")
-    })
-  }
-  df_final <- cbind(df_datos, SD_V = features)
-  df_final$etiqueta <- as.factor(df_final$etiqueta)
-  return(df_final)
-}
+```{r, include=FALSE}
+######## EXTRAER SD DE V ########
+datos_train_sd <- extraer_sd_V(datos_train_hsv, lista_train)
+datos_test_sd <- extraer_sd_V(datos_test_hsv, lista_test)
 ```
 
-```{r}
-# Aplicar la función a los conjuntos de datos
-datos_train_sd <- extraer_sd_V(datos_train_hsv)
-datos_test_sd <- extraer_sd_V(datos_test_hsv)
+```{r, echo=FALSE}
+####### BOXPLOT SD DE V ########
+ggplot(datos_train_sd, aes(x = as.factor(etiqueta), y = sd_V, fill = as.factor(etiqueta))) + 
+  geom_boxplot() + 
+  scale_fill_manual(values = c("#104E8B", "#C7D9F5"), labels = c("Noche", "Día")) +
+  labs(title = "Desviación Estándar de V", subtitle = "Para cada clase (Día/Noche)", y = "Desviación Estándar de V", x = "Etiqueta", fill = "Etiqueta") +
+  theme_minimal()
 ```
 
-```{r}
-#entrenar modelo con todas las caracteristicas + SD de V
-train_x_sd <- datos_train_sd[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana","SD_V")]
-test_x_sd <- datos_test_sd[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana",  "SD_V")]
+
+```{r, include=FALSE}
+####### RANDOM FOREST CON LAS CARACTERÍSTICAS RGB + HSV + SD DE V #######
+train_x_sd <- datos_train_sd[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana","sd_V")]
+test_x_sd <- datos_test_sd[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana",  "sd_V")]
 train_y_sd <- datos_train_sd$etiqueta
 test_y_sd <- datos_test_sd$etiqueta
 
 set.seed(42)
 rf_model_sd <- randomForest(x = train_x_sd, y = train_y_sd, ntree = 100)
+
 # Predecir en el conjunto de prueba
 predicciones_rf_sd <- predict(rf_model_sd, newdata = test_x_sd)
+
 # Matriz de confusión
 cm_rf_sd <- confusionMatrix(predicciones_rf_sd, test_y_sd)
 print(cm_rf_sd)
+
 cat("Precisión del modelo Random Forest con todas las características + SD de V:", cm_rf_sd$overall['Accuracy'] * 100, "%\n")
 
 importancia_sd <- importance(rf_model_sd)
 print(importancia_sd)
 ```
 
-```{r}
+```{r, include=FALSE}
 #sacar imagenes mal clasificadas
 mal_clasificadas <- datos_test_sd[predicciones_rf_todas != test_y_todas, "ruta"]
 print("Número de imágenes mal clasificadas:")
 length(mal_clasificadas)
 #hacemos un bucle con subplots para mostrar las imagenes mal clasificadas
 #hay 23 imagenes
-library(magick)
 imgs <- image_read(mal_clasificadas)
 grid_imagenes <- image_montage(imgs, 
                                tile = "5x5", 

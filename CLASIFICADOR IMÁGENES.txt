@@ -156,5 +156,8 @@ https://www.kaggle.com/datasets/aymenkhouja/timeofdaydataset?select=sunrise
 
 - carpeta "clouds_train":
 https://www.kaggle.com/datasets/jockeroika/clouds-photos
-(las fotos usadas para entrenar el clasificador de soleado/nublado son las fotos de las subcarpetas clear sky, cirriform clouds y stratocumulus clouds de la carpeta clouds train)
+(las fotos usadas para entrenar el clasificador de soleado/nublado son las fotos de las subcarpetas clear sky y de las de distintos tipos de clouds de la carpeta clouds train y también de clouds test)
+
+- https://www.kaggle.com/datasets/somesh24/multiclass-images-for-weather-classification
+para añadir aun mas imágenes soleadas (253) y nubladas (300)
 

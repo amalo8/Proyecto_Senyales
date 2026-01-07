@@ -1,0 +1,127 @@
+---
+title: "Seleccionar cielo"
+author: "Lucía Benages Guijarro"
+date: "2026-01-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(jpeg)
+library(class)
+library(caret)
+library(randomForest)
+library(magick)
+library(fields)
+library(dplyr)
+```
+
+```{r}
+SoloCielo <- function(ruta, corte, girar=FALSE){
+  k <- matrix(c(-1,-1,-1,-1,8,-1,-1,-1,-1), ncol = 3, nrow = 3)
+  
+  img <- image_read(ruta)
+  img <- image_scale(img,"501x501!")
+  imgf <- img %>% image_convolve(kernel = k)
+  imgf <- imgf %>% image_quantize(colorspace = 'gray') %>% image_data(channels = 'gray')
+  imgf <- as.numeric(imgf)
+  rgb_im <- image_data(img, channels = "rgb")
+  
+  if(girar){
+    imgf<- aperm(imgf,c(2,1,3))
+    rgb_im <- aperm(rgb_im, c(2,3,1))
+  } else{
+    rgb_im <- aperm(rgb_im,c(3,2,1))
+  }
+
+  #plot(as.raster(imgf[,,1]))
+  rgb_num <- as.integer(rgb_im)/255
+  dim(rgb_num) <- dim(rgb_im)
+  #plot(as.raster(rgb_num))
+  rgb_final <- rgb_num
+  
+  for(i in seq(51, 501, by=50)){
+    for(j in seq(51, 501, by=50)){
+        a <- sum(as.numeric(imgf[(j-50):j,(i-50):i,1]))
+      if(a>corte){
+        rgb_final[(j-50):nrow(rgb_num),(i-50):i,] <- 0 
+      }
+      # Intentar volver a mostrar trozos de cielo que igual tienen algo que no es cielo arriba
+      b <- sum(rgb_num[(j-50):j,(i-50):i,3])
+      if(b>1300&a<0.8*corte){
+        rgb_final[(j-50):nrow(rgb_num),(i-50):i,] <- rgb_num[(j-50):nrow(rgb_num),(i-50):i,]
+      }
+    }
+  }
+  #plot(as.raster(rgb_final)) 
+  return(rgb_final)
+}
+```
+
+
+```{r}
+# Vectores con las rutas de todas las imágenes a procesar
+despejado <- paste0('Soleado_Nublado/Despejado/',list.files('Soleado_Nublado/Despejado'))
+nublado <- paste0('Soleado_Nublado/Nublado/',list.files('Soleado_Nublado/Nublado'))
+# Listas con todas las imágenes resultantes donde hemos tapado lo que no es cielo
+despejado_cielo <- vector(mode='list', length = length(despejado))
+nublado_cielo <- vector(mode='list', length = length(nublado))
+
+for(i in seq(1,length(nublado))){
+  nublado_cielo[[i]] <- SoloCielo(nublado[i], 130)
+}
+
+for(i in seq(1,length(despejado))){
+  despejado_cielo[[i]] <- SoloCielo(despejado[i], 130)
+}
+```
+
+
+
+```{r}
+plot(as.raster(despejado_cielo[[1]]))
+plot(as.raster(despejado_cielo[[2]]))
+plot(as.raster(despejado_cielo[[3]]))
+
+plot(as.raster(nublado_cielo[[1]]))
+plot(as.raster(nublado_cielo[[2]]))
+plot(as.raster(nublado_cielo[[38]]))
+```
+```{r}
+image_read(ruta)
+```
+
+
+```{r}
+# Coger trozos de cielo de imágenes de train despejado
+nombre <- '49.jpg'
+ruta <- paste0('imagenes/train/shinecloudy/despejado/',nombre)
+# Sacar trozos cuadrados 256x256 para tener más train de cielo
+aux <- image_read(ruta)
+# a borrar cuando haga bucle
+borrar <- c("a_guardar","aux","inf","nombre","rgb_num","ruta","ruta_guardar","tamano")
+```
+
+```{r}
+# 49, 53, 54, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 84
+# 530:785
+# Coger trozos de cielo de imágenes de train despejado
+nombre <- '83.jpg'
+ruta <- paste0('imagenes/train/shinecloudy/despejado/',nombre)
+# Sacar trozos cuadrados 256x256 para tener más train de cielo
+aux <- image_read(ruta)
+inf <- image_info(aux)
+tamano <- paste0(inf$width/3,'x',inf$height/3,'!')
+aux <- image_scale(aux,tamano)
+rgb_num <- as.integer(image_data(aux, channels = "rgb"))/255
+
+a_guardar <- image_read(rgb_num[1:256,1:256,])
+ruta_guardar <- paste0('despejado_rec/',nombre)
+image_write(a_guardar, path=ruta_guardar, format = 'jpeg')
+plot(as.raster(rgb_num[1:256,1:256,]))
+rm(list=ls())
+```
+

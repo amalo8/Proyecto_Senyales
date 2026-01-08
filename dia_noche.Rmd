@@ -24,7 +24,7 @@ library(magick)
 ```
 
 ## Introducción a la fase de entrenamiento y validación: Clasificación de imágenes de día y de noche
-El proceso de clasificación de imágenes diurnas y nocturnas requiere un proceso previo de extracción de características. En esta sección, nos centraremos en la determinación de estas características y en el entrenamiento y validación de nuestro algoritmo para distinguir entre imágenes tomadas durante el día y durante la noche. Como hemos mencionado anteriormente, se han empleado un conjunto de imágenes extraídas de repositorios públicos, que nos garantizan una gran variedad de imágenes en diferentes contextos geográficos.
+La clasificación de imágenes diurnas y nocturnas requiere un proceso previo de extracción de características. En esta sección, nos centraremos en la determinación de estas características y en el entrenamiento y validación de nuestro algoritmo para distinguir entre imágenes tomadas durante el día y durante la noche. Como hemos mencionado anteriormente, se han empleado un conjunto de imágenes extraídas de repositorios públicos, que nos garantizan una gran variedad de imágenes en diferentes contextos geográficos.
 
 El objetivo es construir un modelo de aprendizaje supervisado que permita diferenciar claramente entre las dos categorías y, posteriormente, tenga la capacidad de generalizar correctamente para clasificar las imágenes capturadas por nosotros. Cabe destacar que primero abordaremos este problema como una clasificación binaria (día/noche) para tener una primera toma de contacto en la extracción de características y en el entrenamiento del modelo. En el siguiente apartado, añadiremos una nueva categoría (amanecer/atardecer) para lograr un modelo más completo.
 
@@ -80,7 +80,7 @@ datos_test <- extraer_rgb(datos_test, lista_test)
 
 Con esta característica esperaríamos valores bajos en las medianas RGB para las imágenes nocturnas ya que la mayoría de los píxeles tenderán a tener intensidades bajas. Por el contrario, en las imágenes diurnas, las medianas RGB deberían ser más altas debido a la mayor presencia de luz natural. Si representamos en boxplot los valores de la mediana distinguiendo entre día y noche, se observa claramente esta diferencia. Además, la mediana del canal azul es ligeramente superior a los otros dos canales en ambas caregorías, resultado esperado ya que el color predominante en el cielo es el azul. También se observa la presencia de outliers en la categoría noche debido al razonamiento anterior.
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, ut.width="50%", fig.align='center'}
 datos_long <- pivot_longer(datos_train, cols = c("R_mediana", "G_mediana", "B_mediana"), names_to = "Característica", values_to = "Valor")
 
 ####### BOXPLOT MEDIANAS RGB ########
@@ -140,7 +140,7 @@ La segunda característica que hemos añadido son las medianas de los canales HS
 datos_train_hsv <- extraer_hsv(datos_train, lista_train)
 datos_test_hsv <- extraer_hsv(datos_test, lista_test)
 
-cols_hsv <- c("H_mediana", "S_mediana", "V_mediana")
+cols_hsv <- c("H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana")
 train_x_hsv <- datos_train_hsv[, cols_hsv]
 test_x_hsv <- datos_test_hsv[, cols_hsv]
 train_y_hsv <- datos_train_hsv$etiqueta
@@ -149,11 +149,10 @@ test_y_hsv <- datos_test_hsv$etiqueta
 
 Importante destacar que la mediana de V es la que más información nos puede aportar ya que representa la cantidad de luz que hay en la imagen. En imágenes diurnas tiende a ser un valor alto debido a la gran cantidad de luz natural, mientras que en imágenes nocturnas el valor es bajo. Con respecto a lso canalas H y S podemos no encontrar diferencias significativas. Estas conclusiones se confirman en el siguiente boxplot.
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, ut.width="50%", fig.align='center'}
 ######## BOXPLOT MEDIANAS HSV ########
-datos_long_hsv <- pivot_longer(datos_train_hsv, cols = c("H_mediana", "S_mediana", "V_mediana"), names_to = "Característica", values_to = "Valor")
+datos_long_hsv <- pivot_longer(datos_train_hsv, cols = c("H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana"), names_to = "Característica", values_to = "Valor")
 
-####### BOXPLOT MEDIANAS RGB ########
 ggplot(datos_long_hsv, aes(x = Característica, y = Valor, fill = etiqueta)) + 
   geom_boxplot() + 
   scale_fill_manual(values = c("#104E8B", "#C7D9F5"), labels = c("Noche", "Día")) +
@@ -161,27 +160,6 @@ ggplot(datos_long_hsv, aes(x = Característica, y = Valor, fill = etiqueta)) +
   theme_minimal()
 ```
 
-```{r, include=FALSE}
-fig_hsv <- plot_ly(
-  data = datos_train_hsv,
-  x = ~H_mediana,
-  y = ~S_mediana,
-  z = ~V_mediana,
-  color = ~as.factor(etiqueta),
-  colors = c('blue', 'yellow'),
-  type = 'scatter3d',
-  mode = 'markers'
-)
-fig_hsv <- fig_hsv %>% layout(
-  scene = list(
-    xaxis = list(title = 'H Mediana'),
-    yaxis = list(title = 'S Mediana'),
-    zaxis = list(title = 'V Mediana')
-  ),
-  title = 'Distribución de Imágenes por Características HSV Medianas'
-)
-fig_hsv
-```
 
 ```{r, include=FALSE}
 ####### RANDOM FOREST CON CARACTERÍSTICAS HSV ########
@@ -200,8 +178,8 @@ cat("Precisión del modelo Random Forest con HSV:", cm_rf_hsv$overall['Accuracy'
 
 ```{r, include=FALSE}
 ####### RANDOM FOREST CON LAS CARACTERÍSTICAS RGB + HSV ########
-train_x_todas <- datos_train_hsv[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana")]
-test_x_todas <- datos_test_hsv[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana")]
+train_x_todas <- datos_train_hsv[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana")]
+test_x_todas <- datos_test_hsv[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana","H_sin_mediana", "S_mediana", "V_mediana")]
 train_y_todas <- datos_train_hsv$etiqueta
 test_y_todas <- datos_test_hsv$etiqueta
 
@@ -224,14 +202,14 @@ La cuarta característica es la detección de fuentes de luz (`extraer_fuentes_l
 
 La quinta característica es la entropía (`extraer_entropia`). A partir de la función `entropy` podemos determinarla. Puede ser útil ya que para valores bajos de la entropía esperamos una imagen más uniforme o con poca variación de niveles de intensidad, que podríamos encontrar en imagenes de noche.
 
-```{r}
+```{r, include=FALSE}
 
 ######## BOXPLOT ENTROPÍA ########
 datos_train_entropia <- extraer_entropia(datos_train_hsv, lista_train)
 datos_test_entropia <- extraer_entropia(datos_test_hsv, lista_test)
 ```
 
-```{r}
+```{r, include=FALSE, ut.width="50%", fig.align='center'}
 ggplot(datos_train_entropia, aes(x = as.factor(etiqueta), y = Entropia, fill = as.factor(etiqueta))) + 
   geom_boxplot() + 
   scale_fill_manual(values = c("#104E8B", "#C7D9F5"), labels = c("Noche", "Día")) +
@@ -255,7 +233,7 @@ datos_train_sd <- extraer_sd_V(datos_train_hsv, lista_train)
 datos_test_sd <- extraer_sd_V(datos_test_hsv, lista_test)
 ```
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, ut.width="50%", fig.align='center'}
 ####### BOXPLOT SD DE V ########
 ggplot(datos_train_sd, aes(x = as.factor(etiqueta), y = sd_V, fill = as.factor(etiqueta))) + 
   geom_boxplot() + 
@@ -267,8 +245,8 @@ ggplot(datos_train_sd, aes(x = as.factor(etiqueta), y = sd_V, fill = as.factor(e
 
 ```{r, include=FALSE}
 ####### RANDOM FOREST CON LAS CARACTERÍSTICAS RGB + HSV + SD DE V #######
-train_x_sd <- datos_train_sd[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana","sd_V")]
-test_x_sd <- datos_test_sd[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana",  "sd_V")]
+train_x_sd <- datos_train_sd[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana","sd_V")]
+test_x_sd <- datos_test_sd[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana",  "sd_V")]
 train_y_sd <- datos_train_sd$etiqueta
 test_y_sd <- datos_test_sd$etiqueta
 

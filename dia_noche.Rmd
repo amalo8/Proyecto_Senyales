@@ -28,11 +28,11 @@ El proceso de clasificación de imágenes diurnas y nocturnas requiere un proces
 
 El objetivo es construir un modelo de aprendizaje supervisado que permita diferenciar claramente entre las dos categorías y, posteriormente, tenga la capacidad de generalizar correctamente para clasificar las imágenes capturadas por nosotros. Cabe destacar que primero abordaremos este problema como una clasificación binaria (día/noche) para tener una primera toma de contacto en la extracción de características y en el entrenamiento del modelo. En el siguiente apartado, añadiremos una nueva categoría (amanecer/atardecer) para lograr un modelo más completo.
 
-El procedimiento que hemos seguido para construir el clasificador ha sido el siguiente: incorporar sucesivamente características al modelo (de una en una). Esta decisión se ha tomado para poder observar si al añadir una característica, mejora, empeora nuestro clasificador. Esto nos da un control completo, en el que podemos identificar claramente que características funcionan mejor para diferenciar entre imagen de día y de noche.
+El procedimiento que hemos seguido para construir el clasificador ha sido el siguiente: incorporar sucesivamente características al modelo (de una en una). Esta decisión se ha tomado para poder observar si al añadir una característica, mejora o empeora nuestro clasificador. Esto nos da un control completo, en el que podemos identificar claramente que características funcionan mejor para diferenciar entre imagen de día y de noche.
 
 Además, hemos optado por utilizar el algoritmo Random Forest porque es rápido de implementar, permite capturar relaciones complejas entre características (construye múltiples árboles de decisión donde cada split selecciona un subconjunto de las características, garantizando la aleatoriedad y reduciendo la correlación entre estas). También, es robusto ante outliers, lo cual es interesante ya que en el conjunto de datos utilizado en esta parte pueden haber ruidos visuales o iluminaciones extremas.
 
-En primer lugar, la primera característica es la mediana de la intensidad de los canales RGB (rojo, verde y azul) de las imágenes. 
+La primera característica es la mediana de la intensidad de los canales RGB (función `extraer_rgb`). Cada imagen se descompone en estas tres capas y se determina para cada píxel un valor de intensidad en cada una de ellas. Estos valores oscilan entre 0 (ausencia de color) y 1 (intensidad máxima). A continuación, se realiza la mediana de cada canal para cada imagen, obteniendo tres valores representativos. Se ha escogido la mediana en lugar de la media debido a su robustez frente a outliers. Por ejemplo, en imágenes nocturnas podemos encontrarnos con puntos de luz artificial intensos, como las farolas, podrían ser ignorados y nos permitiría seguir conociendo un valor de la intensidad que representa a la mayoría de la imagen.
 
 ```{r, include=FALSE}
 # Ruta base imágenes
@@ -78,6 +78,8 @@ datos_train <- extraer_rgb(datos_train, lista_train)
 datos_test <- extraer_rgb(datos_test, lista_test)
 ```
 
+Con esta característica esperaríamos valores bajos en las medianas RGB para las imágenes nocturnas ya que la mayoría de los píxeles tenderán a tener intensidades bajas. Por el contrario, en las imágenes diurnas, las medianas RGB deberían ser más altas debido a la mayor presencia de luz natural. Si representamos en boxplot los valores de la mediana distinguiendo entre día y noche, se observa claramente esta diferencia. Además, la mediana del canal azul es ligeramente superior a los otros dos canales en ambas caregorías, resultado esperado ya que el color predominante en el cielo es el azul. También se observa la presencia de outliers en la categoría noche debido al razonamiento anterior.
+
 ```{r, echo=FALSE}
 datos_long <- pivot_longer(datos_train, cols = c("R_mediana", "G_mediana", "B_mediana"), names_to = "Característica", values_to = "Valor")
 
@@ -110,6 +112,7 @@ fig <- fig %>% layout(
 )
 fig
 ```
+
 ```{r, include=FALSE}
 cols_rgb <- c("R_mediana", "G_mediana", "B_mediana")
 train_x <- datos_train[, cols_rgb]
@@ -130,6 +133,8 @@ print(cm_rf)
 cat("Precisión del modelo Random Forest:", cm_rf$overall['Accuracy'] * 100, "%\n")
 ```
 
+La segunda característica que hemos añadido son las medianas de los canales HSV (función `extraer_hsv`). Esta función permite extraer las medianas de las tres componentes: Hue que define el tono, Saturation define la viveza del color y Value es la cantidad de luz presente en el color. Previamente a este cálculo se ha de realizar una conversión de los vectores de cada píxel de RGB a HSV con la función `rgb_a_hsv`.
+
 ```{r, include=FALSE}
 ######## MEDIANAS HSV ########
 datos_train_hsv <- extraer_hsv(datos_train, lista_train)
@@ -141,6 +146,8 @@ test_x_hsv <- datos_test_hsv[, cols_hsv]
 train_y_hsv <- datos_train_hsv$etiqueta
 test_y_hsv <- datos_test_hsv$etiqueta
 ```
+
+Importante destacar que la mediana de V es la que más información nos puede aportar ya que representa la cantidad de luz que hay en la imagen. En imágenes diurnas tiende a ser un valor alto debido a la gran cantidad de luz natural, mientras que en imágenes nocturnas el valor es bajo. Con respecto a lso canalas H y S podemos no encontrar diferencias significativas. Estas conclusiones se confirman en el siguiente boxplot.
 
 ```{r, echo=FALSE}
 ######## BOXPLOT MEDIANAS HSV ########
@@ -175,6 +182,7 @@ fig_hsv <- fig_hsv %>% layout(
 )
 fig_hsv
 ```
+
 ```{r, include=FALSE}
 ####### RANDOM FOREST CON CARACTERÍSTICAS HSV ########
 set.seed(42)
@@ -209,6 +217,8 @@ print(cm_rf_todas)
 
 cat("Precisión del modelo Random Forest con todas las características:", cm_rf_todas$overall['Accuracy'] * 100, "%\n")
 ```
+
+La tercera característica es la detección de bordes mediante el filtro Sobel (`extraet_sobel`) para detectar cambios bruscos en la intensidad lumínica (se utiliza el valor medio del gradiente horizontal y vertical de la intensidad) y, por tanto, en la identificación de bordes en una imagen. En un principio podríamos encontrar un valor mayor para imágenes diurnas ya que se pueden encontrar edificios/vegetación que debido a la gran cantidad de luz que hay en estas imágenes, se puedan identificar mejor esos bordes.
 
 ```{r, include=FALSE}
 ######## EXTRAER SD DE V ########
@@ -250,12 +260,11 @@ print(importancia_sd)
 ```
 
 ```{r, include=FALSE}
-#sacar imagenes mal clasificadas
+# Sacar imagenes mal clasificadas
 mal_clasificadas <- datos_test_sd[predicciones_rf_todas != test_y_todas, "ruta"]
 print("Número de imágenes mal clasificadas:")
 length(mal_clasificadas)
-#hacemos un bucle con subplots para mostrar las imagenes mal clasificadas
-#hay 23 imagenes
+
 imgs <- image_read(mal_clasificadas)
 grid_imagenes <- image_montage(imgs, 
                                tile = "5x5", 

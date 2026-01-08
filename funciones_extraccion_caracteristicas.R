@@ -595,3 +595,286 @@ extraer_pixeles_extremos_bloques <- function(df, lista, num_bloques = 4) {
   return(df_final)
 }
 
+# Extracción de la detección de bordes
+
+# parámetros de entrada: 
+#   - dataframe con las rutas locales a las imágenes en la columna "ruta"
+#   - lista con la info de los 3 canales de cada imagen obtenida con la función 
+#     leer_imagenes
+# parámetros de salida:
+#   - dataframe original con la columna Sobel_mean
+
+extraer_sobel <- function(df, lista) {
+  
+  features <- numeric(nrow(df))
+  
+  cat("Extrayendo características de Sobel de", nrow(df), "imágenes...\n")
+  
+  for (j in 1:nrow(df)) {
+    nombre <- df$ruta[j]
+    
+    tryCatch({
+      # En lugar de leer del disco, accedemos a la lista
+      # imager necesita un objeto cimg, así que lo convertimos
+      img <- as.cimg(lista[[nombre]])
+      
+      img_gray <- grayscale(img)
+      
+      # Calcular gradientes
+      gradientes <- imgradient(img_gray, "xy")
+      
+      # Calcular la Magnitud del gradiente
+      magnitud <- sqrt(gradientes$x^2 + gradientes$y^2)
+      
+      # Promedio de intensidad de los bordes
+      features[j] <- mean(magnitud)
+      
+    }, error = function(e) {
+      cat("Error procesando:", nombre, "\n")
+    })
+  }
+  
+  df_final <- cbind(df, Sobel_mean = features)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  return(df_final)
+}
+
+# Extracción de cantidad de píxeles de alta luminosidad (fuentes de Luz)
+
+# parámetros de entrada: 
+#   - df: dataframe con las rutas locales a las imágenes en la columna "ruta"
+#   - lista: lista con la info de los 3 canales de cada imagen (procedente de leer_imagenes)
+# parámetros de salida:
+#   - dataframe original con la columna Fuentes_luz
+
+extraer_fuentes_luz <- function(df, lista) {
+  
+  # Vector para guardar los resultados
+  features <- numeric(nrow(df))
+  
+  cat("Extrayendo características de Fuentes de Luz de", nrow(df), "imágenes...\n")
+  
+  for (j in 1:nrow(df)) {
+    nombre <- df$ruta[j]
+    
+    tryCatch({
+      # Extraemos los canales directamente de nuestra lista
+      r <- lista[[nombre]][,,1]
+      g <- lista[[nombre]][,,2]
+      b <- lista[[nombre]][,,3]
+      
+      # Calcular luminancia (conversión a escala de grises ponderada)
+      # Esta fórmula da más peso al verde porque el ojo humano es más sensible a él
+      img_gray <- 0.299 * r + 0.587 * g + 0.114 * b
+      
+      # Definir umbral de "luz brillante" (cercano al blanco puro)
+      umbral <- 0.9
+      
+      # Contar cuántos píxeles superan el umbral
+      # En una imagen nocturna, estos suelen ser farolas o focos
+      features[j] <- sum(img_gray > umbral)
+      
+    }, error = function(e) {
+      cat("Error procesando:", nombre, "\n")
+    })
+  }
+  
+  # Unimos la nueva columna al dataframe original
+  df_final <- cbind(df, Fuentes_luz = features)
+  
+  # Aseguramos que la etiqueta sea factor
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  
+  return(df_final)
+}
+
+# Extracción de la entropía 
+
+# parámetros de entrada: 
+#   - df: dataframe con las rutas locales a las imágenes en la columna "ruta"
+#   - lista: lista con la info de los 3 canales de cada imagen (procedente de leer_imagenes)
+# parámetros de salida:
+#   - dataframe original con la columna Entropia
+
+extraer_entropia <- function(df, lista) {
+  
+  # Vector para guardar los resultados
+  features <- numeric(nrow(df))
+  
+  cat("Extrayendo características de Entropía de", nrow(df), "imágenes...\n")
+  
+  for (j in 1:nrow(df)) {
+    nombre <- df$ruta[j]
+    
+    tryCatch({
+      # Accedemos a la imagen desde la lista y convertimos a formato cimg
+      img <- imager::as.cimg(lista[[nombre]])
+      
+      # Convertimos a escala de grises
+      img_gray <- imager::grayscale(img)
+      
+      # Calculamos la entropía basada en la distribución de intensidades
+      # table() crea el histograma de frecuencias y entropy() calcula el desorden
+      entropia <- entropy::entropy(table(as.numeric(img_gray)))
+      
+      features[j] <- entropia
+      
+    }, error = function(e) {
+      cat("Error procesando:", nombre, "\n")
+    })
+  }
+  
+  # Unimos la nueva columna al dataframe original
+  df_final <- cbind(df, Entropia = features)
+  
+  # Aseguramos que la etiqueta sea factor
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  
+  return(df_final)
+}
+
+# Extracción de porcentaje de píxeles de baja luminosidad (píxeles oscuros)
+
+# parámetros de entrada: 
+#   - df: dataframe con las rutas locales a las imágenes en la columna "ruta"
+#   - lista: lista con la info de los 3 canales de cada imagen (procedente de leer_imagenes)
+# parámetros de salida:
+#   - dataframe original con la columna Pixeles_oscuros
+
+extraer_pixeles_oscuros <- function(df, lista) {
+  
+  # Vector para guardar los resultados
+  features <- numeric(nrow(df))
+  
+  cat("Extrayendo características de Píxeles Oscuros de", nrow(df), "imágenes...\n")
+  
+  for (j in 1:nrow(df)) {
+    nombre <- df$ruta[j]
+    
+    tryCatch({
+      # Extraemos los canales directamente de nuestra lista en memoria
+      r <- lista[[nombre]][,,1]
+      g <- lista[[nombre]][,,2]
+      b <- lista[[nombre]][,,3]
+      
+      # Calcular luminancia (conversión a escala de grises)
+      img_gray <- 0.299 * r + 0.587 * g + 0.114 * b
+      
+      # Cálculo de proporciones
+      total_pixeles <- length(img_gray)
+      # Definimos el umbral de oscuridad (píxeles casi negros)
+      pixeles_oscuros <- sum(img_gray < 0.1)
+      
+      # Guardamos el resultado como porcentaje (%) de la imagen
+      features[j] <- (pixeles_oscuros / total_pixeles) * 100
+      
+    }, error = function(e) {
+      cat("Error procesando:", nombre, "\n")
+    })
+  }
+  
+  # Unimos la nueva columna al dataframe original
+  df_final <- cbind(df, Pixeles_oscuros = features)
+  
+  # Aseguramos que la etiqueta sea factor
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  
+  return(df_final)
+}
+
+# Extracción del rango del canal V
+
+# parámetros de entrada: 
+#   - df: dataframe con las rutas locales a las imágenes en la columna "ruta"
+#   - lista: lista con la info de los 3 canales de cada imagen (procedente de leer_imagenes)
+# parámetros de salida:
+#   - dataframe original con la columna Rango_dinamico_V
+
+extraer_rango_dinamico_V <- function(df, lista) {
+  
+  # Vector para guardar los resultados
+  features <- numeric(nrow(df))
+  
+  cat("Extrayendo Rango Dinámico de", nrow(df), "imágenes...\n")
+  
+  for (j in 1:nrow(df)) {
+    nombre <- df$ruta[j]
+    
+    tryCatch({
+      # Extraemos canales de la lista
+      r <- lista[[nombre]][,,1]
+      g <- lista[[nombre]][,,2]
+      b <- lista[[nombre]][,,3]
+      
+      # Convertimos a HSV (usando tu función auxiliar rgb_a_hsv)
+      # Solo nos interesa la tercera columna (Value)
+      hsv_vals <- rgb_a_hsv(as.vector(r), as.vector(g), as.vector(b))
+      v_channel <- hsv_vals[, 3]
+      
+      # El rango dinámico es la diferencia entre el máximo y el mínimo
+      # Mide la amplitud total de luminosidad presente en la escena
+      features[j] <- max(v_channel) - min(v_channel)
+      
+    }, error = function(e) {
+      cat("Error procesando:", nombre, "\n")
+    })
+  }
+  
+  # Unimos la nueva columna al dataframe
+  df_final <- cbind(df, Rango_dinamico_V = features)
+  
+  # Aseguramos factor para la etiqueta
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  
+  return(df_final)
+}
+
+# Extracción de la intensidad media del canal V tras aplicar un filtro pasobajo (Blur)
+
+# parámetros de entrada: 
+#   - df: dataframe con las rutas locales a las imágenes en la columna "ruta"
+#   - lista: lista con la info de los 3 canales de cada imagen (procedente de leer_imagenes)
+# parámetros de salida:
+#   - dataframe original con la columna V_blurred_mean
+
+extraer_blur_V <- function(df, lista) {
+  
+  # Vector para guardar los resultados
+  features <- numeric(nrow(df))
+  
+  cat("Extrayendo media de canal V con suavizado de", nrow(df), "imágenes...\n")
+  
+  for (j in 1:nrow(df)) {
+    nombre <- df$ruta[j]
+    
+    tryCatch({
+      # Extraemos los canales directamente de nuestra lista
+      r <- lista[[nombre]][,,1]
+      g <- lista[[nombre]][,,2]
+      b <- lista[[nombre]][,,3]
+      
+      # Convertimos a HSV y aislamos el canal Value (V)
+      hsv_vals <- rgb_a_hsv(as.vector(r), as.vector(g), as.vector(b))
+      # Reconstruimos la matriz para poder aplicar el filtro espacial de imager
+      V_matrix <- matrix(hsv_vals[, 3], nrow = nrow(r), ncol = ncol(r))
+      
+      # Convertimos a objeto cimg y aplicamos filtro gaussiano (paso bajo)
+      # sigma = 2 es el parámetro de suavizado
+      V_blurred <- imager::isoblur(imager::as.cimg(V_matrix), sigma = 2)
+      
+      # La característica es la media de la imagen suavizada
+      features[j] <- mean(V_blurred)
+      
+    }, error = function(e) {
+      cat("Error procesando:", nombre, "\n")
+    })
+  }
+  
+  # Unimos la nueva columna al dataframe
+  df_final <- cbind(df, V_blurred_mean = features)
+  
+  # Aseguramos que la etiqueta sea factor
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  
+  return(df_final)
+}

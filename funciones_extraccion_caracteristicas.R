@@ -435,7 +435,7 @@ extraer_gradientes_horizontales <- function(df, lista){
 #     leer_imagenes
 #   - num_bloques: número de divisiones por eje 
 # parámetros de salida:
-#   - dataframe original con características de Mediana_H, sd_V y Porcentaje_Brillantes por bloque
+#   - dataframe original con características de mediana_cos_H, mediana_sin_H, sd_V y Porcentaje_Brillantes por bloque
 
 extraer_caracteristicas_bloques <- function(df, lista, num_bloques = 4) {
   
@@ -462,6 +462,11 @@ extraer_caracteristicas_bloques <- function(df, lista, num_bloques = 4) {
     H_matrix <- matrix(hsv_vals[, 1], nrow = altura, ncol = ancho)
     V_matrix <- matrix(hsv_vals[, 3], nrow = altura, ncol = ancho)
     
+    # matrices de seno y coseno para H
+    H_rad <- H_matrix * 2 * pi
+    cos_matrix <- cos(H_rad)
+    sin_matrix <- sin(H_rad)
+    
     # calculamos el tamaño de cada bloque
     bloque_altura <- floor(altura / num_bloques)
     bloque_ancho <- floor(ancho / num_bloques)
@@ -480,18 +485,20 @@ extraer_caracteristicas_bloques <- function(df, lista, num_bloques = 4) {
         col_fin <- ifelse(k == num_bloques - 1, ancho, (k + 1) * bloque_ancho)
         
         # extraemos cada bloques
-        bloque_H <- H_matrix[fila_inicio:fila_fin, col_inicio:col_fin]
+        bloque_cos <- cos_matrix[fila_inicio:fila_fin, col_inicio:col_fin]
+        bloque_sin <- sin_matrix[fila_inicio:fila_fin, col_inicio:col_fin]
         bloque_V <- V_matrix[fila_inicio:fila_fin, col_inicio:col_fin]
         
         # cálculo de la mediana de H y la desviación estándar de V
-        mediana_H <- median(bloque_H, na.rm = TRUE)
+        mediana_cos_H <- median(bloque_cos, na.rm = TRUE)
+        mediana_sin_H <- median(bloque_sin, na.rm = TRUE)
         sd_V <- sd(as.vector(bloque_V), na.rm = TRUE)
         
         # consideramos que un pixel es brillante si su valor V > 0.9
         porcentaje_brillantes <- (sum(bloque_V > 0.9) / length(bloque_V)) * 100
         
         # acumulamos en el vector de la imagen
-        caracteristicas_imagen <- c(caracteristicas_imagen, mediana_H, sd_V, porcentaje_brillantes)
+        caracteristicas_imagen <- c(caracteristicas_imagen, mediana_cos_H, mediana_sin_H, sd_V, porcentaje_brillantes)
       }
     }
     features_list[[j]] <- caracteristicas_imagen
@@ -500,12 +507,13 @@ extraer_caracteristicas_bloques <- function(df, lista, num_bloques = 4) {
   # convertimos la lista a matriz y asignamos nombres a las columnas
   features_matrix <- do.call(rbind, features_list)
   
-  colnames(features_matrix) <- paste0("Bloque_", rep(1:(num_bloques^2), each = 3), 
-                                      c("_Mediana_H", "_sd_V", "_Porcentaje_Brillantes"))
+  colnames(features_matrix) <- paste0("Bloque_", rep(1:(num_bloques^2), each = 4), 
+                                      c("mediana_cos_H", "mediana_sin_H", "_sd_V", "_Porcentaje_Brillantes"))
   
   # unimos la nueva info al dataframe y nos aseguramos de que la etiqueta es 
   # de tipo factor
   df_final <- cbind(df, features_matrix)
+  
   # devolvemos el dataframe original con los nuevos datos añadidos
   df_final$etiqueta <- as.factor(df_final$etiqueta)
   
@@ -790,7 +798,7 @@ extraer_rango_dinamico_V <- function(df, lista) {
       g <- lista[[nombre]][,,2]
       b <- lista[[nombre]][,,3]
       
-      # Convertimos a HSV (usando tu función auxiliar rgb_a_hsv)
+      # Convertimos a HSV 
       # Solo nos interesa la tercera columna (Value)
       hsv_vals <- rgb_a_hsv(as.vector(r), as.vector(g), as.vector(b))
       v_channel <- hsv_vals[, 3]

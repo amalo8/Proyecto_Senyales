@@ -4,6 +4,8 @@
 
 library(jpeg)
 library(grDevices)
+library(imager)
+library(entropy)
 
 # Lectura de los valores de los tres canales RGB de una imagen
 
@@ -604,37 +606,34 @@ extraer_pixeles_extremos_bloques <- function(df, lista, num_bloques = 4) {
 # parámetros de salida:
 #   - dataframe original con la columna Sobel_mean
 
-extraer_sobel <- function(df, lista) {
+extraer_sobel <- function(df_datos) {
+  features <- numeric(nrow(df_datos))
   
-  features <- numeric(nrow(df))
+  cat("Extrayendo características de Sobel de", nrow(df_datos), "imágenes...\n")
   
-  cat("Extrayendo características de Sobel de", nrow(df), "imágenes...\n")
-  
-  for (j in 1:nrow(df)) {
-    nombre <- df$ruta[j]
-    
+  for (j in 1:nrow(df_datos)) {
     tryCatch({
-      # En lugar de leer del disco, accedemos a la lista
-      # imager necesita un objeto cimg, así que lo convertimos
-      img <- as.cimg(lista[[nombre]])
-      
+      img <- load.image(df_datos$ruta[j])
       img_gray <- grayscale(img)
-      
-      # Calcular gradientes
+      #Calcular gradientes --> Sobel es el método por defecto en imager
+      # xy indica que queremos derivadas en ambas direcciones
       gradientes <- imgradient(img_gray, "xy")
       
-      # Calcular la Magnitud del gradiente
+      # Calcular la Magnitud del gradiente con pitagoras
+      # gradientes$x es el borde vertical, gradientes$y es el horizontal
+      
       magnitud <- sqrt(gradientes$x^2 + gradientes$y^2)
       
-      # Promedio de intensidad de los bordes
+      # característica es el promedio de intensidad de los bordes
       features[j] <- mean(magnitud)
       
     }, error = function(e) {
-      cat("Error procesando:", nombre, "\n")
+      cat("Error leyendo:", df_datos$ruta[j], "\n")
     })
   }
   
-  df_final <- cbind(df, Sobel_mean = features)
+  
+  df_final <- cbind(df_datos, Sobel_mean = features)
   df_final$etiqueta <- as.factor(df_final$etiqueta)
   return(df_final)
 }
@@ -696,40 +695,24 @@ extraer_fuentes_luz <- function(df, lista) {
 # parámetros de salida:
 #   - dataframe original con la columna Entropia
 
-extraer_entropia <- function(df, lista) {
+extraer_entropia <- function(df_datos) {
+  features <- numeric(nrow(df_datos))
   
-  # Vector para guardar los resultados
-  features <- numeric(nrow(df))
+  cat("Extrayendo características de Entropía de", nrow(df_datos), "imágenes...\n")
   
-  cat("Extrayendo características de Entropía de", nrow(df), "imágenes...\n")
-  
-  for (j in 1:nrow(df)) {
-    nombre <- df$ruta[j]
-    
+  for (j in 1:nrow(df_datos)) {
     tryCatch({
-      # Accedemos a la imagen desde la lista y convertimos a formato cimg
-      img <- imager::as.cimg(lista[[nombre]])
-      
-      # Convertimos a escala de grises
-      img_gray <- imager::grayscale(img)
-      
-      # Calculamos la entropía basada en la distribución de intensidades
-      # table() crea el histograma de frecuencias y entropy() calcula el desorden
-      entropia <- entropy::entropy(table(as.numeric(img_gray)))
-      
+      img <- load.image(df_datos$ruta[j])
+      img_gray <- grayscale(img)
+      entropia <- entropy(table(as.numeric(img_gray)))
       features[j] <- entropia
-      
     }, error = function(e) {
-      cat("Error procesando:", nombre, "\n")
+      cat("Error leyendo:", df_datos$ruta[j], "\n")
     })
   }
   
-  # Unimos la nueva columna al dataframe original
-  df_final <- cbind(df, Entropia = features)
-  
-  # Aseguramos que la etiqueta sea factor
+  df_final <- cbind(df_datos, Entropia = features)
   df_final$etiqueta <- as.factor(df_final$etiqueta)
-  
   return(df_final)
 }
 

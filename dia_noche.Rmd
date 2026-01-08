@@ -220,6 +220,13 @@ cat("Precisión del modelo Random Forest con todas las características:", cm_rf
 
 La tercera característica es la detección de bordes mediante el filtro Sobel (`extraet_sobel`) para detectar cambios bruscos en la intensidad lumínica (se utiliza el valor medio del gradiente horizontal y vertical de la intensidad) y, por tanto, en la identificación de bordes en una imagen. En un principio podríamos encontrar un valor mayor para imágenes diurnas ya que se pueden encontrar edificios/vegetación que debido a la gran cantidad de luz que hay en estas imágenes, se puedan identificar mejor esos bordes.
 
+La cuarta característica es la detección de fuentes de luz (`extraer_fuentes_luz`). Consiste en la cuantificación de puntos de alta luminosidad. Se ha utilizado la fórmula de la luminancia ($L=0,299R+0,587G+0,114B$) y se ha definido un umbral de 0,9 para detectar píxeles con intensidad cercana a la del blanco. 
+
+La quinta característica es la entropía (`extraer_entropia`). A partir de la función `entropy` podemos determinarla. Puede ser útil ya que para valores bajos de la entropía esperamos una imagen más uniforme o con poca variación de niveles de intensidad, que podríamos encontrar en imagenes de noche.
+
+La sexta característica es el cálculo del porcentaje de píxeles oscuros, es decir, de baja luminosidad (`extraer_pixeles_oscuros`). Utilizando de nuevo la fórmula de la luminancia, $L$, determinamos el porcentaje de píxeles oscuros en cada imagen (en imágenes nocturnas esperamos un porcentaje mayor).
+
+
 ```{r, include=FALSE}
 ######## EXTRAER SD DE V ########
 datos_train_sd <- extraer_sd_V(datos_train_hsv, lista_train)

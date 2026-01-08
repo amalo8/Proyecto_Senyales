@@ -102,14 +102,14 @@ rgb_a_hsv <- function(r, g, b) {
 #   - lista con la info de los 3 canales de cada imagen obtenida con la función 
 #     read_images
 # parámetros de salida:
-#   - dataframe original con la adición de las columnas H_mediana, S_mediana, 
-#     V_mediana
+#   - dataframe original con la adición de las columnas H_cos_mediana, 
+#     H_sin_mediana, S_mediana, V_mediana
 
 extraer_hsv <- function(df, lista) {
   
   # matriz vacía para guardar los valores medianos de H, S y V
-  features <- matrix(0, nrow = nrow(df), ncol = 3)
-  colnames(features) <- c("H_mediana", "S_mediana", "V_mediana")
+  features <- matrix(0, nrow = nrow(df), ncol = 4)
+  colnames(features) <- c("H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana")
   
   cat("Extrayendo HSV de", nrow(df), "imágenes...\n")
   
@@ -123,9 +123,10 @@ extraer_hsv <- function(df, lista) {
         as.vector(lista[[nombre]][,,3])  # B
         )
       
-      features[j, 1] = median(hsv_vals[, 1])
-      features[j, 2] = median(hsv_vals[, 2])
-      features[j, 3] = median(hsv_vals[, 3])
+      features[j, 1] = median(cos(hsv_vals[, 1]*2*pi)) # cos(H)
+      features[j, 2] = median(sin(hsv_vals[, 1]*2*pi)) # sin(H)
+      features[j, 3] = median(hsv_vals[, 2])           # S
+      features[j, 4] = median(hsv_vals[, 3])           # V
       
       j <- j+1
       

@@ -28,7 +28,7 @@ El proceso de clasificación de imágenes diurnas y nocturnas requiere un proces
 
 El objetivo es construir un modelo de aprendizaje supervisado que permita diferenciar claramente entre las dos categorías y, posteriormente, tenga la capacidad de generalizar correctamente para clasificar las imágenes capturadas por nosotros. Cabe destacar que primero abordaremos este problema como una clasificación binaria (día/noche) para tener una primera toma de contacto en la extracción de características y en el entrenamiento del modelo. En el siguiente apartado, añadiremos una nueva categoría (amanecer/atardecer) para lograr un modelo más completo.
 
-El procedimiento que hemos seguido para construir el clasificador ha sido el siguiente: incorporar sucesivamente características al modelo (de una en una). Esta decisión se ha tomado para poder observar si al añadir una característica, mejora o empeora nuestro clasificador. Esto nos da un control completo, en el que podemos identificar claramente que características funcionan mejor para diferenciar entre imagen de día y de noche.
+El procedimiento que hemos seguido para construir el clasificador ha sido el siguiente: incorporar sucesivamente características al modelo (de una en una). Esta decisión se ha tomado para poder observar si al añadir una característica, mejora o no nuestro clasificador. Esto nos da un control completo, en el que podemos identificar claramente que características funcionan mejor para diferenciar entre imagen de día y de noche.
 
 Además, hemos optado por utilizar el algoritmo Random Forest porque es rápido de implementar, permite capturar relaciones complejas entre características (construye múltiples árboles de decisión donde cada split selecciona un subconjunto de las características, garantizando la aleatoriedad y reduciendo la correlación entre estas). También, es robusto ante outliers, lo cual es interesante ya que en el conjunto de datos utilizado en esta parte pueden haber ruidos visuales o iluminaciones extremas.
 
@@ -224,8 +224,30 @@ La cuarta característica es la detección de fuentes de luz (`extraer_fuentes_l
 
 La quinta característica es la entropía (`extraer_entropia`). A partir de la función `entropy` podemos determinarla. Puede ser útil ya que para valores bajos de la entropía esperamos una imagen más uniforme o con poca variación de niveles de intensidad, que podríamos encontrar en imagenes de noche.
 
+```{r}
+
+######## BOXPLOT ENTROPÍA ########
+datos_train_entropia <- extraer_entropia(datos_train_hsv, lista_train)
+datos_test_entropia <- extraer_entropia(datos_test_hsv, lista_test)
+```
+
+```{r}
+ggplot(datos_train_entropia, aes(x = as.factor(etiqueta), y = Entropia, fill = as.factor(etiqueta))) + 
+  geom_boxplot() + 
+  scale_fill_manual(values = c("#104E8B", "#C7D9F5"), labels = c("Noche", "Día")) +
+  labs(title = "Entropía de la Imagen", subtitle = "Para cada clase (Día/Noche)", y = "Entropía", x = "Etiqueta", fill = "Etiqueta") +
+  theme_minimal()
+```
+
+
+
 La sexta característica es el cálculo del porcentaje de píxeles oscuros, es decir, de baja luminosidad (`extraer_pixeles_oscuros`). Utilizando de nuevo la fórmula de la luminancia, $L$, determinamos el porcentaje de píxeles oscuros en cada imagen (en imágenes nocturnas esperamos un porcentaje mayor).
 
+La séptima característica (`extraer_rango_dinamico_V`) mide el rango del canal V, es decir, cálcula la diferencia entre el valor máximo de V y el valor mínimo de V de cada imagen. Un rango de 1 indica que la imagen tiene píxeles donde hay ausencia de luz (negro) hasta la máxima presencia de luz (blanco). Lo habitual es encontrar un rango más amplio en imágenes de día, aunque en las imágenes nocturas pueden haber luces artificiales.
+
+La octava característica (`extraer_blur_V`) consiste en calcular la media del canal V una vez aplicado un filtro pasobajo gaussiano (blur) para suavizar la imagen y deliminar variaciones bruscas o ruido de alta frecuencia. Esto podría ayudar a separar mejor un día nublado (gris) de una noche iluminada.
+
+La última característica es el cálculo de la desviación estándar de las intensidades del canal V (`extraer_sd_V`). Nos permite determinar la dispersión del brillo de una imagen con respecto a su media. De día esperamos una desviación mayor debido a la gran variedad de objetos que nos podemos encontrar en las imágenes como sombras, edificios, árboles, etc. Podemos verlo gráficamente a través del boxplot siguiente.
 
 ```{r, include=FALSE}
 ######## EXTRAER SD DE V ########
@@ -265,6 +287,9 @@ cat("Precisión del modelo Random Forest con todas las características + SD de 
 importancia_sd <- importance(rf_model_sd)
 print(importancia_sd)
 ```
+
+Como hemos mencionado anteriormente, estas características se han ido añadiendo sucensivamente al modelo. Esto nos ha permitdo ver que características aportaban más información para distinguir entre imágenes de día y de noche. Estas han sido: `extraer_rgb`, `extraer_hsv` y `extraer_sd_V`. Por tanto, este será nuestro punto de partida en el siguiente apartado en el que añadimos una nueva categoría (amanecer/atardecer).
+
 
 ```{r, include=FALSE}
 # Sacar imagenes mal clasificadas

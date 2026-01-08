@@ -606,35 +606,28 @@ extraer_pixeles_extremos_bloques <- function(df, lista, num_bloques = 4) {
 # parámetros de salida:
 #   - dataframe original con la columna Sobel_mean
 
-extraer_sobel <- function(df_datos) {
-  features <- numeric(nrow(df_datos))
+extraer_sobel <- function(df, lista) {
+  features <- numeric(nrow(df))
+  cat("Extrayendo Sobel de", nrow(df), "imágenes...\n")
   
-  cat("Extrayendo características de Sobel de", nrow(df_datos), "imágenes...\n")
-  
-  for (j in 1:nrow(df_datos)) {
-    tryCatch({
-      img <- load.image(df_datos$ruta[j])
-      img_gray <- grayscale(img)
-      #Calcular gradientes --> Sobel es el método por defecto en imager
-      # xy indica que queremos derivadas en ambas direcciones
-      gradientes <- imgradient(img_gray, "xy")
-      
-      # Calcular la Magnitud del gradiente con pitagoras
-      # gradientes$x es el borde vertical, gradientes$y es el horizontal
-      
-      magnitud <- sqrt(gradientes$x^2 + gradientes$y^2)
-      
-      # característica es el promedio de intensidad de los bordes
-      features[j] <- mean(magnitud)
-      
-    }, error = function(e) {
-      cat("Error leyendo:", df_datos$ruta[j], "\n")
-    })
+  j <- 1
+  for (nombre in df$ruta) {
+    img_array <- lista[[nombre]]
+    
+    # conversión a formato cimg
+    img_cimg <- suppressWarnings(as.cimg(img_array))
+    # escala de grises
+    img_gray <- grayscale(img_cimg)
+    # cálculo de gradientes
+    gradientes <- imgradient(img_gray, "xy")
+    # combinamos ambos gradientes
+    magnitud <- sqrt(gradientes$x^2 + gradientes$y^2)
+    
+    features[j] <- mean(magnitud, na.rm = TRUE)
+    j <- j + 1
   }
   
-  
-  df_final <- cbind(df_datos, Sobel_mean = features)
-  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  df_final <- cbind(df, Sobel_mean = features)
   return(df_final)
 }
 
@@ -695,24 +688,31 @@ extraer_fuentes_luz <- function(df, lista) {
 # parámetros de salida:
 #   - dataframe original con la columna Entropia
 
-extraer_entropia <- function(df_datos) {
-  features <- numeric(nrow(df_datos))
+extraer_entropia <- function(df, lista) {
   
-  cat("Extrayendo características de Entropía de", nrow(df_datos), "imágenes...\n")
+  # Inicializamos el vector para la entropía
+  features <- numeric(nrow(df))
   
-  for (j in 1:nrow(df_datos)) {
-    tryCatch({
-      img <- load.image(df_datos$ruta[j])
-      img_gray <- grayscale(img)
-      entropia <- entropy(table(as.numeric(img_gray)))
-      features[j] <- entropia
-    }, error = function(e) {
-      cat("Error leyendo:", df_datos$ruta[j], "\n")
-    })
+  cat("Extrayendo características de Entropía de", nrow(df), "imágenes...\n")
+  
+  j <- 1
+  for (nombre in df$ruta) {
+    img_array <- lista[[nombre]]
+    
+    # conversión a grises
+    gris_matrix <- 0.299 * img_array[,,1] + 0.587 * img_array[,,2] + 0.114 * img_array[,,3]
+    tabla_frecuencias <- table(as.vector(round(gris_matrix, 3))) 
+    # cálculo de la entropía
+    features[j] <- entropy(tabla_frecuencias)
+    
+    j <- j + 1
   }
   
-  df_final <- cbind(df_datos, Entropia = features)
-  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  df_final <- cbind(df, Entropia = features)
+  
+  if("etiqueta" %in% names(df_final)) {
+    df_final$etiqueta <- as.factor(df_final$etiqueta)
+  }
   return(df_final)
 }
 

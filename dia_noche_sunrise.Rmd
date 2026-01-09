@@ -9,6 +9,27 @@ knitr::opts_chunk$set(echo = TRUE)
 rm(list = ls())
 ```
 
+```{r}
+# Datos de dia/noche que nos hacen falta
+# Ruta base imágenes
+ruta_base_imagenes <- "imagenes/train"
+
+# Ruta imágenes día/noche
+ruta_noche <- file.path(ruta_base_imagenes, "daynight/nighttime")
+ruta_dia <- file.path(ruta_base_imagenes, "daynight/daytime")
+
+# Lectura del nombre de las imágenes
+archivos_noche <- list.files(path = ruta_noche, pattern = "\\.jpe?g$", full.names = TRUE, recursive = FALSE)
+archivos_dia <- list.files(path = ruta_dia, pattern = "\\.jpe?g$", full.names = TRUE, recursive = FALSE)
+
+# Dataframe de cada clase y su etiqueta (0: noche, 1: día)
+df_noche <- data.frame(ruta = archivos_noche, etiqueta = 0)
+df_dia <- data.frame(ruta = archivos_dia, etiqueta = 1)
+
+# Combinación de los dataframes
+datos_imagenes <- rbind(df_noche, df_dia)
+```
+
 Añadimos funciones del RMD de dia_noche
 ```{r}
 extraer_rgb <- function(df_datos) {
@@ -129,7 +150,7 @@ extraer_sd_V <- function(df_datos) {
 Añadimos sunrise para probar a ver como funciona
 ```{r}
 # Definir la ruta base
-ruta_base_imagenes <- "imagenes/daynight"
+ruta_base_imagenes <- "imagenes/train/daynight"
 # Añadimos una clase: sunrise
 # lectura de las imagenes de sunrise
 ruta_sunrise <- file.path(ruta_base_imagenes, "sunrise")
@@ -547,4 +568,7 @@ grid_imagenes <- image_montage(imgs,
 
 print(grid_imagenes)
 ```
+
+
+
 

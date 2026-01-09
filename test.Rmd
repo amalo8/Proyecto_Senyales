@@ -1,0 +1,63 @@
+---
+title: "Test"
+author: "grupo señales"
+date: "2026-01-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list=ls())
+```
+
+Cargamos los modelos que hemos desarrollado para hacer el test con ellos
+```{r}
+load("rf_dia_noche.RData")
+load("rf_dia_noche_surise.RData")
+
+source("funciones_extraccion_caracteristicas.R")
+```
+
+# Día/noche/amanecer
+Archivos dia/noche/amanecer
+```{r}
+# Ruta base imágenes
+ruta_base_imagenes <- "imagenes/test/dianocheamanecer"
+
+# Ruta imágenes día/noche
+ruta_noche <- file.path(ruta_base_imagenes, "Noche")
+ruta_dia <- file.path(ruta_base_imagenes, "Dia")
+ruta_amanecer <- file.path(ruta_base_imagenes, "Amanecer")
+
+# Lectura del nombre de las imágenes
+archivos_noche <- list.files(path = ruta_noche, pattern = "\\.jpe?g$", full.names = TRUE, recursive = FALSE)
+archivos_dia <- list.files(path = ruta_dia, pattern = "\\.jpe?g$", full.names = TRUE, recursive = FALSE)
+archivos_amanecer <- list.files(path = ruta_amanecer, pattern = "\\.jpe?g$", full.names = TRUE, recursive = FALSE)
+
+# Dataframe de cada clase y su etiqueta (0: noche, 1: día)
+df_noche <- data.frame(ruta = archivos_noche, etiqueta = 0)
+df_dia <- data.frame(ruta = archivos_dia, etiqueta = 1)
+df_amanecer <- data.frame(ruta=archivos_amanecer, etiqueta = 2)
+
+# Combinación de los dataframes
+datos_test <- rbind(df_noche, df_dia, df_amanecer)
+```
+
+Extacción de características de las imágenes test
+```{r}
+####### LECTURA IMÁGENES ########
+lista_test <- leer_imagenes(datos_test)
+
+######## MEDIANAS RGB ########
+datos_test <- extraer_rgb(datos_test, lista_test)
+
+######## MEDIANAS HSV ########
+datos_test <- extraer_hsv(datos_test, lista_test)
+
+######## ENTROPÍA ########
+datos_test <- extraer_entropia(datos_test, lista_test)
+
+######## SD DE V ########
+datos_test <- extraer_sd_V(datos_test, lista_test)
+```
+

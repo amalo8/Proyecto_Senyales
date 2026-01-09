@@ -93,17 +93,19 @@ modelo_rf_rgb <- randomForest(
 # Evaluar el modelo en el conjunto de prueba
 predicciones_rgb <- predict(modelo_rf_rgb, newdata = datos_validation)
 confusionMatrix(predicciones_rgb, datos_validation$etiqueta)
+```
 
+```{r}
 mal_clasificados <- datos_validation[predicciones_rgb != datos_validation$etiqueta, ]
-ruta_mal_clasificados <- mal_clasificados$ruta 
-for (ruta in ruta_mal_clasificados){
-  plot(as.raster(lista_validation[[ruta]]))
+rutas_mal_clasificados <- mal_clasificados$ruta
+for (i in 1:length(ruta_mal_clasificados)){
+  plot(image_read(rutas_mal_clasificados[i]))
 }
 ```
 
 
 ```{r}
-# Probar a extraer caracteristicas del espacio HSV
+# Probar a extraer características del espacio HSV
 datos_train <- extraer_hsv(datos_train, lista_train)
 datos_validation <- extraer_hsv(datos_validation, lista_validation)
 ```
@@ -112,7 +114,7 @@ Entrenamos y evaluamos el modelo con las caracteristicas HSV
 ```{r}
 # Entrenar el modelo Random Forest con características HSV
 modelo_rf_hsv <- randomForest(
-  etiqueta ~ H_mediana + S_mediana + V_mediana,
+  etiqueta ~ H_cos_mediana + H_sin_mediana + S_mediana + V_mediana,
   data = datos_train,
   ntree = 100
 )
@@ -120,7 +122,7 @@ modelo_rf_hsv <- randomForest(
 predicciones_hsv <- predict(modelo_rf_hsv, newdata = datos_validation)
 confusionMatrix(predicciones_hsv, datos_validation$etiqueta)
 ```
-Vemos cual ha clasificado mal
+Vemos cuáles ha clasificado mal:
 ```{r}
 mal_clasificados <- datos_validation[predicciones_hsv != datos_validation$etiqueta, ]
 ruta_mal_clasificados <- mal_clasificados$ruta 
@@ -133,13 +135,14 @@ Entrenamos y evaluamos el modelo con las caracteristicas RGB+HSV
 ```{r}
 # Entrenar el modelo Random Forest con características combinadas
 modelo_rf_completo <- randomForest(
-  etiqueta ~ R_mediana + G_mediana + B_mediana + H_mediana + S_mediana + V_mediana,
+  etiqueta ~ R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana,
   data = datos_train,
   ntree = 100
 )
 # Evaluar el modelo en el conjunto de prueba
 predicciones_completo <- predict(modelo_rf_completo, newdata = datos_validation)
 confusionMatrix(predicciones_completo, datos_validation$etiqueta)
+modelo_rf_completo$importance
 ```
 
 
@@ -168,7 +171,7 @@ ggplot(datos_long, aes(x = Feature, y = Valor, fill = etiqueta)) +
 
 ```{r}
 # Transformar datos a formato largo para plotear 
-datos_long_hsv <- pivot_longer(datos_train, cols = c("H_mediana", "S_mediana", "V_mediana"), 
+datos_long_hsv <- pivot_longer(datos_train, cols = c("H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana"), 
                            names_to = "Feature", values_to = "Valor")
 
 ggplot(datos_long_hsv, aes(x = Feature, y = Valor, fill = etiqueta)) +
@@ -195,7 +198,7 @@ predicciones_ratio_azul <- predict(modelo_ratio_azul, newdata = datos_validation
 confusionMatrix(predicciones_ratio_azul, datos_validation$etiqueta)
 ```
 
-Probamos un modelo con caracterísitcas S y ratio de azul:
+Probamos un modelo con características S y ratio de azul:
 
 ```{r}
 # Entrenar el modelo Random Forest con características RGB
@@ -211,7 +214,7 @@ confusionMatrix(predicciones_s_azul, datos_validation$etiqueta)
 
 ```{r}
 modelo_mas_completo <- randomForest(
-  etiqueta ~ R_mediana + G_mediana + B_mediana + H_mediana + S_mediana + V_mediana + Ratio_Azul,
+  etiqueta ~ R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul,
   data = datos_train,
   ntree = 100
 )

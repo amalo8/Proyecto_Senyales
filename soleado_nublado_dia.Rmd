@@ -9,8 +9,8 @@ knitr::opts_chunk$set(echo = TRUE)
 rm(list = ls())
 ```
 
-Vamos a diferenciar los dias soleado de nublado
-Cargamos las imagenes de weather, y cogemos las carpetas Cloudy y Shine. 
+Vamos a diferenciar los días despejados de aquellos nublados.
+Para ello cargamos todas las imágenes destinadas a entrenamiento, que además ya preprocesadas, y reservaremos un 20% para validación.
 ```{r}
 library(jpeg)
 library(class)
@@ -18,9 +18,9 @@ library(caret)
 library(randomForest)
 
 # Definir la ruta base
-ruta_base_imagenes <- "clouds_train"
+ruta_base_imagenes <- "imagenes_recortadas/train/shinecloudy"
 
-# lectura de las imagenes de Nublado
+# lectura de las imágenes de Nublado
 ruta_cloudy <- file.path(ruta_base_imagenes, "nublado")
 archivos_cloudy <- list.files(
   path = ruta_cloudy,
@@ -31,7 +31,7 @@ archivos_cloudy <- list.files(
 
 df_cloudy <- data.frame(
   ruta = archivos_cloudy,
-  etiqueta = 0 # Cloudy
+  etiqueta = 0 # nublado
 )
 
 
@@ -47,13 +47,12 @@ archivos_shine <- list.files(
 
 df_shine <- data.frame(
   ruta = archivos_shine,
-  etiqueta = 1 # Shine
+  etiqueta = 1 # despejado
 )
 
-# lectura de las imagenes 
+# lectura de las imágenes 
 
 datos_imagenes <- rbind(df_cloudy, df_shine)
-
 
 set.seed(42) 
 
@@ -63,13 +62,13 @@ indices_entrenamiento <- createDataPartition(
   list = FALSE 
 )
 
-# Crear los conjuntos de datos de TRAIN y TEST
+# Crear los conjuntos de datos de TRAIN y VALIDATION
 datos_train <- datos_imagenes[indices_entrenamiento, ]
-datos_test <- datos_imagenes[-indices_entrenamiento, ]
+datos_validation <- datos_imagenes[-indices_entrenamiento, ]
 
 
 ```
-Probamos como primeras caracteristicas RGB:
+Probamos como primeras características RGB:
 
 ```{r}
 # cargamos las funciones de lectura y extracción de características de imágenes
@@ -77,11 +76,11 @@ source("funciones_extraccion_caracteristicas.R")
 
 # leemos las imágenes
 lista_train <- leer_imagenes(datos_train)
-lista_test <- leer_imagenes(datos_test)
+lista_validation <- leer_imagenes(datos_validation)
 
 # añadimos las medianas de R, G, y B 
 datos_train <- extraer_rgb(datos_train, lista_train)
-datos_test <- extraer_rgb(datos_test, lista_test)
+datos_validation <- extraer_rgb(datos_validation, lista_validation)
 ```
 
 ```{r}
@@ -92,13 +91,13 @@ modelo_rf_rgb <- randomForest(
   ntree = 100
 )
 # Evaluar el modelo en el conjunto de prueba
-predicciones_rgb <- predict(modelo_rf_rgb, newdata = datos_test)
-confusionMatrix(predicciones_rgb, datos_test$etiqueta)
+predicciones_rgb <- predict(modelo_rf_rgb, newdata = datos_validation)
+confusionMatrix(predicciones_rgb, datos_validation$etiqueta)
 
-mal_clasificados <- datos_test[predicciones_rgb != datos_test$etiqueta, ]
+mal_clasificados <- datos_validation[predicciones_rgb != datos_validation$etiqueta, ]
 ruta_mal_clasificados <- mal_clasificados$ruta 
 for (ruta in ruta_mal_clasificados){
-  plot(as.raster(lista_test[[ruta]]))
+  plot(as.raster(lista_validation[[ruta]]))
 }
 ```
 
@@ -106,7 +105,7 @@ for (ruta in ruta_mal_clasificados){
 ```{r}
 # Probar a extraer caracteristicas del espacio HSV
 datos_train <- extraer_hsv(datos_train, lista_train)
-datos_test <- extraer_hsv(datos_test, lista_test)
+datos_validation <- extraer_hsv(datos_validation, lista_validation)
 ```
 
 Entrenamos y evaluamos el modelo con las caracteristicas HSV
@@ -118,15 +117,15 @@ modelo_rf_hsv <- randomForest(
   ntree = 100
 )
 # Evaluar el modelo en el conjunto de prueba
-predicciones_hsv <- predict(modelo_rf_hsv, newdata = datos_test)
-confusionMatrix(predicciones_hsv, datos_test$etiqueta)
+predicciones_hsv <- predict(modelo_rf_hsv, newdata = datos_validation)
+confusionMatrix(predicciones_hsv, datos_validation$etiqueta)
 ```
 Vemos cual ha clasificado mal
 ```{r}
-mal_clasificados <- datos_test[predicciones_hsv != datos_test$etiqueta, ]
+mal_clasificados <- datos_validation[predicciones_hsv != datos_validation$etiqueta, ]
 ruta_mal_clasificados <- mal_clasificados$ruta 
 for (ruta in ruta_mal_clasificados){
-  plot(as.raster(lista_test[[ruta]]))
+  plot(as.raster(lista_validation[[ruta]]))
 }
 ```
 
@@ -139,8 +138,8 @@ modelo_rf_completo <- randomForest(
   ntree = 100
 )
 # Evaluar el modelo en el conjunto de prueba
-predicciones_completo <- predict(modelo_rf_completo, newdata = datos_test)
-confusionMatrix(predicciones_completo, datos_test$etiqueta)
+predicciones_completo <- predict(modelo_rf_completo, newdata = datos_validation)
+confusionMatrix(predicciones_completo, datos_validation$etiqueta)
 ```
 
 
@@ -184,7 +183,7 @@ ggplot(datos_long_hsv, aes(x = Feature, y = Valor, fill = etiqueta)) +
 ```{r}
 # Extraer característica ratio azul para los conjuntos de entrenamiento y prueba
 datos_train <- extraer_ratio_azul(datos_train, lista_train)
-datos_test <- extraer_ratio_azul(datos_test, lista_test)
+datos_validation <- extraer_ratio_azul(datos_validation, lista_validation)
 # Entrenar el modelo Random Forest con características RGB
 modelo_ratio_azul <- randomForest(
   etiqueta ~ Ratio_Azul,
@@ -192,8 +191,8 @@ modelo_ratio_azul <- randomForest(
   ntree = 100
 )
 # Evaluar el modelo en el conjunto de prueba
-predicciones_ratio_azul <- predict(modelo_ratio_azul, newdata = datos_test)
-confusionMatrix(predicciones_ratio_azul, datos_test$etiqueta)
+predicciones_ratio_azul <- predict(modelo_ratio_azul, newdata = datos_validation)
+confusionMatrix(predicciones_ratio_azul, datos_validation$etiqueta)
 ```
 
 Probamos un modelo con caracterísitcas S y ratio de azul:
@@ -206,8 +205,8 @@ modelo_s_azul <- randomForest(
   ntree = 100
 )
 # Evaluar el modelo en el conjunto de prueba
-predicciones_s_azul <- predict(modelo_s_azul, newdata = datos_test)
-confusionMatrix(predicciones_s_azul, datos_test$etiqueta)
+predicciones_s_azul <- predict(modelo_s_azul, newdata = datos_validation)
+confusionMatrix(predicciones_s_azul, datos_validation$etiqueta)
 ```
 
 ```{r}
@@ -217,55 +216,55 @@ modelo_mas_completo <- randomForest(
   ntree = 100
 )
 # Evaluar el modelo en el conjunto de prueba
-predicciones_mas_completas <- predict(modelo_mas_completo, newdata = datos_test)
-confusionMatrix(predicciones_mas_completas, datos_test$etiqueta)
+predicciones_mas_completas <- predict(modelo_mas_completo, newdata = datos_validation)
+confusionMatrix(predicciones_mas_completas, datos_validation$etiqueta)
 modelo_mas_completo$importance
 ```
 
-## Test con nuestras fotos
+## validation con nuestras fotos
 
 
 Cargamos, leemos y etiquetamos los datos: 
 
 ```{r}
 # Definir la ruta base
-ruta_base_imagenes_test <- "Soleado_Nublado"
+ruta_base_imagenes_validation <- "Soleado_Nublado"
 
 # lectura de las imagenes de Nublado
-ruta_cloudy_test <- file.path(ruta_base_imagenes_test, "Nublado")
-archivos_cloudy_test <- list.files(
-  path = ruta_cloudy_test,
+ruta_cloudy_validation <- file.path(ruta_base_imagenes_validation, "Nublado")
+archivos_cloudy_validation <- list.files(
+  path = ruta_cloudy_validation,
   pattern = "\\.jpe?g$",
   full.names = TRUE,
   recursive = FALSE
 )
 
-df_cloudy_test <- data.frame(
-  ruta = archivos_cloudy_test,
+df_cloudy_validation <- data.frame(
+  ruta = archivos_cloudy_validation,
   etiqueta = 0 # Cloudy
 )
 
 
 # Leer y etiquetar imágenes del subdirectorio Despejado
 
-ruta_shine_test <- file.path(ruta_base_imagenes_test, "Despejado")
-archivos_shine_test <- list.files(
-  path = ruta_shine_test,
+ruta_shine_validation <- file.path(ruta_base_imagenes_validation, "Despejado")
+archivos_shine_validation <- list.files(
+  path = ruta_shine_validation,
   pattern = "\\.jpe?g$",
   full.names = TRUE,
   recursive = FALSE
 )
 
-df_shine_test <- data.frame(
-  ruta = archivos_shine_test,
+df_shine_validation <- data.frame(
+  ruta = archivos_shine_validation,
   etiqueta = 1 # Shine
 )
 
 # lectura de las imagenes 
-datos_imagenes_test <- rbind(df_cloudy_test, df_shine_test)
+datos_imagenes_validation <- rbind(df_cloudy_validation, df_shine_validation)
 
 # leemos las imágenes y les pasamos un filtro
-lista <- leer_imagenes(datos_imagenes_test)
+lista <- leer_imagenes(datos_imagenes_validation)
 
 SoloCieloVersionada <- function(df, lista, corte, girar=FALSE, ploteamos = FALSE){
   
@@ -329,9 +328,9 @@ SoloCieloVersionada <- function(df, lista, corte, girar=FALSE, ploteamos = FALSE
 }
 
 # extracción de caracterísitcas
-datos_imagenes_test <- extraer_rgb(datos_imagenes_test, lista)
-datos_imagenes_test <- extraer_hsv(datos_imagenes_test, lista)
-datos_imagenes_test <- extraer_ratio_azul(datos_imagenes_test, lista)
+datos_imagenes_validation <- extraer_rgb(datos_imagenes_validation, lista)
+datos_imagenes_validation <- extraer_hsv(datos_imagenes_validation, lista)
+datos_imagenes_validation <- extraer_ratio_azul(datos_imagenes_validation, lista)
 ```
 
 
@@ -401,10 +400,10 @@ SoloCieloVersionada <- function(df, lista, corte, girar=FALSE, ploteamos = FALSE
 
 ```{r}
 # filtramos imágenes y extraemos características de estas 
-lista_filtro <- SoloCieloVersionada(datos_imagenes_test, lista, 130)
+lista_filtro <- SoloCieloVersionada(datos_imagenes_validation, lista, 130)
 datos_imagenes_filtradas <- data.frame(
-  ruta = datos_imagenes_test$ruta,
-  etiqueta = datos_imagenes_test$etiqueta
+  ruta = datos_imagenes_validation$ruta,
+  etiqueta = datos_imagenes_validation$etiqueta
   )
 
 datos_imagenes_filtradas <- extraer_rgb(datos_imagenes_filtradas, lista_filtro)
@@ -424,10 +423,10 @@ mal_clasificadas
 Aplicamos el modelo:
 
 ```{r}
-predicciones_mas_completas <- predict(modelo_mas_completo, newdata = datos_imagenes_test)
-confusionMatrix(predicciones_mas_completas, datos_imagenes_test$etiqueta)
+predicciones_mas_completas <- predict(modelo_mas_completo, newdata = datos_imagenes_validation)
+confusionMatrix(predicciones_mas_completas, datos_imagenes_validation$etiqueta)
 modelo_mas_completo$importance
-mal_clasificadas <- datos_imagenes_test[predicciones_hsv != datos_imagenes_test$etiqueta, ]
+mal_clasificadas <- datos_imagenes_validation[predicciones_hsv != datos_imagenes_validation$etiqueta, ]
 rutas_mal_clasificadas <- mal_clasificadas$ruta
 ```
 
@@ -443,8 +442,8 @@ modelo_s <- randomForest(
   ntree = 100
 )
 # Evaluar el modelo en el conjunto de prueba
-predicciones_s <- predict(modelo_s, newdata = datos_test)
-confusionMatrix(predicciones_s, datos_test$etiqueta)
+predicciones_s <- predict(modelo_s, newdata = datos_validation)
+confusionMatrix(predicciones_s, datos_validation$etiqueta)
 modelo_s$importance
 ```
 
@@ -454,7 +453,7 @@ Probamos a incluir al modelo más completo las características brillo y contras
 
 ```{r}
 datos_train <- extraer_brillo_contraste(datos_train, lista_train)
-datos_test <- extraer_brillo_contraste(datos_test, lista_test)
+datos_validation <- extraer_brillo_contraste(datos_validation, lista_validation)
 
 modelo_bc <- randomForest(
   etiqueta ~  R_mediana + G_mediana + B_mediana + H_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste,
@@ -462,8 +461,8 @@ modelo_bc <- randomForest(
   ntree = 100
 )
 # Evaluar el modelo en el conjunto de prueba
-predicciones_bc <- predict(modelo_bc, newdata = datos_test)
-confusionMatrix(predicciones_bc, datos_test$etiqueta)
+predicciones_bc <- predict(modelo_bc, newdata = datos_validation)
+confusionMatrix(predicciones_bc, datos_validation$etiqueta)
 modelo_bc$importance
 ```
 
@@ -474,7 +473,7 @@ modelo_3_mejores <- randomForest(
   ntree = 100
 )
 # Evaluar el modelo en el conjunto de prueba
-predicciones_3_mejores <- predict(modelo_3_mejores, newdata = datos_test)
-confusionMatrix(predicciones_3_mejores, datos_test$etiqueta)
+predicciones_3_mejores <- predict(modelo_3_mejores, newdata = datos_validation)
+confusionMatrix(predicciones_3_mejores, datos_validation$etiqueta)
 modelo_3_mejores$importance
 ```

@@ -87,16 +87,11 @@ RecorteCielo <- function(ruta_entrada, salida_px = 224) {
       # CONDICIONES PARA ELEGIR MEJOR:
       # - Brillo > 30: Que no sea negro oscuro.
       # - Score mínimo: Buscamos la zona más lisa (menos nubes contrastadas o ruido).
-      if (brillo > 30 && score < mejor_score) {
+      if (brillo >= 20 && score < mejor_score) {
         mejor_score <- score
         mejor_recorte <- trozo
       }
     }
-  }
-  
-  # Fallback: Si todo falla (imagen negra), devolvemos negro del tamaño correcto
-  if (is.null(mejor_recorte)) {
-    return(image_blank(salida_px, salida_px, "black"))
   }
   
   # 5. Redimensionado final para estandarizar salida

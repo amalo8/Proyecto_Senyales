@@ -276,7 +276,7 @@ extraer_tonos_calidos <- function(df, lista){
   # vector vacío para guardar los valores de los porcentajes 
   features <- numeric(nrow(df))
   
-  cat("Extrayendo porcentaje de tonos cálidos de", nrow(df), "imágenes...\n")
+  cat("Extrayendo porcentaje de tonos cálidos (incluye rosados) de", nrow(df), "imágenes...\n")
   
   j <- 1
   for (nombre in df$ruta){
@@ -287,17 +287,19 @@ extraer_tonos_calidos <- function(df, lista){
       as.vector(lista[[nombre]][,,3])
     )
     
-    # obtenemos el canal H en grados
-    H_grados <- hsv_vals[, 1]*360
+    # obtenemos el canal H en grados (0 a 360)
+    H_grados <- hsv_vals[, 1] * 360
     
     # número total de píxeles
     total_pixeles <- length(H_grados)
     
-    # número de píxeles donde H está entre 0 y 60 grados
-    tonos_calidos <- sum(H_grados >= 0 & H_grados <= 60)
+    # filtramos tonos cálidos
+    # 0 a 60: Rojos, naranjas y amarillos
+    # 300 a 360: Rosas, magentas 
+    tonos_calidos <- sum((H_grados >= 0 & H_grados <= 60) | (H_grados >= 300 & H_grados <= 360))
     
     # porcentaje de tonos cálidos
-    features[j] <- (tonos_calidos/total_pixeles)*100
+    features[j] <- (tonos_calidos / total_pixeles) * 100
     
     j <- j + 1
   }
@@ -305,60 +307,6 @@ extraer_tonos_calidos <- function(df, lista){
   # unimos la nueva info al dataframe y nos aseguramos de que la etiqueta es 
   # de tipo factor
   df_final <- cbind(df, Porcentaje_Calidos = features)
-  df_final$etiqueta <- as.factor(df_final$etiqueta)
-  
-  # devolvemos el dataframe original con los nuevos datos añadidos
-  return(df_final)
-}
-
-
-# Extracción de los gradientes verticales medios de H y V
-
-# parámetros de entrada: 
-#   - dataframe con las rutas locales a las imágenes en la columna "ruta"
-#   - lista con la info de los 3 canales de cada imagen obtenida con la función 
-#     leer_imagenes
-# parámetros de salida:
-#   - dataframe original con la adición de la columna Gradiente_H y Gradiente_V
-
-extraer_gradientes_hv <- function(df, lista){
-  # vectores vacíos para guardar los gradientes
-  features_H <- numeric(nrow(df))
-  features_V <- numeric(nrow(df))
-  
-  cat("Extrayendo gradientes verticales medios de", nrow(df), "imágenes...\n")
-  
-  j <- 1
-  for (nombre in df$ruta){
-    # dimensiones originales para construir las matrices
-    filas <- nrow(lista[[nombre]][,,1])
-    columnas <- ncol(lista[[nombre]][,,1])
-    
-    # extraemos los canales HSV
-    hsv_vals <- rgb_a_hsv(
-      as.vector(lista[[nombre]][,,1]), 
-      as.vector(lista[[nombre]][,,2]), 
-      as.vector(lista[[nombre]][,,3])
-    )
-    
-    # matrices de H y V
-    H_matrix <- matrix(hsv_vals[, 1], nrow = filas, ncol = columnas)
-    V_matrix <- matrix(hsv_vals[, 3], nrow = filas, ncol = columnas)
-    
-    # cálculo del gradiente vertical (diferencia entre filas adyacentes)
-    gradiente_H <- abs(diff(H_matrix))
-    gradiente_V <- abs(diff(V_matrix))
-    
-    # guardamos la media del gradiente vertical
-    features_H[j] <- mean(gradiente_H, na.rm = TRUE)
-    features_V[j] <- mean(gradiente_V, na.rm = TRUE)
-    
-    j <- j + 1
-  }
-  
-  # unimos la nueva info al dataframe y nos aseguramos de que la etiqueta es 
-  # de tipo factor
-  df_final <- cbind(df, Gradiente_H = features_H, Gradiente_V = features_V)
   df_final$etiqueta <- as.factor(df_final$etiqueta)
   
   # devolvemos el dataframe original con los nuevos datos añadidos

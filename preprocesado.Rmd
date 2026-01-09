@@ -102,47 +102,6 @@ RecortarCielo <- function(ruta_entrada){
 }
 ```
 
-
-
-```{r, message=FALSE, warning=FALSE, fig.width=12, fig.height=5}
-# # Sustituye esto por tus rutas reales
-# path_despejado <- "imagenes/train/shinecloudy/despejado"
-# files_despejado <- list.files(path_despejado, full.names = TRUE)
-# 
-# n_imgs <- min(5, length(files_despejado))
-# n_imgs <- min(15, length(files_despejado))
-# 
-# # Asegúrate de que haya imágenes
-# if(n_imgs > 0) {
-#   rutas_seleccionadas <- files_despejado[1:n_imgs]
-# 
-#   cat("Procesando imágenes con recorte inteligente...\n")
-# 
-#   for(i in seq_along(rutas_seleccionadas)){
-#     
-#     cat("Procesando imagen", i, "...\n")
-#     # Llamamos a la nueva función
-#     res <- RecortarCielo(rutas_seleccionadas[i])
-#     
-#     img_orig <- res$original
-# 
-#     # Le ponemos un borde fino a la máscara para diferenciarla si es muy blanca
-#     img_mask <- res$mascara %>% image_border("gray", "2x2")
-# 
-#     # Ponemos fondo blanco (o a cuadros) al recorte para ver la transparencia
-#     img_crop <- image_background(res$recorte, "white")
-# 
-#     # Juntamos: Original | Máscara Binaria | Recorte
-#     combined <- image_append(c(img_orig, img_mask, img_crop), stack = FALSE)
-# 
-#     print(plot(combined))
-#   }
-# } else {
-#   cat("No se encontraron imágenes en la ruta especificada.\n")
-# }
-```
-
-
 ```{r}
 # Rutas de origen y destino
 path_origen  <- "imagenes/train/shinecloudy/despejado"
@@ -472,4 +431,166 @@ for(i in seq_along(rutas_proceso)){
 
 cat("--- Proceso finalizado --- \n")
 ```
+
+
+
+#Función para obtener el parche de cielo
+
+```{r}
+
+RecorteCielo <- function(ruta_entrada, salida_px = 224) {
+  
+  img <- image_read(ruta_entrada) %>% image_orient()
+  info <- image_info(img)
+  W <- info$width
+  H <- info$height
+  
+  # --- LÍMITE ESTRICTO: 40% SUPERIOR ---
+  alto_limite <- floor(H * 0.40)
+  
+  # 1. Tamaño del Cuadrado
+  # Intentamos que sea 1/3 del ancho de la foto...
+  lado_box <- floor(W / 3)
+  
+  # ...PERO si ese tamaño hace que nos pasemos del 40% de altura,
+  # lo recortamos. El cuadrado nunca será más alto que la zona permitida.
+  if (lado_box > alto_limite) {
+    lado_box <- alto_limite
+  }
+  
+  # Seguridad mínima por si la imagen es diminuta
+  if(lado_box < 10) lado_box <- min(W, alto_limite)
+  
+  # 2. Coordenadas X (Horizontal): Izquierda, Centro, Derecha
+  xs <- c(0, floor(W/2 - lado_box/2), W - lado_box)
+  
+  # 3. Coordenadas Y (Vertical): 
+  # Calculamos cuál es el punto más bajo donde puede EMPEZAR el cuadrado
+  # para que al terminar NO se pase del límite del 40%.
+  y_max_posible <- alto_limite - lado_box
+  
+  # Definimos dónde buscar en vertical:
+  # - Siempre arriba del todo (0)
+  # - Si hay espacio, buscamos también justo en el límite inferior permitido
+  ys <- c(0)
+  if (y_max_posible > 10) { 
+    # Añadimos la posición más baja permitida para tener más variedad
+    ys <- c(0, y_max_posible) 
+  }
+  
+  mejor_score <- Inf
+  mejor_recorte <- NULL
+  
+  # 4. Búsqueda del mejor trozo
+  for (x in xs) {
+    for (y in ys) {
+      
+      # Clamping de seguridad (para no salirnos por 1px por redondeos)
+      x_real <- max(0, min(x, W - lado_box))
+      y_real <- max(0, min(y, y_max_posible)) 
+      
+      geo <- paste0(lado_box, "x", lado_box, "+", x_real, "+", y_real)
+      trozo <- image_crop(img, geo)
+      
+      # Métricas: Textura (SD) y Luz (Mean)
+      datos_gris <- trozo %>% 
+        image_quantize(colorspace = 'gray') %>% 
+        image_data(channels = 'gray') %>% 
+        as.integer()
+      
+      desviacion <- sd(datos_gris) 
+      brillo <- mean(datos_gris)
+      
+      # Penalización: Preferimos ligeramente lo que esté más arriba (y=0)
+      # porque suele ser cielo más puro.
+      penalizacion <- (y_real / H) * 20
+      
+      score <- desviacion + penalizacion
+      
+      # CONDICIONES PARA ELEGIR MEJOR:
+      # - Brillo > 30: Que no sea negro oscuro.
+      # - Score mínimo: Buscamos la zona más lisa (menos nubes contrastadas o ruido).
+      if (brillo > 30 && score < mejor_score) {
+        mejor_score <- score
+        mejor_recorte <- trozo
+      }
+    }
+  }
+  
+  # Fallback: Si todo falla (imagen negra), devolvemos negro del tamaño correcto
+  if (is.null(mejor_recorte)) {
+    return(image_blank(salida_px, salida_px, "black"))
+  }
+  
+  # 5. Redimensionado final para estandarizar salida
+  resultado_final <- image_resize(mejor_recorte, paste0(salida_px, "x", salida_px, "!"))
+  
+  return(resultado_final)
+}
+```
+
+
+```{r}
+# --- CONFIGURACIÓN ---
+# Rutas de origen y destino
+path_origen  <- "imagenes/train/shinecloudy/despejado"
+path_destino <- "imagenes_recortadas/train/shinecloudy/despejado"
+TAMAÑO_FINAL <- 224 # Tamaño de salida (px). Todas serán cuadradas de este tamaño.
+
+# Crear la carpeta de destino si no existe
+if(!dir.exists(path_destino)) {
+  dir.create(path_destino, recursive = TRUE)
+  cat("Carpeta creada:", path_destino, "\n")
+}
+
+files <- list.files(path_origen, full.names = TRUE)
+
+# Ajusta el número de imágenes (usa length(files) para todas)
+#n_imgs <- min(20, length(files)) 
+n_imgs <- length(files) 
+
+rutas_proceso <- files[1:n_imgs]
+
+cat("Iniciando procesamiento de", length(rutas_proceso), "imágenes con Grid Inteligente...\n")
+
+for(i in seq_along(rutas_proceso)){
+  
+  ruta_img <- rutas_proceso[i]
+  
+  # --- NOMBRE DEL ARCHIVO ---
+  nombre_base <- file_path_sans_ext(basename(ruta_img))
+  nombre_final <- paste0(nombre_base, "_recorte.jpg")
+  
+  # --- PROCESAMIENTO NUEVO ---
+  # Usamos tryCatch para que si una imagen falla, no se pare todo el bucle
+  tryCatch({
+    
+    # 1. Llamamos a la nueva función de cuadrícula
+    # Esto devuelve directamente la imagen cuadrada y escalada
+    img_recortada <- RecorteCielo(ruta_img, salida_px = TAMAÑO_FINAL)
+    
+    # 2. Guardado
+    if(!is.null(img_recortada)){ # (La función siempre devuelve algo, pero por seguridad)
+      
+      # Aplanamos fondo (por si acaso viene de un PNG con transparencia)
+      img_listo <- image_background(img_recortada, "white")
+      
+      # Guardamos
+      ruta_salida <- file.path(path_destino, nombre_final)
+      image_write(img_listo, path = ruta_salida, format = "jpg")
+      
+      cat(sprintf("[%d/%d] Guardado: %s\n", i, length(rutas_proceso), nombre_final))
+      
+    } else {
+      cat(sprintf("[%d/%d] SKIP: %s (Error desconocido)\n", i, length(rutas_proceso), nombre_base))
+    }
+    
+  }, error = function(e) {
+    cat(sprintf("[%d/%d] ERROR en %s: %s\n", i, length(rutas_proceso), nombre_base, e$message))
+  })
+}
+
+cat("--- Proceso finalizado ---\n")
+```
+
 

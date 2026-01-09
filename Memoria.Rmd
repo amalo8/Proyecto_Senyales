@@ -1,0 +1,46 @@
+---
+title: "Clasificador de Imágenes del Cielo"
+author: "Ana Blasco, Irene Barba, Lucía Benages, Xueyao An, Roberto Arevalillo, Adriana Marí"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true            
+    toc_float: true      
+    toc_depth: 3         
+    number_sections: true 
+    theme: united       
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introducción al Problema
+## Objetivo del Proyecto
+## Origen de los Datos
+
+# Preprocesamiento de Imágenes
+
+# Preparación de Datos para Entrenamiento
+## Balanceo de Clases
+## División de Conjuntos de Datos
+
+# Entrenamiento I: Clasificación Temporal
+## Clasificación Binaria: Día vs. Noche
+### Análisis de Características (RGB, HSV, Desviación V)
+### Selección del Mejor Modelo Binario
+
+## Clasificación Multiclase: Añadiendo "Sunrise"
+### Nuevas Características para detectar Amanecer
+### Análisis de Componentes Principales (PCA)
+## Modelo Final Temporal
+
+# Entrenamiento II: Clasificación Meteorológica 
+## Propuesta y Análisis de Características
+## Aplicación de PCA y Selección de Modelo
+
+# Evaluación con Conjunto de Test 
+## Resultados en Clasificación Temporal
+## Resultados en Clasificación Meteorológica
+
+## Conclusiones y Líneas Futuras

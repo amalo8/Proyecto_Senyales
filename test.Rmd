@@ -10,17 +10,24 @@ knitr::opts_chunk$set(echo = TRUE)
 rm(list=ls())
 ```
 
-Cargamos los modelos que hemos desarrollado para hacer el test con ellos
 ```{r}
-# Bueno ahora que lo pienso mejor hacer un modelo con TODO el train para esto
-load("rf_dia_noche_crep.RData")
-#load("Datos_test_daynight.RData")
-
-source("funciones_extraccion_caracteristicas.R")
+# Carga de librerías
+library(jpeg)
+library(class)
+library(caret)
+library(randomForest)
+library(ggplot2)
+library(tidyr)
+library(plotly)
+library(grDevices)
+library(magick)
 ```
 
-# Día/noche/amanecer
-Archivos dia/noche/amanecer
+# Test para dia/noche y dia/noche/crepúsculo
+
+## Extracción de características de nuestras imágenes
+Nuestras imágenes tienen una resolución mucho más alta que las imágenes con las que hemos entrenado por lo que el proceso es muy lento, aquí se ejecuta la extracción de características pero finalmente se guardan en un .RData para no tener que hacerlo cada vez **no hace falta ejecutar esta parte a no ser que haya algún cambio en los modelos, he subido el .RData necesario a github**.  
+Archivos dia/noche/amanecer  
 ```{r}
 # Ruta base imágenes
 ruta_base_imagenes <- "imagenes/test/dianocheamanecer"
@@ -44,11 +51,13 @@ df_amanecer <- data.frame(ruta=archivos_amanecer, etiqueta = 2)
 datos_test <- rbind(df_noche, df_dia, df_amanecer)
 ```
 
-Extacción de características de las imágenes test
+Funciones para extacción de características de las imágenes test: utilizamos funciones específicas ya que las imágenes de test tienen mucha calidad comparadas con las de train y no puedo tener una lista con todas ellas guardada porque se llena la memoria, extraemos todas las características leyendo las imágenes una a una.  
 ```{r}
-# Las imágenes de test tienen mucha calidad comparadas con las de train y no puedo tener una lista con todas ellas guardada
-# porque se llena la memoria, extraemos todas las características leyendo las imágenes una a una
-leer_y_extraer_caracteristicas <- function(df) {
+# Funciones ya definidas
+source("funciones_extraccion_caracteristicas.R")
+
+# Funciones específicas
+leer_y_extraer_caracteristicas <- function(df) { # Esto extrae las características RGH, HSV, sd_V y Porcentaje_Calidos
   
   # matriz vacía para guardar los valores medianos de R, G y B
   features_rgb <- matrix(0, nrow = nrow(df), ncol = 3)
@@ -120,10 +129,9 @@ leer_y_extraer_caracteristicas <- function(df) {
   # devolvemos el dataframe original con los nuevos datos añadidos
   return(df_final)
 }
-```
 
-
-```{r}
+################################################################################
+# Extracción de características por bloques
 extraer_caracteristicas_bloques <- function(df_datos, num_bloques = 4) {
   features_list <- list()
   for (j in 1:nrow(df_datos)) {
@@ -221,104 +229,38 @@ extraer_pixeles_extremos_bloques <- function(df_datos, num_bloques = 4) {
 }
 ```
 
-```{r}
-# # Reparar imagenes
-# library(magick)
-# 
-# # Algunas imágenes no se reconocían como jpg en readJPEG, las reparo todas con magick por si acaso
-# for(ruta in df_amanecer$ruta){
-#   print(ruta)
-#   img <- image_read(ruta)
-#   image_write(img, path = ruta, format = "jpg")
-# }
-# 
-# # Imagen que no se guardaba porque llega al límite de caché que permite magick, la reduzco
-# img <- image_scale(image_read('imagenes/test/dianocheamanecer/Amanecer/27.jpg'),"1244x943!")
-# image_write(img, path='imagenes/test/dianocheamanecer/Amanecer/27.jpg', format="jpg")
-```
-
-
+Extracción de características:  
 ```{r}
 ######## Extracción de los datos ########
 datos_test <- leer_y_extraer_caracteristicas(datos_test)
-```
-```{r}
-# Más extracción de características
 datos_test <- extraer_caracteristicas_bloques(datos_test)
 datos_test <- extraer_pixeles_extremos_bloques(datos_test)
+
+## Esto de aquí es porque los nombres de la variable que he guardado son accidentalmente diferentes pero no me apetecía repetir la extracción de características
+nuevos_nombres <- gsub("_Mediana_sin_H", "mediana_sin_H", colnames(datos_test))
+nuevos_nombres <- gsub("_Mediana_cos_H", "mediana_cos_H", nuevos_nombres)
+nuevos_nombres <- gsub("SD_V", "sd_V", nuevos_nombres)
+colnames(datos_test) <- nuevos_nombres
 ```
 
+
+Guardamos los datos para poder utilizarlos más adelante sin repetir la extracción de características:  
 ```{r}
 # Ha tardado mucho en ejecutarse así que para no tener que volverlo a hacer (por si acaso)
 save(datos_test, file = "Datos_test_daynight.RData")
 ```
 
-```{r}
-# Para cargar directamente los datos y hacer solo la evaluación
-#load("Datos_test_daynight.RData")
-## Esto de aquí es porque los nombres de la variable que he guardado son accidentalmente diferentes pero no me apetecía repetir la extracción de características
-# nuevos_nombres <- gsub("_Mediana_sin_H", "mediana_sin_H", colnames(datos_test))
-# nuevos_nombres <- gsub("_Mediana_cos_H", "mediana_cos_H", nuevos_nombres)
-# nuevos_nombres <- gsub("SD_V", "sd_V", nuevos_nombres)
-# colnames(datos_test) <- nuevos_nombres
 
-# Carga de librerías
-library(jpeg)
-library(class)
-library(caret)
-library(randomForest)
-library(ggplot2)
-library(tidyr)
-library(plotly)
-library(grDevices)
-library(magick)
-# Test para día noche crepúsculo
-test_x_dnc <- datos_test[,-c(1,2)]
-test_y_dnc <- datos_test$etiqueta
-# Predecir en el conjunto de prueba
-predicciones_rf_dnc <- predict(rf_dia_noche_crep, newdata = test_x_dnc)
-# Matriz de confusión
-cm_rf_dnc <- confusionMatrix(predicciones_rf_dnc, test_y_dnc)
-print(cm_rf_dnc)
-cat("Precisión del modelo Random Forest (Día, Noche, Amanecer):", cm_rf_dnc$overall['Accuracy'] * 100, "%\n")
-```
-```{r}
-# sacar imagenes que falla
-indices_fallidos <- which(predicciones_rf_dnc != test_y_dnc)
-imagenes_fallidas <- datos_test$ruta[indices_fallidos]
-etiquetas_reales <- datos_test$etiqueta[indices_fallidos]
-etiquetas_fallidas <- predicciones_rf_dnc[indices_fallidos]
-print("Imágenes mal clasificadas:")
-length(imagenes_fallidas)
 
-library(magick)
-#par(mfrow=c(3,2), mar=c(1,3,1,1)) ya buscaré una forma mejor de juntarlas para el pdf, a lo mejor el grid que poníais vosotros
-categorias <- c("Noche", "Día", "Crepúsculo")
-for(i in 1:length(imagenes_fallidas)){
-  img <- image_read(imagenes_fallidas[i])
-  titulo <- paste0('Clase predicha: ',categorias[etiquetas_fallidas[i]],"\n",'Clase real: ',categorias[etiquetas_reales[i]])
-  plot(img)
-  title(main=titulo)
-}
-# imgs <- image_read(imagenes_fallidas[1])
-# categorias <- c("Noche", "Día", "Crepúsculo")
-# titulo <- paste0('Clase predicha: ',categorias[etiquetas_fallidas[1]],"\n",'Clase real: ',categorias[etiquetas_reales[1]])
-# #subtitulo <- paste0('Clase real: ',categorias[etiquetas_reales[1]])
-# plot(imgs[1])
-# title(main=titulo)#, sub=subtitulo)
-# grid_imagenes <- image_montage(imgs, 
-#                                tile = "9x9", 
-#                                geometry = "x150+10+10", # Tamaño + márgenes
-#                                shadow = TRUE)
-
-#print(grid_imagenes)
-```
-# Test para dia/noche
+## Test para el modelo dia/noche
+Cargamos el modelo que hemos desarrollado y los datos extraídos para realizar el test:  
 ```{r}
-rm(list = ls())
+rm(list=ls())
 # Cojo los mismos datos que para dia/noche/crepúsculo pero solamente las columnas que utilizamos para día/noche y solamente las filas con etiquetas 0/1
 load("Datos_test_daynight.RData")
 load("rf_dia_noche.RData")
+source("funciones_extraccion_caracteristicas.R")
+set.seed(42)
 
 datos_test <- datos_test[datos_test$etiqueta==0|datos_test$etiqueta==1,c("ruta","etiqueta","R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana","sd_V")]
 
@@ -332,6 +274,9 @@ cm_rf_daynight <- confusionMatrix(predicciones_rf_daynight, test_y_daynight)
 print(cm_rf_daynight)
 cat("Precisión del modelo Random Forest (Día, Noche):", cm_rf_daynight$overall['Accuracy'] * 100, "%\n")
 ```
+
+
+Representamos las imágenes en las que se ha equivocado:  
 ```{r}
 # sacar imagenes que falla
 indices_fallidos <- which(predicciones_rf_daynight != test_y_daynight)
@@ -351,4 +296,64 @@ for(i in 1:length(imagenes_fallidas)){
   title(main=titulo)
 }
 ```
+
+
+## Test para el modelo dia/noche/crepúsculo
+Cargamos el modelo desarrollado y los datos extraídos, y hacemos el test:  
+```{r}
+rm(list=ls())
+load("rf_dia_noche_crep.RData")
+load("Datos_test_daynight.RData")
+source("funciones_extraccion_caracteristicas.R")
+set.seed(42)
+
+# Test para día noche crepúsculo
+test_x_dnc <- datos_test[,-c(1,2)]
+test_y_dnc <- datos_test$etiqueta
+# Predecir en el conjunto de prueba
+predicciones_rf_dnc <- predict(rf_dia_noche_crep, newdata = test_x_dnc)
+# Matriz de confusión
+cm_rf_dnc <- confusionMatrix(predicciones_rf_dnc, test_y_dnc)
+print(cm_rf_dnc)
+cat("Precisión del modelo Random Forest (Día, Noche, Amanecer):", cm_rf_dnc$overall['Accuracy'] * 100, "%\n")
+```
+
+Representamos las imágenes en las que se ha equivocado:  
+```{r}
+# sacar imagenes que falla
+indices_fallidos <- which(predicciones_rf_dnc != test_y_dnc)
+imagenes_fallidas <- datos_test$ruta[indices_fallidos]
+etiquetas_reales <- datos_test$etiqueta[indices_fallidos]
+etiquetas_fallidas <- predicciones_rf_dnc[indices_fallidos]
+print("Imágenes mal clasificadas:")
+length(imagenes_fallidas)
+
+#par(mfrow=c(3,2), mar=c(1,3,1,1)) ya buscaré una forma mejor de juntarlas para el pdf, a lo mejor el grid que poníais vosotros
+categorias <- c("Noche", "Día", "Crepúsculo")
+for(i in 1:length(imagenes_fallidas)){
+  img <- image_read(imagenes_fallidas[i])
+  titulo <- paste0('Clase predicha: ',categorias[etiquetas_fallidas[i]],"\n",'Clase real: ',categorias[etiquetas_reales[i]])
+  plot(img)
+  title(main=titulo)
+}
+```
+
+
+## Otros
+Algunas imágenes no las dejaba abrir con readJPEG o no dejaba guardarlas porque eran muy grandes, se corrigió así:
+
+```{r}
+# # Algunas imágenes no se reconocían como jpg en readJPEG, las reparo todas con magick por si acaso
+# for(ruta in df_final$ruta){
+#   print(ruta)
+#   img <- image_read(ruta)
+#   image_write(img, path = ruta, format = "jpg")
+# }
+# 
+# # Imagen que no se guardaba porque llega al límite de caché que permite magick, la reduzco
+# img <- image_scale(image_read('imagenes/test/dianocheamanecer/Amanecer/27.jpg'),"1244x943!")
+# image_write(img, path='imagenes/test/dianocheamanecer/Amanecer/27.jpg', format="jpg")
+```
+
+
 

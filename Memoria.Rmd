@@ -1,14 +1,18 @@
 ---
 title: "Clasificador de Imágenes del Cielo"
-author: "Ana Blasco, Irene Barba, Lucía Benages, Xueyao An, Roberto Arevalillo, Adriana Marí"
+author: Ana Blasco, Irene Barba, Lucía Benages, Xueyao An, Roberto Arevalillo, Adriana
+  Marí
 date: "`r Sys.Date()`"
-output: 
+output:
+  pdf_document:
+    toc: true
+    toc_depth: '3'
   html_document:
-    toc: true            
-    toc_float: true      
-    toc_depth: 3         
-    number_sections: true 
-    theme: united       
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    number_sections: true
+    theme: united
 ---
 
 ```{r setup, include=FALSE}
@@ -16,8 +20,85 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 # Introducción al Problema
+
+
 ## Objetivo del Proyecto
-## Origen de los Datos
+
+El presente trabajo se enmarca dentro del ámbito del ánalisis digital de señales, aplicando técnicas de procesamiento de imágenes para la resolución de un problema de clasificación automática. El objetivo principal del proyecto es desarrollar un sistema capaz de etiquetar imágenes basándose exclusivamente en la información visual del cielo.
+
+Distinguimos dos problemas de clasificación distintos: 
+
+1. Clasificación Temporal: se pretende determinar el momento del día en el que fue tomada la imagen, distinguiendo entre 3 clases: Día, Noche y Amanecer/Atardecer.
+
+2. Clasificación Meteorológica: esta tarea se centra en evaluar las condiciones atmosféricas, buscando diferenciar patrones asociados a cielos despejados frente a cielos cubiertos (nublados).
+
+A diferencia de los enfoques modernos basados en aprendizaje profundo (*Deep Learning*), este proyecto se centra en la extracción de características manual, tratando de identificar, extraer y analizar variables específicas de la señal de imagen — como componentes de color, brillo o texturas — que permitan discriminar las clases de forma lógica e interpretable.
+
+Para la etapa de clasificación, se emplearán técnicas de Aprendizaje Automático (*Machine Learning*), utilizando concretamente el algoritmo Random Forest. Este modelo se basa en el ensamblaje de múltiples árboles de decisión que operan en conjunto, agregando sus predicciones individuales para obtener un resultado más robusto y menos propenso al sobreajuste que un único árbol.
+
+## Origen de los Datos, Distribución y Balance
+Para garantizar la robustez de los modelos y su capacidad de generalización ante imágenes reales, hemos estructurado la obtención de datos en dos fases diferenciadas: una masiva para el entrenamiento (basada en datasets públicos) y una controlada para el test (basada en fotografías propias).
+
+A. Conjunto de Entrenamiento (Train)
+Las imágenes utilizadas para entrenar los modelos provienen de fuentes públicas y han sido seleccionadas para cubrir la mayor variabilidad posible.
+
+Clasificación Temporal (Día/Noche/Amanecer): Utilizamos el "Time of Day Dataset" de Kaggle (autor: Aymen Khouja).
+
+Total: 2.661 imágenes.
+
+Día: 920 imágenes.
+
+Noche: 756 imágenes.
+
+Amanecer (Sunrise): 985 imágenes.
+
+Clasificación Meteorológica (Soleado/Nublado): Se realizó una composición híbrida debido a la falta de imágenes de cielos despejados en los datasets estándar.
+
+Fuente 1: Dataset "Clouds Photos" de Kaggle (autor: Jockeroika) para las nubes y una pequeña parte de soleado.
+
+Fuente 2: Unsplash (plataforma de imágenes de stock libre). Tuvimos que realizar una búsqueda manual bajo el término "clear blue sky" para descargar imágenes adicionales y compensar el desbalance de la clase "Soleado".
+
+Total: 1.533 imágenes.
+
+Soleado: 707 imágenes (124 de Kaggle + 583 de Unsplash).
+
+Nublado: 826 imágenes (todas de Kaggle).
+
+B. Conjunto de Test (Imágenes Propias)
+Para la evaluación final, no reservamos un porcentaje del dataset de internet, sino que generamos un dataset totalmente nuevo. Estas imágenes provienen de las galerías personales de los miembros del grupo, garantizando que el modelo se enfrenta a datos reales "fuera de muestra" que nunca ha visto.
+
+Hemos diseñado este conjunto para que esté perfectamente balanceado:
+
+Test Temporal (120 imágenes):
+
+Día: 40 imágenes.
+
+Noche: 40 imágenes.
+
+Amanecer: 40 imágenes.
+
+Test Meteorológico (100 imágenes):
+
+Soleado: 50 imágenes.
+
+Nublado: 50 imágenes.
+
+C. Análisis del Balance de Clases y División de Datos
+Al analizar la distribución global de los datos, observamos lo siguiente:
+
+Balanceo de Clases:
+
+En Train, las clases no son perfectamente equitativas (ej. hay más fotos de amanecer que de noche), pero mantienen proporciones razonables que permiten el aprendizaje sin sesgos graves. En el caso de "Soleado vs. Nublado", la inclusión de fotos de Unsplash corrigió un desbalance crítico, logrando una relación cercana al 46%-54%.
+
+En Test, hemos forzado un balance exacto (33% por clase en temporal y 50% en meteorológico) para que la métrica de precisión (accuracy) sea fiable y no esté sesgada por una clase mayoritaria.
+
+Proporción Entrenamiento vs. Test: Dado el volumen de los datos recolectados, la división final de imágenes (Train vs. Test Real) queda aproximadamente así:
+
+Problema Temporal: ~95.7% Entrenamiento / ~4.3% Test.
+
+Problema Meteorológico: ~94% Entrenamiento / ~6% Test.
+
+Nota: Cabe destacar que, dentro del conjunto de Entrenamiento, se realizará una subdivisión interna automática (Bootstrap o Cross-Validation) para la validación durante la fase de ajuste de modelos.
 
 # Preprocesamiento de Imágenes
 

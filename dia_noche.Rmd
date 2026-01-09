@@ -282,3 +282,50 @@ grid_imagenes <- image_montage(imgs,
                                shadow = TRUE)
 print(grid_imagenes)
 ```
+
+<!-- ## Entrenamiento con todas las imágenes en lugar de dividir train/test para el test con las nuestras -->
+<!-- ```{r, include=FALSE} -->
+<!-- source("funciones_extraccion_caracteristicas.R") -->
+<!-- # Ruta base imágenes -->
+<!-- ruta_base_imagenes <- "imagenes/train" -->
+
+<!-- # Ruta imágenes día/noche -->
+<!-- ruta_noche <- file.path(ruta_base_imagenes, "daynight/nighttime") -->
+<!-- ruta_dia <- file.path(ruta_base_imagenes, "daynight/daytime") -->
+
+<!-- # Lectura del nombre de las imágenes -->
+<!-- archivos_noche <- list.files(path = ruta_noche, pattern = "\\.jpe?g$", full.names = TRUE, recursive = FALSE) -->
+<!-- archivos_dia <- list.files(path = ruta_dia, pattern = "\\.jpe?g$", full.names = TRUE, recursive = FALSE) -->
+
+<!-- # Dataframe de cada clase y su etiqueta (0: noche, 1: día) -->
+<!-- df_noche <- data.frame(ruta = archivos_noche, etiqueta = 0) -->
+<!-- df_dia <- data.frame(ruta = archivos_dia, etiqueta = 1) -->
+
+<!-- # Combinación de los dataframes -->
+<!-- datos_train <- rbind(df_noche, df_dia) -->
+
+<!-- # Semilla para reproducibilidad -->
+<!-- set.seed(42)  -->
+
+<!-- ####### LECTURA IMÁGENES ######## -->
+<!-- lista_train <- leer_imagenes(datos_train) -->
+
+<!-- ######## MEDIANAS RGB ######## -->
+<!-- datos_train <- extraer_rgb(datos_train, lista_train) -->
+
+<!-- ######## MEDIANAS HSV ######## -->
+<!-- datos_train <- extraer_hsv(datos_train, lista_train) -->
+
+<!-- ######## EXTRAER SD DE V ######## -->
+<!-- datos_train <- extraer_sd_V(datos_train, lista_train) -->
+
+<!-- ####### RANDOM FOREST CON LAS CARACTERÍSTICAS RGB + HSV + SD DE V ####### -->
+<!-- train_x <- datos_train[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana","sd_V")] -->
+<!-- train_y <- datos_train$etiqueta -->
+
+<!-- set.seed(42) -->
+<!-- rf_dia_noche <- randomForest(x = train_x, y = train_y, ntree = 100) -->
+
+<!-- save(rf_dia_noche, file="rf_dia_noche.RData") -->
+<!-- ``` -->
+

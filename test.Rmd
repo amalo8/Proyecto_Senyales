@@ -12,8 +12,9 @@ rm(list=ls())
 
 Cargamos los modelos que hemos desarrollado para hacer el test con ellos
 ```{r}
-load("rf_dia_noche.RData")
-load("rf_dia_noche_surise.RData")
+# Bueno ahora que lo pienso mejor hacer un modelo con TODO el train para esto
+load("rf_dia_noche_crep.RData")
+#load("Datos_test_daynight.RData")
 
 source("funciones_extraccion_caracteristicas.R")
 ```
@@ -45,19 +46,309 @@ datos_test <- rbind(df_noche, df_dia, df_amanecer)
 
 Extacción de características de las imágenes test
 ```{r}
-####### LECTURA IMÁGENES ########
-lista_test <- leer_imagenes(datos_test)
+# Las imágenes de test tienen mucha calidad comparadas con las de train y no puedo tener una lista con todas ellas guardada
+# porque se llena la memoria, extraemos todas las características leyendo las imágenes una a una
+leer_y_extraer_caracteristicas <- function(df) {
+  
+  # matriz vacía para guardar los valores medianos de R, G y B
+  features_rgb <- matrix(0, nrow = nrow(df), ncol = 3)
+  colnames(features_rgb) <- c("R_mediana", "G_mediana", "B_mediana")
+  
+  # matriz vacía para guardar los valores medianos de H, S y V
+  features_hsv <- matrix(0, nrow = nrow(df), ncol = 4)
+  colnames(features_hsv) <- c("H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana")
+  
+  # vector vacío para guardar los valores de la desviación estándar de V
+  features_sdv <- numeric(nrow(df))
+  
+  # vector vacío para guardar los valores de los porcentajes 
+  features_cal <- numeric(nrow(df))
+  
+  cat("Extrayendo características de", nrow(df), "imágenes...\n")
+  
+  # calculamos las medianas de los 3 canales de cada imagen
+  j <- 1
+  for (nombre in df$ruta) {
+      #print(nombre)
+      img <- readJPEG(nombre) # Leemos cada imagen una a una
+      # Extraer medianas de rgb
+      features_rgb[j, 1] <- median(img[,,1])
+      features_rgb[j, 2] <- median(img[,,2])
+      features_rgb[j, 3] <- median(img[,,3])
+      
+      # Extraer medianas hsv
+      hsv_vals <- rgb_a_hsv(
+        as.vector(img[,,1]), # R
+        as.vector(img[,,2]), # G
+        as.vector(img[,,3])  # B
+        )
+      features_hsv[j, 1] = median(cos(hsv_vals[, 1]*2*pi)) # cos(H)
+      features_hsv[j, 2] = median(sin(hsv_vals[, 1]*2*pi)) # sin(H)
+      features_hsv[j, 3] = median(hsv_vals[, 2])           # S
+      features_hsv[j, 4] = median(hsv_vals[, 3])           # V
+      
+      # Cálculo de la desviación estándar de V
+      features_sdv[j] <- sd(hsv_vals[, 3], na.rm = TRUE)
+      
+      # Tonos cálidos
+      # obtenemos el canal H en grados (0 a 360)
+      H_grados <- hsv_vals[, 1] * 360
+      # número total de píxeles
+      total_pixeles <- length(H_grados)
+      # filtramos tonos cálidos
+      # 0 a 60: Rojos, naranjas y amarillos
+      # 300 a 360: Rosas, magentas 
+      tonos_calidos <- sum((H_grados >= 0 & H_grados <= 60) | (H_grados >= 300 & H_grados <= 360))
+      # porcentaje de tonos cálidos
+      features_cal[j] <- (tonos_calidos / total_pixeles) * 100
+    
+      j <- j + 1
+      if(j%%10==0){
+        cat(j,'imágenes procesadas \n')
+      }
+  }
+  
+  # unimos la nueva info al dataframe y nos aseguramos de que la etiqueta es 
+  # de tipo factor
+  df_final <- cbind(df, features_rgb)
+  df_final <- cbind(df_final, features_hsv)
+  df_final <- cbind(df_final, sd_V = features_sdv)
+  df_final <- cbind(df_final, Porcentaje_Calidos = features_cal)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  
+  
+  # devolvemos el dataframe original con los nuevos datos añadidos
+  return(df_final)
+}
+```
 
-######## MEDIANAS RGB ########
-datos_test <- extraer_rgb(datos_test, lista_test)
 
-######## MEDIANAS HSV ########
-datos_test <- extraer_hsv(datos_test, lista_test)
+```{r}
+extraer_caracteristicas_bloques <- function(df_datos, num_bloques = 4) {
+  features_list <- list()
+  for (j in 1:nrow(df_datos)) {
+    tryCatch({
+      img <- readJPEG(df_datos$ruta[j])
+      if (length(dim(img)) == 3) {
+        r <- img[,,1]
+        g <- img[,,2]
+        b <- img[,,3]
+        hsv_vals <- rgb_a_hsv(as.vector(r), as.vector(g), as.vector(b))
+        H_channel <- matrix(hsv_vals[, 1], nrow = nrow(r), ncol = ncol(r))
+        V_channel <- matrix(hsv_vals[, 3], nrow = nrow(r), ncol = ncol(r))
+      } else {
+        H_channel <- matrix(0, nrow = nrow(img), ncol = ncol(img))
+        V_channel <- matrix(0, nrow = nrow(img), ncol = ncol(img))
+      }
+      altura <- nrow(V_channel)
+      ancho <- ncol(V_channel)
+      bloque_altura <- floor(altura / num_bloques)
+      bloque_ancho <- floor(ancho / num_bloques)
+      caracteristicas_bloques <- c()
+      for (i in 0:(num_bloques - 1)) {
+        for (k in 0:(num_bloques - 1)) {
+          fila_inicio <- i * bloque_altura + 1
+          fila_fin <- ifelse(i == num_bloques - 1, altura, (i + 1) * bloque_altura)
+          col_inicio <- k * bloque_ancho + 1
+          col_fin <- ifelse(k == num_bloques - 1, ancho, (k + 1) * bloque_ancho)
+          bloque_H <- H_channel[fila_inicio:fila_fin, col_inicio:col_fin]
+          bloque_V <- V_channel[fila_inicio:fila_fin, col_inicio:col_fin]
+          mediana_cos_H <- median(cos(bloque_H*2*pi), na.rm = TRUE)
+          mediana_sin_H <- median(sin(bloque_H*2*pi), na.rm = TRUE)
+          sd_V <- sd(as.vector(bloque_V), na.rm = TRUE)
+          porcentaje_brillantes <- sum(bloque_V > 0.9) / length(bloque_V) * 100
+          caracteristicas_bloques <- c(caracteristicas_bloques, mediana_cos_H, mediana_sin_H, sd_V, porcentaje_brillantes)
+        }
+      }
+      features_list[[j]] <- caracteristicas_bloques
+    }, error = function(e) {
+      cat("Error leyendo:", df_datos$ruta[j], "\n")
+    })
+  }
+  features_matrix <- do.call(rbind, features_list)
+  colnames(features_matrix) <- paste0("Bloque_", rep(1:(num_bloques^2), each = 4),
+                                      c("_Mediana_cos_H", "_Mediana_sin_H", "_SD_V", "_Porcentaje_Brillantes"))
+  df_final <- cbind(df_datos, features_matrix)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  return(df_final)
+}
 
-######## ENTROPÍA ########
-datos_test <- extraer_entropia(datos_test, lista_test)
+extraer_pixeles_extremos_bloques <- function(df_datos, num_bloques = 4) {
+  features_list <- list()
+  for (j in 1:nrow(df_datos)) {
+    tryCatch({
+      img <- readJPEG(df_datos$ruta[j])
+      if (length(dim(img)) == 3) {
+        r <- img[,,1]
+        g <- img[,,2]
+        b <- img[,,3]
+        hsv_vals <- rgb_a_hsv(as.vector(r), as.vector(g), as.vector(b))
+        V_channel <- matrix(hsv_vals[, 3], nrow = nrow(r), ncol = ncol(r))
+      } else {
+        V_channel <- matrix(0, nrow = nrow(img), ncol = ncol(img))
+      }
+      altura <- nrow(V_channel)
+      ancho <- ncol(V_channel)
+      bloque_altura <- floor(altura / num_bloques)
+      bloque_ancho <- floor(ancho / num_bloques)
+      caracteristicas_bloques <- c()
+      for (i in 0:(num_bloques - 1)) {
+        for (k in 0:(num_bloques - 1)) {
+          fila_inicio <- i * bloque_altura + 1
+          fila_fin <- ifelse(i == num_bloques - 1, altura, (i + 1) * bloque_altura)
+          col_inicio <- k * bloque_ancho + 1
+          col_fin <- ifelse(k == num_bloques - 1, ancho, (k + 1) * bloque_ancho)
+          bloque_V <- V_channel[fila_inicio:fila_fin, col_inicio:col_fin]
+          total_pixeles_bloque <- length(bloque_V)
+          pixeles_oscuros <- sum(bloque_V < 0.1)
+          pixeles_brillantes <- sum(bloque_V > 0.9)
+          proporcion_oscuros <- (pixeles_oscuros / total_pixeles_bloque) * 100
+          proporcion_brillantes <- (pixeles_brillantes / total_pixeles_bloque) * 100
+          caracteristicas_bloques <- c(caracteristicas_bloques, proporcion_oscuros, proporcion_brillantes)
+        }
+      }
+      features_list[[j]] <- caracteristicas_bloques
+    }, error = function(e) {
+      cat("Error leyendo:", df_datos$ruta[j], "\n")
+    })
+  }
+  features_matrix <- do.call(rbind, features_list)
+  colnames(features_matrix) <- paste0("Bloque_", rep(1:(num_bloques^2), each = 2),
+                                      c("_Proporcion_Oscuros", "_Proporcion_Brillantes"))
+  df_final <- cbind(df_datos, features_matrix)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  return(df_final)
+}
+```
 
-######## SD DE V ########
-datos_test <- extraer_sd_V(datos_test, lista_test)
+```{r}
+# # Reparar imagenes
+# library(magick)
+# 
+# # Algunas imágenes no se reconocían como jpg en readJPEG, las reparo todas con magick por si acaso
+# for(ruta in df_amanecer$ruta){
+#   print(ruta)
+#   img <- image_read(ruta)
+#   image_write(img, path = ruta, format = "jpg")
+# }
+# 
+# # Imagen que no se guardaba porque llega al límite de caché que permite magick, la reduzco
+# img <- image_scale(image_read('imagenes/test/dianocheamanecer/Amanecer/27.jpg'),"1244x943!")
+# image_write(img, path='imagenes/test/dianocheamanecer/Amanecer/27.jpg', format="jpg")
+```
+
+
+```{r}
+######## Extracción de los datos ########
+datos_test <- leer_y_extraer_caracteristicas(datos_test)
+```
+```{r}
+# Más extracción de características
+datos_test <- extraer_caracteristicas_bloques(datos_test)
+datos_test <- extraer_pixeles_extremos_bloques(datos_test)
+```
+
+```{r}
+# Ha tardado mucho en ejecutarse así que para no tener que volverlo a hacer (por si acaso)
+save(datos_test, file = "Datos_test_daynight.RData")
+```
+
+```{r}
+# Para cargar directamente los datos y hacer solo la evaluación
+#load("Datos_test_daynight.RData")
+## Esto de aquí es porque los nombres de la variable que he guardado son accidentalmente diferentes pero no me apetecía repetir la extracción de características
+# nuevos_nombres <- gsub("_Mediana_sin_H", "mediana_sin_H", colnames(datos_test))
+# nuevos_nombres <- gsub("_Mediana_cos_H", "mediana_cos_H", nuevos_nombres)
+# nuevos_nombres <- gsub("SD_V", "sd_V", nuevos_nombres)
+# colnames(datos_test) <- nuevos_nombres
+
+# Carga de librerías
+library(jpeg)
+library(class)
+library(caret)
+library(randomForest)
+library(ggplot2)
+library(tidyr)
+library(plotly)
+library(grDevices)
+library(magick)
+# Test para día noche crepúsculo
+test_x_dnc <- datos_test[,-c(1,2)]
+test_y_dnc <- datos_test$etiqueta
+# Predecir en el conjunto de prueba
+predicciones_rf_dnc <- predict(rf_dia_noche_crep, newdata = test_x_dnc)
+# Matriz de confusión
+cm_rf_dnc <- confusionMatrix(predicciones_rf_dnc, test_y_dnc)
+print(cm_rf_dnc)
+cat("Precisión del modelo Random Forest (Día, Noche, Amanecer):", cm_rf_dnc$overall['Accuracy'] * 100, "%\n")
+```
+```{r}
+# sacar imagenes que falla
+indices_fallidos <- which(predicciones_rf_dnc != test_y_dnc)
+imagenes_fallidas <- datos_test$ruta[indices_fallidos]
+etiquetas_reales <- datos_test$etiqueta[indices_fallidos]
+etiquetas_fallidas <- predicciones_rf_dnc[indices_fallidos]
+print("Imágenes mal clasificadas:")
+length(imagenes_fallidas)
+
+library(magick)
+#par(mfrow=c(3,2), mar=c(1,3,1,1)) ya buscaré una forma mejor de juntarlas para el pdf, a lo mejor el grid que poníais vosotros
+categorias <- c("Noche", "Día", "Crepúsculo")
+for(i in 1:length(imagenes_fallidas)){
+  img <- image_read(imagenes_fallidas[i])
+  titulo <- paste0('Clase predicha: ',categorias[etiquetas_fallidas[i]],"\n",'Clase real: ',categorias[etiquetas_reales[i]])
+  plot(img)
+  title(main=titulo)
+}
+# imgs <- image_read(imagenes_fallidas[1])
+# categorias <- c("Noche", "Día", "Crepúsculo")
+# titulo <- paste0('Clase predicha: ',categorias[etiquetas_fallidas[1]],"\n",'Clase real: ',categorias[etiquetas_reales[1]])
+# #subtitulo <- paste0('Clase real: ',categorias[etiquetas_reales[1]])
+# plot(imgs[1])
+# title(main=titulo)#, sub=subtitulo)
+# grid_imagenes <- image_montage(imgs, 
+#                                tile = "9x9", 
+#                                geometry = "x150+10+10", # Tamaño + márgenes
+#                                shadow = TRUE)
+
+#print(grid_imagenes)
+```
+# Test para dia/noche
+```{r}
+rm(list = ls())
+# Cojo los mismos datos que para dia/noche/crepúsculo pero solamente las columnas que utilizamos para día/noche y solamente las filas con etiquetas 0/1
+load("Datos_test_daynight.RData")
+load("rf_dia_noche.RData")
+
+datos_test <- datos_test[datos_test$etiqueta==0|datos_test$etiqueta==1,c("ruta","etiqueta","R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana","sd_V")]
+
+# Test para día noche
+test_x_daynight <- datos_test[,-c(1,2)]
+test_y_daynight <- droplevels(datos_test$etiqueta)
+# Predecir en el conjunto de prueba
+predicciones_rf_daynight <- predict(rf_dia_noche, newdata = test_x_daynight)
+# Matriz de confusión
+cm_rf_daynight <- confusionMatrix(predicciones_rf_daynight, test_y_daynight)
+print(cm_rf_daynight)
+cat("Precisión del modelo Random Forest (Día, Noche):", cm_rf_daynight$overall['Accuracy'] * 100, "%\n")
+```
+```{r}
+# sacar imagenes que falla
+indices_fallidos <- which(predicciones_rf_daynight != test_y_daynight)
+imagenes_fallidas <- datos_test$ruta[indices_fallidos]
+etiquetas_reales <- datos_test$etiqueta[indices_fallidos]
+etiquetas_fallidas <- predicciones_rf_daynight[indices_fallidos]
+print("Imágenes mal clasificadas:")
+length(imagenes_fallidas)
+
+library(magick)
+#par(mfrow=c(3,2), mar=c(1,3,1,1)) ya buscaré una forma mejor de juntarlas para el pdf, a lo mejor el grid que poníais vosotros
+categorias <- c("Noche", "Día")
+for(i in 1:length(imagenes_fallidas)){
+  img <- image_read(imagenes_fallidas[i])
+  titulo <- paste0('Clase predicha: ',categorias[etiquetas_fallidas[i]],"\n",'Clase real: ',categorias[etiquetas_reales[i]])
+  plot(img)
+  title(main=titulo)
+}
 ```
 

@@ -9,6 +9,20 @@ knitr::opts_chunk$set(echo = TRUE)
 rm(list = ls())
 ```
 
+```{r, include=FALSE}
+# Carga de librerías
+library(jpeg)
+library(class)
+library(caret)
+library(randomForest)
+library(ggplot2)
+library(tidyr)
+library(plotly)
+library(grDevices)
+library(magick)
+```
+
+
 ```{r}
 # Datos de dia/noche que nos hacen falta
 # Ruta base imágenes
@@ -570,5 +584,72 @@ print(grid_imagenes)
 ```
 
 
+# Modelo con el train completo para luego hacer test con nuestras imágenes
+
+```{r}
+rm(list=ls())
+
+# Carga de librerías
+library(jpeg)
+library(class)
+library(caret)
+library(randomForest)
+library(ggplot2)
+library(tidyr)
+library(plotly)
+library(grDevices)
+library(magick)
+
+# Ruta base imágenes
+ruta_base_imagenes <- "imagenes/train"
+
+# Ruta imágenes día/noche
+ruta_noche <- file.path(ruta_base_imagenes, "daynight/nighttime")
+ruta_dia <- file.path(ruta_base_imagenes, "daynight/daytime")
+ruta_amanecer <- file.path(ruta_base_imagenes, "daynight/sunrise")
+
+# Lectura del nombre de las imágenes
+archivos_noche <- list.files(path = ruta_noche, pattern = "\\.jpe?g$", full.names = TRUE, recursive = FALSE)
+archivos_dia <- list.files(path = ruta_dia, pattern = "\\.jpe?g$", full.names = TRUE, recursive = FALSE)
+archivos_amanecer <- list.files(path = ruta_amanecer, pattern = "\\.jpe?g$", full.names = TRUE, recursive = FALSE)
+
+# Dataframe de cada clase y su etiqueta (0: noche, 1: día)
+df_noche <- data.frame(ruta = archivos_noche, etiqueta = 0)
+df_dia <- data.frame(ruta = archivos_dia, etiqueta = 1)
+df_amanecer <- data.frame(ruta=archivos_amanecer, etiqueta = 2)
+
+# Combinación de los dataframes
+datos_train <- rbind(df_noche, df_dia, df_amanecer)
+```
+
+```{r}
+# Extracción de características
+source("funciones_extraccion_caracteristicas.R")
+
+####### LECTURA IMÁGENES ########
+lista_train <- leer_imagenes(datos_train)
+
+######## MEDIANAS RGB ########
+datos_train <- extraer_rgb(datos_train, lista_train)
+datos_train <- extraer_hsv(datos_train, lista_train)
+datos_train <- extraer_sd_V(datos_train, lista_train)
+datos_train <- extraer_tonos_calidos(datos_train,lista_train)
+datos_train <- extraer_caracteristicas_bloques(datos_train, lista_train)
+datos_train <- extraer_pixeles_extremos_bloques(datos_train, lista_train)
+```
+
+
+```{r}
+# Cuando se sepa seguro que variables vamos a coger al final se ponen aquí
+train_x_multi <- datos_train[, -c(1,2)]#c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "sd_V", "Porcentaje_calidos", grep("Bloque_", colnames(datos_train), value = TRUE))]
+train_y_multi <- datos_train$etiqueta
+
+set.seed(42)
+rf_dia_noche_crep <- randomForest(x = train_x_multi, y = train_y_multi, ntree = 100, importance=TRUE)
+```
+
+```{r}
+save(rf_dia_noche_crep, file = "rf_dia_noche_crep.RData")
+```
 
 

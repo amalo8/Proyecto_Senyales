@@ -28,7 +28,7 @@ El presente trabajo se enmarca dentro del ámbito del ánalisis digital de seña
 
 Distinguimos dos problemas de clasificación distintos: 
 
-1. Clasificación Temporal: se pretende determinar el momento del día en el que fue tomada la imagen, distinguiendo entre 3 clases: Día, Noche y Amanecer/Atardecer.
+1. Clasificación Temporal: se pretende determinar el momento del día en el que fue tomada la imagen, distinguiendo entre 3 clases: Día, Noche y Crepúsculo.
 
 2. Clasificación Meteorológica: esta tarea se centra en evaluar las condiciones atmosféricas, buscando diferenciar patrones asociados a cielos despejados frente a cielos cubiertos (nublados).
 
@@ -36,75 +36,54 @@ A diferencia de los enfoques modernos basados en aprendizaje profundo (*Deep Lea
 
 Para la etapa de clasificación, se emplearán técnicas de Aprendizaje Automático (*Machine Learning*), utilizando concretamente el algoritmo Random Forest. Este modelo se basa en el ensamblaje de múltiples árboles de decisión que operan en conjunto, agregando sus predicciones individuales para obtener un resultado más robusto y menos propenso al sobreajuste que un único árbol.
 
-## Origen de los Datos, Distribución y Balance
-Para garantizar la robustez de los modelos y su capacidad de generalización ante imágenes reales, hemos estructurado la obtención de datos en dos fases diferenciadas: una masiva para el entrenamiento (basada en datasets públicos) y una controlada para el test (basada en fotografías propias).
+## Origen de los Datos, Distribución y Balance de Clases
 
-A. Conjunto de Entrenamiento (Train)
-Las imágenes utilizadas para entrenar los modelos provienen de fuentes públicas y han sido seleccionadas para cubrir la mayor variabilidad posible.
+Las imágenes utilizadas en este proyecto se han recopilado a partir de diversas fuentes, con el objetivo de construir un dataset representativo y equilibrado para ambos problemas de clasificación. En primer lugar, se recopiló un conjunto masivo de entrenamiento proveniente de fuentes públicas y, en segundo lugar, se generó un conjunto de test independiente compuesto exclusivamente por fotografías propias de los miembros del grupo. 
 
-Clasificación Temporal (Día/Noche/Amanecer): Utilizamos el "Time of Day Dataset" de Kaggle (autor: Aymen Khouja).
+En lo referente al conjunto de entrenamiento para la clasificación temporal, utilizamos el "Time of Day Dataset" disponible en Kaggle. Este repositorio nos proporcionó un total de 2.661 imágenes, distribuidas en 920 imágenes para la clase de día, 756 para la noche y 985 para el crepúsculo. Esta distribución ofrece una cantidad suficiente y equilibrada de muestras por categoría que permite un entrenamiento adecuado del modelo sin necesidad de aplicar técnicas adicionales de balanceo de clases.
 
-Total: 2.661 imágenes.
+Para la clasificación meteorológica de entrenamiento, fue necesario realizar una fusión de distintas fuentes debido a la escasez de imágenes de cielos despejados en los datasets públicos 
+consultados. Partimos del dataset "Clouds Photos" de Kaggle, del cual obtuvimos las 826 imágenes que conforman la clase nublado y apenas 124 imágenes de cielo despejado. Realizamos una búsqueda exhaustiva de otros conjuntos de datos de cielos despejados tanto en Kaggle como en otros repositorios públicos, sin embargo, las imágenes que encontramos no mostraban realmente cielos despejados sino parcialmente nublados, por lo que consideramos que no eran adecuadas para nuestro propósito ya que podían inducir a errores en el entrenamiento del modelo. Tras varios intentos sin éxito, decidimos ampliar la cantidad de imágenes de cielo despejado recurriendo a la plataforma de imágenes de stock libre Unsplash. Mediante una búsqueda manual bajo el término "*clear blue sky*", integramos 583 imágenes adicionales a la clase despejado. De este modo, el conjunto de entrenamiento meteorológico alcanzó un total de 1.533 imágenes, logrando un balance mucho más adecuado con 707 imágenes para la clase despejado y 826 para la clase nublado.
 
-Día: 920 imágenes.
+Por otro lado, para la fase de evaluación final (Test), optamos por no reservar un porcentaje de los datasets de entrenamiento, sino generar un conjunto de datos totalmente nuevo a partir de las galerías de fotos de los miembros del grupo. Esta estrategia nos permite comprobar el comportamiento del modelo ante imágenes cotidianas y no vistas previamente, asegurando una evaluación más realista de su capacidad de generalización. Este conjunto de test fue diseñado para estar perfectamente balanceado: para el problema temporal se utilizaron 120 imágenes (40 de día, 40 de noche y 40 de crepúsculo), mientras que para el problema meteorológico se seleccionaron 100 imágenes (50 de despejado y 50 de nublado).
 
-Noche: 756 imágenes.
-
-Amanecer (Sunrise): 985 imágenes.
-
-Clasificación Meteorológica (Soleado/Nublado): Se realizó una composición híbrida debido a la falta de imágenes de cielos despejados en los datasets estándar.
-
-Fuente 1: Dataset "Clouds Photos" de Kaggle (autor: Jockeroika) para las nubes y una pequeña parte de soleado.
-
-Fuente 2: Unsplash (plataforma de imágenes de stock libre). Tuvimos que realizar una búsqueda manual bajo el término "clear blue sky" para descargar imágenes adicionales y compensar el desbalance de la clase "Soleado".
-
-Total: 1.533 imágenes.
-
-Soleado: 707 imágenes (124 de Kaggle + 583 de Unsplash).
-
-Nublado: 826 imágenes (todas de Kaggle).
-
-B. Conjunto de Test (Imágenes Propias)
-Para la evaluación final, no reservamos un porcentaje del dataset de internet, sino que generamos un dataset totalmente nuevo. Estas imágenes provienen de las galerías personales de los miembros del grupo, garantizando que el modelo se enfrenta a datos reales "fuera de muestra" que nunca ha visto.
-
-Hemos diseñado este conjunto para que esté perfectamente balanceado:
-
-Test Temporal (120 imágenes):
-
-Día: 40 imágenes.
-
-Noche: 40 imágenes.
-
-Amanecer: 40 imágenes.
-
-Test Meteorológico (100 imágenes):
-
-Soleado: 50 imágenes.
-
-Nublado: 50 imágenes.
-
-C. Análisis del Balance de Clases y División de Datos
-Al analizar la distribución global de los datos, observamos lo siguiente:
-
-Balanceo de Clases:
-
-En Train, las clases no son perfectamente equitativas (ej. hay más fotos de amanecer que de noche), pero mantienen proporciones razonables que permiten el aprendizaje sin sesgos graves. En el caso de "Soleado vs. Nublado", la inclusión de fotos de Unsplash corrigió un desbalance crítico, logrando una relación cercana al 46%-54%.
-
-En Test, hemos forzado un balance exacto (33% por clase en temporal y 50% en meteorológico) para que la métrica de precisión (accuracy) sea fiable y no esté sesgada por una clase mayoritaria.
-
-Proporción Entrenamiento vs. Test: Dado el volumen de los datos recolectados, la división final de imágenes (Train vs. Test Real) queda aproximadamente así:
-
-Problema Temporal: ~95.7% Entrenamiento / ~4.3% Test.
-
-Problema Meteorológico: ~94% Entrenamiento / ~6% Test.
-
-Nota: Cabe destacar que, dentro del conjunto de Entrenamiento, se realizará una subdivisión interna automática (Bootstrap o Cross-Validation) para la validación durante la fase de ajuste de modelos.
+Analizando la distribución global de los datos, observamos que la proporción entre entrenamiento y test ronda el 95% para entrenamiento y un 5% para test en ambos problemas. Mientras que los datos de entrenamiento presentan ligeras variaciones naturales en la cantidad de muestras por clase debido a la disponibilidad de imágenes en las fuentes originales, el conjunto de test manual fue forzado a una equidad exacta (33% por clase en temporal y 50% en meteorológico), lo cual se consideró fundamental para asegurar que las métricas de evaluación final, como la tasa de acierto (*accuracy*), sean fiables y no se vean distorsionadas por el predominio de una clase mayoritaria.
 
 # Preprocesamiento de Imágenes
 
+En esta fase del proyecto, el objetivo principal fue adaptar las imágenes originales para que la extracción de características posterior fuera lo más fiable posible. Dada la naturaleza distinta de los dos problemas a resolver, se optó por aplicar una estrategia de preprocesado diferenciada ya que no todas las imágenes requieren el mismo tratamiento: mientras que en algunos casos el entorno aporta información relevante, en otros puede introducir ruido que confunda al clasificador.
+
+## Preprocesado para Clasificación Temporal 
+
+Para el problema de clasificación temporal, tomamos la decisión de no realizar recortes y trabajar con la imagen completa. Esto se debe a que la distinción entre el día y la noche no reside únicamente en el cielo, sino en el contexto global de la imagen el cual puede aportar información visual relevante que se perdería al aislar la región superior. Por ejemplo, en una imagen de crepúsculo, los tonos anaranjados característicos se concentran casi siempre en la línea del horizonte, por lo que recortar solo la parte superior del cielo, se podría perder esa franja de color quedando un cielo azul genérico que podría confundirse con una imagen diurna. Otro ejemplo ilustra la distinción entre día y noche, donde un cielo oscuro podría ser deberse a una gran tormenta, pero si se observan focos de luz como farolas o ventanas encendidas en la parte inferior de la imagen, se puede llegar a concluir que es de noche. 
+
+No obstante, aunque se preservó la imagen original completa, fue necesario realizar un paso de estandarización de escala. Dado que las imágenes provenían de diversas fuentes con resoluciones muy dispares, procesarlas en su tamaño original podría aumentar el coste computacional, especialmente al calcular características complejas como texturas o conversiones de espacios de color. Por ello, se aplicó un redimensionado proporcional a todas las imágenes, reduciendo su tamaño a una resolución manejable que permitiera agilizar el entrenamiento sin degradar la información visual necesaria para distinguir el momento del día. 
+
+Se utilizó fijar el lado mayor de la imagen a un máximo de 224 píxeles, estableciendo una 'caja delimitadora' (bounding box) de 224x224. Esta medida no fue arbitraria, sino seleccionada para coincidir con la resolución nativa de una parte de nuestro dataset original: las 124 imágenes del dataset de Kaggle ya tenían este tamaño. Al adoptar este estándar, evitamos tener que interpolar píxeles en las imágenes pequeñas lo cual añadiría ruido, limitándonos únicamente a reducir las imágenes de alta resolución. Además, al aplicar un reescalado proporcional en lugar de un recorte forzado, se respeta la relación de aspecto original de cada fotografía, ya sea vertical u horizontal, asegurando que ninguna dimensión exceda los 224 píxeles sin deformar el contenido visual.
+
+## Preprocesado para Clasificación Meteorológica
+
+Por el contrario, para la clasificación meteorológica, el enfoque fue opuesto. El objetivo es evaluar las condiciones atmosféricas, por lo que cualquier elemento que no pertenezca al cielo como edificios, montañas o vegetación, constituye ruido visual que podría confundir al clasificador, extrayendo características de elementos de la imagen no relevantes. Por ejemplo, una fachada blanca podría confundirse con una nube. Por ello, desarrollamos un algoritmo de segmentación específico para aislar una Región de Interés (ROI) que contuviera exclusivamente información del cielo, descartando el resto de la fotografía.
+
+El algoritmo no se limita a realizar un recorte estático, sino que busca la mejor zona de cielo siguiendo una lógica de cuatro pasos:
+
+  1. Restricción del Espacio de Búsqueda: el algoritmo limita su análisis estrictamente al 40% superior de la imagen, asumiendo que en la imagen, el horizonte y los elementos terrestres suelen ocupar la mitad inferior, mientras que el cielo siempre se ubica en la zona de arriba.
+
+  2. Ventana Deslizante: se emplea una ventana cuadrada cuyo tamaño se ajusta dinámicamente a las dimensiones de cada imagen. Por defecto, la longitud del lado se establece en un tercio del ancho total de la imagen, asegurando una muestra representativa, aunque este tamaño se reduce automáticamente si excede la altura de la zona del cielo (el 40% superior). Una vez definido el tamaño, la ventana escanea 3 posiciones estratégicas a lo largo del eje horizontal: el extremo izquierdo, el centro y el extremo derecho. Esta búsqueda permite encontrar un trozo de cielo libre de obstáculos.
+
+  3. Criterio de Selección: para elegir el recorte óptimo entre los candidatos, se evalúan dos métricas: la homogeneidad (buscando la menor desviación típica, ya que el cielo suele ser más liso que los objetos sólidos) y la luminosidad (descartando zonas con brillo insuficiente para evitar seleccionar siluetas oscuras que no sean cielo). El recorte final se selecciona como aquel que minimiza la desviación típica siempre que su brillo medio supere un umbral predefinido.
+  
+  4. Normalización Final: el recorte seleccionado se redimensiona a un estándar de 224x224 píxeles. Esto garantiza que todas las muestras de entrada para el clasificador tengan exactamente las mismas dimensiones, independientemente del tamaño original de la imagen. Con ello, se evita que las diferencias de resolución introduzcan sesgos numéricos en el cálculo de las características.
+  
+El resultado de este proceso es una colección de imágenes que contienen la región de cada imagen con mayor porcentaje de cielo, estandarizadas en tamaño y optimizadas para la extracción de características relevantes para la clasificación meteorológica.
+
+
+(PODEMOS PONER ALGUNOS RECORTE COMO EJEMPLO, O LO QUE HICE DE PONER LA IMAGEN ORIGINAL Y AL LADO LAS AREAS INSPECCIONADAS Y LA SELECCIONADA)
+
+
 # Preparación de Datos para Entrenamiento
-## Balanceo de Clases
-## División de Conjuntos de Datos
+ 
+Recordar que train y test ya estaban separados, pero (Hablar de validación)
 
 # Entrenamiento I: Clasificación Temporal
 ## Clasificación Binaria: Día vs. Noche

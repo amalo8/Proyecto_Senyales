@@ -30,12 +30,12 @@ Nuestras imágenes tienen una resolución mucho más alta que las imágenes con 
 Archivos dia/noche/amanecer  
 ```{r}
 # Ruta base imágenes
-ruta_base_imagenes <- "imagenes/test/dianocheamanecer"
+ruta_base_imagenes <- "imagenes_escaladas/test/Temporal"
 
 # Ruta imágenes día/noche
 ruta_noche <- file.path(ruta_base_imagenes, "Noche")
-ruta_dia <- file.path(ruta_base_imagenes, "Dia")
-ruta_amanecer <- file.path(ruta_base_imagenes, "Amanecer")
+ruta_dia <- file.path(ruta_base_imagenes, "Día")
+ruta_amanecer <- file.path(ruta_base_imagenes, "Crepúsculo")
 
 # Lectura del nombre de las imágenes
 archivos_noche <- list.files(path = ruta_noche, pattern = "\\.jpe?g$", full.names = TRUE, recursive = FALSE)
@@ -273,6 +273,10 @@ predicciones_rf_daynight <- predict(rf_dia_noche, newdata = test_x_daynight)
 cm_rf_daynight <- confusionMatrix(predicciones_rf_daynight, test_y_daynight)
 print(cm_rf_daynight)
 cat("Precisión del modelo Random Forest (Día, Noche):", cm_rf_daynight$overall['Accuracy'] * 100, "%\n")
+# Algo de aquí está cambiando las rutas y no sé por qué así que de momento las voy a volver a cambiar a lo cutre
+datos_test$ruta <- gsub("imagenes/test/dianocheamanecer/","imagenes_escaladas/test/Temporal/",datos_test$ruta)
+datos_test$ruta <- gsub("Dia","Día", datos_test$ruta)
+datos_test$ruta <- gsub(".jpeg",".jpg", datos_test$ruta)
 ```
 
 
@@ -316,6 +320,11 @@ predicciones_rf_dnc <- predict(rf_dia_noche_crep, newdata = test_x_dnc)
 cm_rf_dnc <- confusionMatrix(predicciones_rf_dnc, test_y_dnc)
 print(cm_rf_dnc)
 cat("Precisión del modelo Random Forest (Día, Noche, Amanecer):", cm_rf_dnc$overall['Accuracy'] * 100, "%\n")
+# Algo de aquí está cambiando las rutas y no sé por qué así que de momento las voy a volver a cambiar a lo cutre
+datos_test$ruta <- gsub("imagenes/test/dianocheamanecer/","imagenes_escaladas/test/Temporal/",datos_test$ruta)
+datos_test$ruta <- gsub("Dia","Día", datos_test$ruta)
+datos_test$ruta <- gsub("Amanecer","Crepúsculo", datos_test$ruta)
+datos_test$ruta <- gsub(".jpeg",".jpg", datos_test$ruta)
 ```
 
 Representamos las imágenes en las que se ha equivocado:  
@@ -338,6 +347,90 @@ for(i in 1:length(imagenes_fallidas)){
 }
 ```
 
+## test para nublado/despejado
+
+```{r}
+# Cargamos el random forest que hemos desarrollado con las imágenes train
+load("datosR/rf_despejado_nublado.RData")
+source("funciones_extraccion_caracteristicas.R")
+
+# Leemos nuestras imágenes (ya recortadas)
+# Definir la ruta base
+ruta_base_imagenes_validation <- "imagenes_recortadas/test/Meteorológico"
+
+# lectura de las imagenes de Nublado
+ruta_cloudy_validation <- file.path(ruta_base_imagenes_validation, "Nublado")
+archivos_cloudy_validation <- list.files(
+  path = ruta_cloudy_validation,
+  pattern = "\\.jpe?g$",
+  full.names = TRUE,
+  recursive = FALSE
+)
+
+df_cloudy_validation <- data.frame(
+  ruta = archivos_cloudy_validation,
+  etiqueta = 0 # Cloudy
+)
+
+
+# Leer y etiquetar imágenes del subdirectorio Despejado
+
+ruta_shine_validation <- file.path(ruta_base_imagenes_validation, "Despejado")
+archivos_shine_validation <- list.files(
+  path = ruta_shine_validation,
+  pattern = "\\.jpe?g$",
+  full.names = TRUE,
+  recursive = FALSE
+)
+
+df_shine_validation <- data.frame(
+  ruta = archivos_shine_validation,
+  etiqueta = 1 # Shine
+)
+
+# lectura de las imagenes 
+datos_test <- rbind(df_cloudy_validation, df_shine_validation)
+
+# leemos las imágenes
+lista <- leer_imagenes(datos_test)
+
+# extracción de caracterísitcas
+datos_test <- extraer_rgb(datos_test, lista)
+datos_test <- extraer_hsv(datos_test, lista)
+datos_test <- extraer_ratio_azul(datos_test, lista)
+```
+```{r}
+# Evaluar el modelo en el conjunto de prueba
+predicciones_sn <- predict(rf_despejado_nublado, newdata = datos_test)
+confusionMatrix(predicciones_sn, datos_test$etiqueta)
+rf_despejado_nublado$importance
+```
+```{r}
+# sacar imagenes que falla
+indices_fallidos <- which(predicciones_sn != datos_test$etiqueta)
+imagenes_fallidas <- datos_test$ruta[indices_fallidos]
+etiquetas_reales <- datos_test$etiqueta[indices_fallidos]
+etiquetas_fallidas <- predicciones_sn[indices_fallidos]
+#rutas_completas <- gsub("imagenes_recortadas","imagenes",imagenes_fallidas)
+# rutas_completas <- gsub("/despejado/","/Despejado/",rutas_completas)
+# rutas_completas <- gsub("/nublado/","/Nublado/",rutas_completas)
+# rutas_completas <- gsub("_recorte","",rutas_completas)
+print("Imágenes mal clasificadas:")
+length(imagenes_fallidas)
+
+# par(mfrow=c(1,2))#, mar=c(1,3,1,1)) 
+categorias <- c("Nublado","Despejado")
+for(i in 1:length(imagenes_fallidas)){
+  img <- image_read(imagenes_fallidas[i])
+  titulo <- paste0('Clase predicha: ',categorias[etiquetas_fallidas[i]],"\n",'Clase real: ',categorias[etiquetas_reales[i]])
+  plot(img)
+  title(main=titulo)
+  # img <-image_read(rutas_completas[i])
+  # plot(img)
+  # title(main=titulo)
+}
+```
+
 
 ## Otros
 Algunas imágenes no las dejaba abrir con readJPEG o no dejaba guardarlas porque eran muy grandes, se corrigió así:
@@ -353,5 +446,12 @@ Algunas imágenes no las dejaba abrir con readJPEG o no dejaba guardarlas porque
 # # Imagen que no se guardaba porque llega al límite de caché que permite magick, la reduzco
 # img <- image_scale(image_read('imagenes/test/dianocheamanecer/Amanecer/27.jpg'),"1244x943!")
 # image_write(img, path='imagenes/test/dianocheamanecer/Amanecer/27.jpg', format="jpg")
+
+rutas <- paste0("imagenes/test/despejadonublado/Nublado/",list.files("imagenes/test/despejadonublado/Nublado"))
+rutas_nuevas <- gsub(".jpeg",".jpg", rutas)
+for(i in 1:length(rutas)){
+  img <- image_read(rutas[i])
+  image_write(img, path=rutas_nuevas[i], format="jpg")
+}
 ```
 

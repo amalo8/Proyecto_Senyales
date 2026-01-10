@@ -26,7 +26,7 @@ library(magick)
 ## Introducción a la fase de entrenamiento y validación: Clasificación de imágenes de día y de noche
 La clasificación de imágenes diurnas y nocturnas requiere un proceso previo de extracción de características. En esta sección, nos centraremos en la determinación de estas características y en el entrenamiento y validación de nuestro algoritmo para distinguir entre imágenes tomadas durante el día y durante la noche. Como hemos mencionado anteriormente, se han empleado un conjunto de imágenes extraídas de repositorios públicos, que nos garantizan una gran variedad de imágenes en diferentes contextos geográficos.
 
-El objetivo es construir un modelo de aprendizaje supervisado que permita diferenciar claramente entre las dos categorías y, posteriormente, tenga la capacidad de generalizar correctamente para clasificar las imágenes capturadas por nosotros. Cabe destacar que primero abordaremos este problema como una clasificación binaria (día/noche) para tener una primera toma de contacto en la extracción de características y en el entrenamiento del modelo. En el siguiente apartado, añadiremos una nueva categoría (crepúsculo) para lograr un modelo más completo.
+En primer lugar, abordaremos este problema como una clasificación binaria (día/noche) para tener una primera toma de contacto en la extracción de características y en el entrenamiento del modelo. En el siguiente apartado, añadiremos una nueva categoría (crepúsculo) para lograr un modelo más completo. El objetivo es construir un modelo de aprendizaje supervisado que permita diferenciar claramente entre las dos categorías y, posteriormente, tenga la capacidad de generalizar correctamente para clasificar las imágenes capturadas por nosotros. 
 
 El procedimiento que hemos seguido para construir el clasificador ha sido el siguiente: incorporar sucesivamente características al modelo (de una en una). Esta decisión se ha tomado para poder observar si al añadir una característica, mejora o no nuestro clasificador. Esto nos da un control completo, en el que podemos identificar claramente que características funcionan mejor para diferenciar entre imagen de día y de noche.
 
@@ -84,11 +84,13 @@ Con esta característica esperaríamos valores bajos en las medianas RGB para la
 datos_long <- pivot_longer(datos_train, cols = c("R_mediana", "G_mediana", "B_mediana"), names_to = "Característica", values_to = "Valor")
 
 ####### BOXPLOT MEDIANAS RGB ########
-ggplot(datos_long, aes(x = Característica, y = Valor, fill = etiqueta)) + 
+boxplotRGB <- ggplot(datos_long, aes(x = Característica, y = Valor, fill = etiqueta)) + 
   geom_boxplot() + 
   scale_fill_manual(values = c("#104E8B", "#C7D9F5"), labels = c("Noche", "Día")) +
   labs(title = "Medianas RGB", subtitle = "Para cada clase (Día/Noche)", y = "Mediana RGB (0-1)", fill = "Etiqueta") +
   theme_minimal()
+
+ggsave('boxplotRGB.png', plot=boxplotRGB, width=6, height=4)
 ```
 
 ```{r, include=FALSE}
@@ -153,11 +155,14 @@ Importante destacar que la mediana de V es la que más información nos puede ap
 ######## BOXPLOT MEDIANAS HSV ########
 datos_long_hsv <- pivot_longer(datos_train_hsv, cols = c("H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana"), names_to = "Característica", values_to = "Valor")
 
-ggplot(datos_long_hsv, aes(x = Característica, y = Valor, fill = etiqueta)) + 
+boxplotHSV <- ggplot(datos_long_hsv, aes(x = Característica, y = Valor, fill = etiqueta)) + 
   geom_boxplot() + 
   scale_fill_manual(values = c("#104E8B", "#C7D9F5"), labels = c("Noche", "Día")) +
   labs(title = "Medianas HSV", subtitle = "Para cada clase (Día/Noche)", y = "Mediana HSV (0-1)", fill = "Etiqueta") +
   theme_minimal()
+
+ggsave('boxplotHSV.png', plot=boxplotHSV, width=6, height=4)
+
 ```
 
 
@@ -204,11 +209,14 @@ La cuarta característica es la detección de fuentes de luz (`extraer_fuentes_l
 datos_train_fuentes_luz <- extraer_fuentes_luz(datos_train_hsv, lista_train)
 datos_test_fuentes_luz <- extraer_fuentes_luz(datos_test_hsv, lista_test)
 
-ggplot(datos_train_fuentes_luz, aes(x = as.factor(etiqueta), y = Fuentes_luz, fill = as.factor(etiqueta))) + 
+boxplotLUZ <- ggplot(datos_train_fuentes_luz, aes(x = as.factor(etiqueta), y = Fuentes_luz, fill = as.factor(etiqueta))) + 
   geom_boxplot() + 
   scale_fill_manual(values = c("#104E8B", "#C7D9F5"), labels = c("Noche", "Día")) +
   labs(title = "Fuentes de luz", subtitle = "Para cada clase (Día/Noche)", y = "Fuentes de luz", x = "Etiqueta", fill = "Etiqueta") +
   theme_minimal()
+
+ggsave('boxplotLUZ.png', plot=boxplotLUZ, width=6, height=4)
+
 ```
 
 
@@ -247,11 +255,14 @@ datos_test_sd <- extraer_sd_V(datos_test_hsv, lista_test)
 
 ```{r, echo=FALSE, ut.width="50%", fig.align='center'}
 ####### BOXPLOT SD DE V ########
-ggplot(datos_train_sd, aes(x = as.factor(etiqueta), y = sd_V, fill = as.factor(etiqueta))) + 
+boxplotSDV<-ggplot(datos_train_sd, aes(x = as.factor(etiqueta), y = sd_V, fill = as.factor(etiqueta))) + 
   geom_boxplot() + 
   scale_fill_manual(values = c("#104E8B", "#C7D9F5"), labels = c("Noche", "Día")) +
   labs(title = "Desviación Estándar de V", subtitle = "Para cada clase (Día/Noche)", y = "Desviación Estándar de V", x = "Etiqueta", fill = "Etiqueta") +
   theme_minimal()
+
+ggsave('boxplotSDV.png', plot=boxplotSDV, width=6, height=4)
+
 ```
 
 

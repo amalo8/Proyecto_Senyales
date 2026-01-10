@@ -26,21 +26,21 @@ library(magick)
 ## Introducción a la fase de entrenamiento y validación: Clasificación de imágenes de día y de noche
 La clasificación de imágenes diurnas y nocturnas requiere un proceso previo de extracción de características. En esta sección, nos centraremos en la determinación de estas características y en el entrenamiento y validación de nuestro algoritmo para distinguir entre imágenes tomadas durante el día y durante la noche. Como hemos mencionado anteriormente, se han empleado un conjunto de imágenes extraídas de repositorios públicos, que nos garantizan una gran variedad de imágenes en diferentes contextos geográficos.
 
-El objetivo es construir un modelo de aprendizaje supervisado que permita diferenciar claramente entre las dos categorías y, posteriormente, tenga la capacidad de generalizar correctamente para clasificar las imágenes capturadas por nosotros. Cabe destacar que primero abordaremos este problema como una clasificación binaria (día/noche) para tener una primera toma de contacto en la extracción de características y en el entrenamiento del modelo. En el siguiente apartado, añadiremos una nueva categoría (amanecer/atardecer) para lograr un modelo más completo.
+El objetivo es construir un modelo de aprendizaje supervisado que permita diferenciar claramente entre las dos categorías y, posteriormente, tenga la capacidad de generalizar correctamente para clasificar las imágenes capturadas por nosotros. Cabe destacar que primero abordaremos este problema como una clasificación binaria (día/noche) para tener una primera toma de contacto en la extracción de características y en el entrenamiento del modelo. En el siguiente apartado, añadiremos una nueva categoría (crepúsculo) para lograr un modelo más completo.
 
 El procedimiento que hemos seguido para construir el clasificador ha sido el siguiente: incorporar sucesivamente características al modelo (de una en una). Esta decisión se ha tomado para poder observar si al añadir una característica, mejora o no nuestro clasificador. Esto nos da un control completo, en el que podemos identificar claramente que características funcionan mejor para diferenciar entre imagen de día y de noche.
 
 Además, hemos optado por utilizar el algoritmo Random Forest porque es rápido de implementar, permite capturar relaciones complejas entre características (construye múltiples árboles de decisión donde cada split selecciona un subconjunto de las características, garantizando la aleatoriedad y reduciendo la correlación entre estas). También, es robusto ante outliers, lo cual es interesante ya que en el conjunto de datos utilizado en esta parte pueden haber ruidos visuales o iluminaciones extremas.
 
-La primera característica es la mediana de la intensidad de los canales RGB (función `extraer_rgb`). Cada imagen se descompone en estas tres capas y se determina para cada píxel un valor de intensidad en cada una de ellas. Estos valores oscilan entre 0 (ausencia de color) y 1 (intensidad máxima). A continuación, se realiza la mediana de cada canal para cada imagen, obteniendo tres valores representativos. Se ha escogido la mediana en lugar de la media debido a su robustez frente a outliers. Por ejemplo, en imágenes nocturnas podemos encontrarnos con puntos de luz artificial intensos, como las farolas, podrían ser ignorados y nos permitiría seguir conociendo un valor de la intensidad que representa a la mayoría de la imagen.
+La primera característica es la mediana de la intensidad de los canales RGB (función `extraer_rgb`). Cada imagen se descompone en estas tres capas y se determina para cada píxel un valor de intensidad en cada una de ellas. Estos valores oscilan entre 0 (ausencia de color) y 1 (intensidad máxima). A continuación, se realiza la mediana de cada canal para cada imagen, obteniendo tres valores representativos. Se ha escogido la mediana en lugar de la media debido a su robustez frente a outliers. Por ejemplo, en imágenes nocturnas podemos encontrarnos con puntos de luz artificial intensos, como farolas, que podrían ser ignorados y nos permitiría seguir conociendo un valor de la intensidad que representa a la imagen.
 
 ```{r, include=FALSE}
 # Ruta base imágenes
 ruta_base_imagenes <- "imagenes/train"
 
 # Ruta imágenes día/noche
-ruta_noche <- file.path(ruta_base_imagenes, "daynight/nighttime")
-ruta_dia <- file.path(ruta_base_imagenes, "daynight/daytime")
+ruta_noche <- file.path(ruta_base_imagenes, "Temporal/Noche")
+ruta_dia <- file.path(ruta_base_imagenes, "Temporal/Día")
 
 # Lectura del nombre de las imágenes
 archivos_noche <- list.files(path = ruta_noche, pattern = "\\.jpe?g$", full.names = TRUE, recursive = FALSE)
@@ -147,7 +147,7 @@ train_y_hsv <- datos_train_hsv$etiqueta
 test_y_hsv <- datos_test_hsv$etiqueta
 ```
 
-Importante destacar que la mediana de V es la que más información nos puede aportar ya que representa la cantidad de luz que hay en la imagen. En imágenes diurnas tiende a ser un valor alto debido a la gran cantidad de luz natural, mientras que en imágenes nocturnas el valor es bajo. Con respecto a lso canalas H y S podemos no encontrar diferencias significativas. Estas conclusiones se confirman en el siguiente boxplot.
+Importante destacar que la mediana de V es la que más información nos puede aportar ya que representa la cantidad de luz que hay en la imagen. En imágenes diurnas tiende a ser un valor alto debido a la gran cantidad de luz natural, mientras que en imágenes nocturnas el valor es bajo. Con respecto a los canalas H y S podemos no encontrar diferencias significativas. Estas conclusiones se confirman en el siguiente boxplot.
 
 ```{r, echo=FALSE, ut.width="50%", fig.align='center'}
 ######## BOXPLOT MEDIANAS HSV ########
@@ -198,7 +198,19 @@ cat("Precisión del modelo Random Forest con todas las características:", cm_rf
 
 La tercera característica es la detección de bordes mediante el filtro Sobel (`extraet_sobel`) para detectar cambios bruscos en la intensidad lumínica (se utiliza el valor medio del gradiente horizontal y vertical de la intensidad) y, por tanto, en la identificación de bordes en una imagen. En un principio podríamos encontrar un valor mayor para imágenes diurnas ya que se pueden encontrar edificios/vegetación que debido a la gran cantidad de luz que hay en estas imágenes, se puedan identificar mejor esos bordes.
 
-La cuarta característica es la detección de fuentes de luz (`extraer_fuentes_luz`). Consiste en la cuantificación de puntos de alta luminosidad. Se ha utilizado la fórmula de la luminancia ($L=0,299R+0,587G+0,114B$) y se ha definido un umbral de 0,9 para detectar píxeles con intensidad cercana a la del blanco. 
+La cuarta característica es la detección de fuentes de luz (`extraer_fuentes_luz`). Consiste en la cuantificación de puntos de alta luminosidad. Se ha utilizado la fórmula de la luminancia ($L=0,299R+0,587G+0,114B$) y se ha definido un umbral de 0,9 para detectar píxeles con intensidad cercana a la del blanco. Podemos observar en el siguiente boxplot que hay muchos outliers, entonces posiblemente esta característica no sea relevante en nuestro modelo.
+```{r}
+####### BOXPLOT FUENTES DE LUZ ########
+datos_train_fuentes_luz <- extraer_fuentes_luz(datos_train_hsv, lista_train)
+datos_test_fuentes_luz <- extraer_fuentes_luz(datos_test_hsv, lista_test)
+
+ggplot(datos_train_fuentes_luz, aes(x = as.factor(etiqueta), y = Fuentes_luz, fill = as.factor(etiqueta))) + 
+  geom_boxplot() + 
+  scale_fill_manual(values = c("#104E8B", "#C7D9F5"), labels = c("Noche", "Día")) +
+  labs(title = "Fuentes de luz", subtitle = "Para cada clase (Día/Noche)", y = "Fuentes de luz", x = "Etiqueta", fill = "Etiqueta") +
+  theme_minimal()
+```
+
 
 La quinta característica es la entropía (`extraer_entropia`). A partir de la función `entropy` podemos determinarla. Puede ser útil ya que para valores bajos de la entropía esperamos una imagen más uniforme o con poca variación de niveles de intensidad, que podríamos encontrar en imagenes de noche.
 
@@ -266,7 +278,11 @@ importancia_sd <- importance(rf_model_sd)
 print(importancia_sd)
 ```
 
-Como hemos mencionado anteriormente, estas características se han ido añadiendo sucensivamente al modelo. Esto nos ha permitdo ver que características aportaban más información para distinguir entre imágenes de día y de noche. Estas han sido: `extraer_rgb`, `extraer_hsv` y `extraer_sd_V`. Por tanto, este será nuestro punto de partida en el siguiente apartado en el que añadimos una nueva categoría (amanecer/atardecer).
+Como hemos mencionado anteriormente, estas características se han ido añadiendo sucesivamente al modelo. Esto nos ha permitdo ver qué variables aportaban mayor información para distinguir entre imágenes de día y de noche. Estas han sido: `extraer_rgb`, `extraer_hsv` y `extraer_sd_V`. 
+
+El modelo ha alcanzado un accuracy del 90,15%. Además, al analizar la importancia de las características mediante el índice \textit{MeanDecreaseGini}, se observa que las más influyentes a la hora de clasificar han sido `G_mediana` con un valor de 221,17, seguido de `V_mediana` con 117,04 y `B_mediana` con 98,48. Resultado sorprendente ya que el canal verde es el que más información aporta. Esto puede ser debido a que las cámaras digitales utilizan un filtro llamado Mosaico de Bayer que captura el doble de información en el espectro verde.
+
+En conclusión, el mejor modelo para esta clasificación binaria (día/noche) y modelo de partida para el siguiente apartado es el formado por las características: `extraer_rgb`, `extraer_hsv` y `extraer_sd_V`.
 
 
 ```{r, include=FALSE}

@@ -11,6 +11,80 @@ library(magick)
 library(tools)
 ```
 
+# Función reescalado imágenes de test clasificación temporal
+
+```{r}
+# --- FUNCIÓN DE REESCALADO ---
+# Redimensiona las imágenes para que encajen dentro de una caja de 224x224
+# manteniendo su proporción (aspect ratio).
+ReescalarImagenes <- function(dir_origen, dir_destino) {
+  
+  if(!dir.exists(dir_destino)) {
+    dir.create(dir_destino, recursive = TRUE)
+  }
+  
+  archivos <- list.files(dir_origen, full.names = TRUE)
+  
+  # Filtramos para procesar solo imágenes (jpg, png, jpeg, etc) por si hay ficheros ocultos
+  archivos <- archivos[grepl("\\.(jpg|jpeg|png|bmp)$", archivos, ignore.case = TRUE)]
+  
+  cat(sprintf("Procesando %d imágenes de: %s\n", length(archivos), basename(dir_origen)))
+  
+  for(i in seq_along(archivos)) {
+    ruta_img <- archivos[i]
+    nombre_arch <- basename(ruta_img)
+    # Cambiamos extensión a .jpg para uniformizar la salida
+    nombre_salida <- paste0(file_path_sans_ext(nombre_arch), ".jpg")
+    ruta_salida <- file.path(dir_destino, nombre_salida)
+    
+    tryCatch({
+      img <- image_read(ruta_img)
+      
+      # "224x224" -> Ajusta el lado más largo a 224px. 
+      # El otro lado será <= 224px. No deforma la imagen.
+      img_small <- image_resize(img, geometry = "224x224")
+      
+      # Convertimos a formato jpg para asegurar compatibilidad
+      image_write(img_small, path = ruta_salida, format = "jpg")
+      
+    }, error = function(e) {
+      cat(sprintf("[ERROR] Fallo en %s: %s\n", nombre_arch, e$message))
+    })
+  }
+  cat("--- Carpeta completada ---\n")
+}
+```
+
+```{r}
+
+# ==============================================================================
+# EJECUCIÓN DEL PROCESO
+# ==============================================================================
+
+# Definimos la carpeta raíz de destino
+root_destino <- "imagenes_escaladas"
+
+# 1. Procesar DIA
+ReescalarImagenes(
+  dir_origen  = "imagenes/test/Temporal/Día", 
+  dir_destino = file.path(root_destino, "test/Temporal/Día")
+)
+
+# 2. Procesar NOCHE
+ReescalarImagenes(
+  dir_origen  = "imagenes/test/Temporal/Noche", 
+  dir_destino = file.path(root_destino, "test/Temporal/Noche")
+)
+
+# 3. Procesar AMANECER (Sunrise)
+ReescalarImagenes(
+  dir_origen  = "imagenes/test/Temporal/Crepúsculo", 
+  dir_destino = file.path(root_destino, "test/Temporal/Crepúsculo")
+)
+```
+
+
+
 #Función para obtener el parche de cielo
 
 ```{r}

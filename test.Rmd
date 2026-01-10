@@ -257,8 +257,8 @@ Cargamos el modelo que hemos desarrollado y los datos extraídos para realizar e
 ```{r}
 rm(list=ls())
 # Cojo los mismos datos que para dia/noche/crepúsculo pero solamente las columnas que utilizamos para día/noche y solamente las filas con etiquetas 0/1
-load("Datos_test_daynight.RData")
-load("rf_dia_noche.RData")
+load("datosR/Datos_test_daynight.RData")
+load("datosR/rf_dia_noche.RData")
 source("funciones_extraccion_caracteristicas.R")
 set.seed(42)
 
@@ -302,8 +302,8 @@ for(i in 1:length(imagenes_fallidas)){
 Cargamos el modelo desarrollado y los datos extraídos, y hacemos el test:  
 ```{r}
 rm(list=ls())
-load("rf_dia_noche_crep.RData")
-load("Datos_test_daynight.RData")
+load("datosR/rf_dia_noche_crep.RData")
+load("datosR/Datos_test_daynight.RData")
 source("funciones_extraccion_caracteristicas.R")
 set.seed(42)
 
@@ -354,6 +354,4 @@ Algunas imágenes no las dejaba abrir con readJPEG o no dejaba guardarlas porque
 # img <- image_scale(image_read('imagenes/test/dianocheamanecer/Amanecer/27.jpg'),"1244x943!")
 # image_write(img, path='imagenes/test/dianocheamanecer/Amanecer/27.jpg', format="jpg")
 ```
-
-
 

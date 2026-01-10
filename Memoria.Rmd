@@ -21,7 +21,6 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Introducción al Problema
 
-
 ## Objetivo del Proyecto
 
 El presente trabajo se enmarca dentro del ámbito del ánalisis digital de señales, aplicando técnicas de procesamiento de imágenes para la resolución de un problema de clasificación automática. El objetivo principal del proyecto es desarrollar un sistema capaz de etiquetar imágenes basándose exclusivamente en la información visual del cielo.

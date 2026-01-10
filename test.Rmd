@@ -398,6 +398,7 @@ lista <- leer_imagenes(datos_test)
 datos_test <- extraer_rgb(datos_test, lista)
 datos_test <- extraer_hsv(datos_test, lista)
 datos_test <- extraer_ratio_azul(datos_test, lista)
+datos_test <- extraer_brillo_contraste(datos_test, lista)
 ```
 ```{r}
 # Evaluar el modelo en el conjunto de prueba

@@ -19,10 +19,10 @@ library(randomForest)
 library(magick)
 
 # Definir la ruta base
-ruta_base_imagenes <- "imagenes_recortadas/train/shinecloudy"
+ruta_base_imagenes <- "imagenes_recortadas/train/Meteorológico"
 
 # lectura de las imágenes de Nublado
-ruta_cloudy <- file.path(ruta_base_imagenes, "nublado")
+ruta_cloudy <- file.path(ruta_base_imagenes, "Nublado")
 archivos_cloudy <- list.files(
   path = ruta_cloudy,
   pattern = "\\.jpe?g$",
@@ -38,7 +38,7 @@ df_cloudy <- data.frame(
 
 # Leer y etiquetar imágenes del subdirectorio Despejado
 
-ruta_shine <- file.path(ruta_base_imagenes, "despejado")
+ruta_shine <- file.path(ruta_base_imagenes, "Despejado")
 archivos_shine <- list.files(
   path = ruta_shine,
   pattern = "\\.jpe?g$",
@@ -474,7 +474,7 @@ datos_train <- extraer_brillo_contraste(datos_train, lista_train)
 datos_validation <- extraer_brillo_contraste(datos_validation, lista_validation)
 
 modelo_bc <- randomForest(
-  etiqueta ~  R_mediana + G_mediana + B_mediana + H_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste,
+  etiqueta ~  R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste,
   data = datos_train,
   ntree = 100
 )
@@ -483,6 +483,19 @@ predicciones_bc <- predict(modelo_bc, newdata = datos_validation)
 confusionMatrix(predicciones_bc, datos_validation$etiqueta)
 modelo_bc$importance
 ```
+Modelo a guardar (usa todo el train):
+```{r}
+rf_despejado_nublado <- randomForest(
+  etiqueta ~  R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste,
+  data = rbind(datos_train,datos_validation),
+  ntree = 100,
+  importance = TRUE
+)
+importance(rf_despejado_nublado)
+
+save(rf_despejado_nublado,file="datosR/rf_despejado_nublado.RData")
+```
+
 
 ```{r}
 modelo_3_mejores <- randomForest(

@@ -224,20 +224,46 @@ predicciones_mas_completas <- predict(modelo_mas_completo, newdata = datos_valid
 confusionMatrix(predicciones_mas_completas, datos_validation$etiqueta)
 modelo_mas_completo$importance
 ```
-## Entrenamiento modelo final
-Entrenamos un modelo con las características que hemos decidido usando todo el conjunto train para mejorar su desempeño en nuestras imágenes.  
+Probamos a incluir al modelo más completo las características brillo y contraste:
+
+
 ```{r}
-rf_despejado_nublado <- randomForest(
-  etiqueta ~ R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul,
-  data = rbind(datos_validation,datos_train),
-  ntree = 100,
-  importance=TRUE
-)
-importance(rf_despejado_nublado)
-# Por el gini y mean decrease accuracy parece que todas son relevantes
-# Lo guardo para usar luego en el rmd test, aunque también se puede hacer el test aquí
-# save(rf_despejado_nublado, file = "datosR/rf_despejado_nublado.RData")
+# Probamos más características
+datos_train <- extraer_brillo_contraste(datos_train, lista_train)
+datos_validation <- extraer_brillo_contraste(datos_validation, lista_validation)
 ```
+
+
+```{r}
+set.seed(42)
+modelo_bc <- randomForest(
+  etiqueta ~  R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste,
+  data = datos_train,
+  ntree = 100
+)
+# Evaluar el modelo en el conjunto de prueba
+predicciones_bc <- predict(modelo_bc, newdata = datos_validation)
+confusionMatrix(predicciones_bc, datos_validation$etiqueta)
+modelo_bc$importance
+```
+
+
+
+
+```{r}
+set.seed(42)
+modelo_3_mejores <- randomForest(
+  etiqueta ~  S_mediana + Ratio_Azul + Contraste,
+  data = datos_train,
+  ntree = 100
+)
+# Evaluar el modelo en el conjunto de prueba
+predicciones_3_mejores <- predict(modelo_3_mejores, newdata = datos_validation)
+confusionMatrix(predicciones_3_mejores, datos_validation$etiqueta)
+modelo_3_mejores$importance
+```
+
+
 
 
 ### validation con nuestras fotos
@@ -466,45 +492,29 @@ modelo_s$importance
 ```
 
 
-Probamos a incluir al modelo más completo las características brillo y contraste:
+<!-- Modelo a guardar (usa todo el train): -->
+<!-- ```{r} -->
+<!-- set.seed(42) -->
+<!-- rf_despejado_nublado <- randomForest( -->
+<!--   etiqueta ~  R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste, -->
+<!--   data = rbind(datos_train,datos_validation), -->
+<!--   ntree = 100, -->
+<!--   importance = TRUE -->
+<!-- ) -->
+<!-- importance(rf_despejado_nublado) -->
 
+<!-- save(rf_despejado_nublado,file="datosR/rf_despejado_nublado.RData") -->
+<!-- ``` -->
+<!-- ```{r} -->
+<!-- set.seed(42) -->
+<!-- rf_despejado_nublado3 <- randomForest( -->
+<!--   etiqueta ~  S_mediana + Ratio_Azul + Contraste, -->
+<!--   data = rbind(datos_train,datos_validation), -->
+<!--   ntree = 100, -->
+<!--   importance = TRUE -->
+<!-- ) -->
+<!-- importance(rf_despejado_nublado3) -->
 
-```{r}
-datos_train <- extraer_brillo_contraste(datos_train, lista_train)
-datos_validation <- extraer_brillo_contraste(datos_validation, lista_validation)
+<!-- save(rf_despejado_nublado3, file="datosR/rf_despejado_nublado3.RData") -->
+<!-- ``` -->
 
-modelo_bc <- randomForest(
-  etiqueta ~  R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste,
-  data = datos_train,
-  ntree = 100
-)
-# Evaluar el modelo en el conjunto de prueba
-predicciones_bc <- predict(modelo_bc, newdata = datos_validation)
-confusionMatrix(predicciones_bc, datos_validation$etiqueta)
-modelo_bc$importance
-```
-Modelo a guardar (usa todo el train):
-```{r}
-rf_despejado_nublado <- randomForest(
-  etiqueta ~  R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste,
-  data = rbind(datos_train,datos_validation),
-  ntree = 100,
-  importance = TRUE
-)
-importance(rf_despejado_nublado)
-
-save(rf_despejado_nublado,file="datosR/rf_despejado_nublado.RData")
-```
-
-
-```{r}
-modelo_3_mejores <- randomForest(
-  etiqueta ~  S_mediana + Ratio_Azul + Contraste,
-  data = datos_train,
-  ntree = 100
-)
-# Evaluar el modelo en el conjunto de prueba
-predicciones_3_mejores <- predict(modelo_3_mejores, newdata = datos_validation)
-confusionMatrix(predicciones_3_mejores, datos_validation$etiqueta)
-modelo_3_mejores$importance
-```

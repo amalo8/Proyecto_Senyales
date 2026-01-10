@@ -18,7 +18,7 @@ histograma de colores n pixeles entre dos valores
 --> analizar que pasa si en imágenes sale poco cielo, lo identifica o no, y si etiqueta bien
 
 -------------------------------------
-DIA Y NOCHE  Accuracy : 0.9343  (23 mal clasificadas)
+DIA Y NOCHE  Accuracy : 0.9015  (34 mal clasificadas)
 ------------------------------------
 -------------------------------------
 DIA, NOCHE Y SUNRISE  Accuracy : 0.8571   (76 mal clasificadas)

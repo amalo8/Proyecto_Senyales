@@ -163,7 +163,7 @@ extraer_ratio_azul <- function(df, lista) {
       # Un pixel es "Azul cielo" si el canal Azul es mayor que el Rojo y el Verde
       # y además tiene cierto brillo (para no confundir con objetos oscuros azules)
       pixeles_azules <- sum(lista[[nombre]][,,3] > lista[[nombre]][,,1] & lista[[nombre]][,,3] > lista[[nombre]][,,2] & lista[[nombre]][,,3] > 0.4) 
-      features[j] <- (pixeles_azules / length(lista[[nombre]][,,3])) * 100
+      features[j] <- (pixeles_azules / length(lista[[nombre]][,,3])) 
       
       j <- j+1
       

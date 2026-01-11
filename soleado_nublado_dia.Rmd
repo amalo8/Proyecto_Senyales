@@ -1,5 +1,5 @@
 ---
-title: "soleado_nublado_dia"
+title: "Clasificador metereológico"
 output: html_document
 date: "2025-12-27"
 ---
@@ -7,53 +7,61 @@ date: "2025-12-27"
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 rm(list = ls())
+library(jpeg, quietly = T)
+library(class, quietly = T)
+library(caret, quietly = T)
+library(randomForest, quietly = T)
+library(magick, quietly = T)
+library(tidyr, quietly = T)
+library(plotly, quietly = T)
+library(ggplot2, quietly = T)
+# cargamos las funciones de lectura y extracción de características de imágenes
+source("funciones_extraccion_caracteristicas.R")
 ```
 
-Vamos a diferenciar los días despejados de aquellos nublados.
-Para ello cargamos todas las imágenes destinadas a entrenamiento, que además ya preprocesadas, y reservaremos un 20% para validación.
-```{r}
-library(jpeg)
-library(class)
-library(caret)
-library(randomForest)
-library(magick)
 
+# Lectura de las imágenes
+
+Vamos a diferenciar los días despejados de aquellos nublados.
+Para ello cargamos todas las imágenes destinadas a entrenamiento y reservaremos un 20% para validación.
+
+```{r}
 # Definir la ruta base
 ruta_base_imagenes <- "imagenes_recortadas/train/Meteorológico"
 
 # lectura de las imágenes de Nublado
-ruta_cloudy <- file.path(ruta_base_imagenes, "Nublado")
-archivos_cloudy <- list.files(
-  path = ruta_cloudy,
+ruta_nublado <- file.path(ruta_base_imagenes, "Nublado")
+archivos_nublado <- list.files(
+  path = ruta_nublado,
   pattern = "\\.jpe?g$",
   full.names = TRUE,
   recursive = FALSE
 )
 
-df_cloudy <- data.frame(
-  ruta = archivos_cloudy,
+df_nublado <- data.frame(
+  ruta = archivos_nublado,
   etiqueta = 0 # nublado
 )
 
 
 # Leer y etiquetar imágenes del subdirectorio Despejado
 
-ruta_shine <- file.path(ruta_base_imagenes, "Despejado")
-archivos_shine <- list.files(
-  path = ruta_shine,
+ruta_despejado <- file.path(ruta_base_imagenes, "Despejado")
+archivos_despejado <- list.files(
+  path = ruta_despejado,
   pattern = "\\.jpe?g$",
   full.names = TRUE,
   recursive = FALSE
 )
 
-df_shine <- data.frame(
-  ruta = archivos_shine,
+df_despejado <- data.frame(
+  ruta = archivos_despejado,
   etiqueta = 1 # despejado
 )
 
 # lectura de las imágenes 
 
-datos_imagenes <- rbind(df_cloudy, df_shine)
+datos_imagenes <- rbind(df_nublado, df_despejado)
 
 set.seed(42) 
 
@@ -66,23 +74,269 @@ indices_entrenamiento <- createDataPartition(
 # Crear los conjuntos de datos de TRAIN y VALIDATION
 datos_train <- datos_imagenes[indices_entrenamiento, ]
 datos_validation <- datos_imagenes[-indices_entrenamiento, ]
-
-
 ```
-Probamos como primeras características RGB:
+
+## Extracción y análisis de características
+
+Para entrenar este nuevo clasificador, que tendrá que distinguir entre cielos nublados y despejados, hemos propuesto un total de 10 características: los valores de los tres canales RGB originales de la imagen, los valores de HSV; descomponiendo el matiz o _hue_ (H) en sus valores de seno y coseno (ya que al ser H un ángulo no es conveniente tratarlo igual que las variables S y V), el brillo, el contraste y el ratio de píxeles azules.
 
 ```{r}
-# cargamos las funciones de lectura y extracción de características de imágenes
-source("funciones_extraccion_caracteristicas.R")
-
 # leemos las imágenes
 lista_train <- leer_imagenes(datos_train)
 lista_validation <- leer_imagenes(datos_validation)
 
-# añadimos las medianas de R, G, y B 
+# extraemos las medianas de R, G, y B 
 datos_train <- extraer_rgb(datos_train, lista_train)
 datos_validation <- extraer_rgb(datos_validation, lista_validation)
+
+# extraemos las medianas del espacio HSV
+datos_train <- extraer_hsv(datos_train, lista_train)
+datos_validation <- extraer_hsv(datos_validation, lista_validation)
+
+# extraemos las ratios de azul 
+datos_train <- extraer_ratio_azul(datos_train, lista_train)
+datos_validation <- extraer_ratio_azul(datos_validation, lista_validation)
+
+# extraemos las medianas de brillo y contraste 
+datos_train <- extraer_brillo_contraste(datos_train, lista_train)
+datos_validation <- extraer_brillo_contraste(datos_validation, lista_validation)
 ```
+
+```{r}
+# Transformar datos a formato largo para representarlos 
+datos_long <- pivot_longer(datos_train, cols = c("R_mediana", "G_mediana", "B_mediana"), 
+                           names_to = "Feature", values_to = "Valor")
+
+# Representamos los histogramas de las variables
+ggplot(datos_long, aes(x = Valor, fill = etiqueta)) +
+  geom_histogram(position = "identity", alpha = 0.6, bins = 30) +
+  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Soleado")) +
+  facet_wrap(~ Feature, scales = "fixed") +
+  theme_minimal() +
+  labs(title = "Histogramas por canal y clase",
+       x = "Valor",
+       y = "Frecuencia",
+       fill = "Clase")
+
+# Representamos el diagrama de cajas
+ggplot(datos_long, aes(x = Feature, y = Valor, fill = etiqueta)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Soleado")) +
+  labs(title = "Separación de clases usando las medianas de los canales RGB",
+       y = "Intensidad Mediana (0-1)") +
+  theme_minimal()
+```
+
+Al representar los histogramas de los valores medianos del espacio RGB, vemos que en los 3 casos podríamos considerar que los datos siguen una distribución normal. Si bien es llamativa la alta concentración del valor 0 en el canal R, esto podría deberse simplemente a la ausencia de este color en imágenes del cielo despejado y nublado. También es destacable que, como era de esperar, el canal con valores medianos más altos es el B y también es este canal el que presenta una diferencia entre la distribución de los datos según las clases más apreciable. Una vez comprobada la distribución que siguen nuestros datos, al realizar un diagrama de cajas podemos observar que, efectivamente, el canal B es el que proporciona una distinción mayor entre clases, aunque esta diste de ser completa. 
+
+```{r}
+# Representación en el espacio 
+fig_hsv <- plot_ly(
+  data = datos_train,
+  x = ~R_mediana,
+  y = ~G_mediana,
+  z = ~B_mediana,
+  color = ~as.factor(etiqueta),
+  colors = c('gray', 'skyblue'),
+  type = 'scatter3d',
+  mode = 'markers'
+)
+fig_hsv <- fig_hsv %>% layout(
+  scene = list(
+    xaxis = list(title = 'R Mediana'),
+    yaxis = list(title = 'G Mediana'),
+    zaxis = list(title = 'B Mediana')
+  ),
+  title = 'Distribución de imágenes por valor mediano de los canales RGB'
+)
+fig_hsv
+```
+Representando conjuntamente las tres variables en el espacio, podemos observar que, aunque ambas clases se agrupen consistentemente, la frontera de decisión no está claramente definida.
+
+
+```{r}
+# Transformar datos a formato largo para representarlos 
+datos_long_hsv <- pivot_longer(
+  datos_train, 
+  cols = c("H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana"), 
+  names_to = "Feature", 
+  values_to = "Valor"
+  )
+
+# Representamos los histogramas de las variables
+ggplot(datos_long_hsv, aes(x = Valor, fill = etiqueta)) +
+  geom_histogram(position = "identity", alpha = 0.6, bins = 30) +
+  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Soleado")) +
+  facet_wrap(~ Feature, scales = "fixed") +
+  theme_minimal() +
+  labs(title = "Histogramas por canal y clase",
+       x = "Valor",
+       y = "Frecuencia",
+       fill = "Clase")
+
+# Representamos el diagrama de cajas
+ggplot(datos_long_hsv, aes(x = Feature, y = Valor, fill = etiqueta)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Soleado")) +
+  labs(title = "Separación de clases usando HSV",
+       y = "Intensidad Mediana (0-1)") +
+  theme_minimal()
+```
+Al representar los histogramas de los 4 valores extraídos de la representación de las imágenes en el espacio HSV, podemos observar que todas, excepto $\cos H$ parecen presentar una distribución normal.
+En el diagrama de cajas podemos observar que la mayor distancia entre clases la presenta el canal S.
+
+
+```{r}
+# Representación en el espacio 
+fig_hsv <- plot_ly(
+  data = datos_train,
+  x = ~H_cos_mediana,
+  y = ~S_mediana,
+  z = ~V_mediana,
+  color = ~as.factor(etiqueta),
+  colors = c('gray', 'skyblue'),
+  type = 'scatter3d',
+  mode = 'markers'
+)
+fig_hsv <- fig_hsv %>% layout(
+  scene = list(
+    xaxis = list(title = 'cos(H) Mediana'),
+    yaxis = list(title = 'S Mediana'),
+    zaxis = list(title = 'V Mediana')
+  ),
+  title = 'Distribución parcial de las imágenes por valor mediano de los canales HSV'
+)
+fig_hsv
+
+# Representación en el espacio 
+fig_hsv <- plot_ly(
+  data = datos_train,
+  x = ~H_sin_mediana,
+  y = ~S_mediana,
+  z = ~V_mediana,
+  color = ~as.factor(etiqueta),
+  colors = c('gray', 'skyblue'),
+  type = 'scatter3d',
+  mode = 'markers'
+)
+fig_hsv <- fig_hsv %>% layout(
+  scene = list(
+    xaxis = list(title = 'sin(H) Mediana'),
+    yaxis = list(title = 'S Mediana'),
+    zaxis = list(title = 'V Mediana')
+  ),
+  title = 'Distribución parcial de las imágenes por valor mediano de los canales HSV'
+)
+fig_hsv
+```
+
+Si representamos en el espacio las variables $\cos H$, S,V y después las variables $\sin H$, S,V observaremos que el coseno de la variable H junto con los canales S y V parecen distinguir mejor entre clases que la representación que sustituye el coseno por el seno.
+
+
+```{r}
+ggplot(datos_train, aes(x = H_cos_mediana, y = H_sin_mediana, color = etiqueta)) +
+  geom_point(size = 3, alpha = 0.7) +
+  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Soleado")) +
+  theme_minimal() +
+  labs(title = "Relación entre el coseno y el seno del canal H",
+       x = "cos(H)",
+       y = "sin(H)",
+       color = "Clase")
+```
+
+
+```{r}
+# Transformar datos a formato largo para representarlos 
+datos_long_bcr <- pivot_longer(
+  datos_train, 
+  cols = c( "Ratio_Azul", "Brillo", "Contraste"), 
+  names_to = "Feature", values_to = "Valor"
+  )
+
+# Representamos los histogramas de las variables
+ggplot(datos_long_bcr, aes(x = Valor, fill = etiqueta)) +
+  geom_histogram(position = "identity", alpha = 0.6, bins = 30) +
+  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Soleado")) +
+  facet_wrap(~ Feature, scales = "free") +
+  theme_minimal() +
+  labs(title = "Histogramas por canal y clase",
+       x = "Valor",
+       y = "Frecuencia",
+       fill = "Clase")
+
+# Representamos el diagrama de cajas
+ggplot(datos_train, aes(x = Brillo, fill = etiqueta)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Soleado")) +
+  labs(title = "Separación de clases usando el brillo",
+       y = "Intensidad Mediana (0-1)") +
+  theme_minimal() 
+```
+Como podemos ver en los histogramas, la variable brillo presenta una marcada distribución normal, mientras que las variables contraste y ratio de azul distan mucho de hacerlo, sobre todo el ratio de azul. Es por esto que solo hemos representado el brillo en un diagrama de cajas, que nos demuestra que la variable brillo no es capaz de distinguir claramente entre clases, ya que las medianas de ambas poblaciones están muy próximas y el IQR es bastante similar.
+
+## Aplicación de PCA y Selección de Modelo
+
+
+
+```{r}
+# Entrenar el modelo Random Forest con características RGB
+modelo_rf_rgb <- randomForest(
+  etiqueta ~ R_mediana + G_mediana + B_mediana,
+  data = datos_train,
+  ntree = 100
+)
+# Evaluar el modelo en el conjunto de prueba
+predicciones_rgb <- predict(modelo_rf_rgb, newdata = datos_validation)
+confusionMatrix(predicciones_rgb, datos_validation$etiqueta)
+```
+
+```{r}
+mal_clasificados <- datos_validation[predicciones_rgb != datos_validation$etiqueta, ]
+rutas_mal_clasificados <- mal_clasificados$ruta
+for (i in 1:length(rutas_mal_clasificados)){
+  plot(image_read(rutas_mal_clasificados[i]))
+}
+```
+
+
+
+Entrenamos y evaluamos el modelo con las características HSV:
+```{r}
+# Entrenar el modelo Random Forest con características HSV
+modelo_rf_hsv <- randomForest(
+  etiqueta ~ H_cos_mediana + H_sin_mediana + S_mediana + V_mediana,
+  data = datos_train,
+  ntree = 100
+)
+# Evaluar el modelo en el conjunto de prueba
+predicciones_hsv <- predict(modelo_rf_hsv, newdata = datos_validation)
+confusionMatrix(predicciones_hsv, datos_validation$etiqueta)
+```
+Vemos cuáles ha clasificado mal:
+```{r}
+mal_clasificados <- datos_validation[predicciones_hsv != datos_validation$etiqueta, ]
+ruta_mal_clasificados <- mal_clasificados$ruta 
+for (ruta in ruta_mal_clasificados){
+  plot(as.raster(lista_validation[[ruta]]))
+}
+```
+
+Entrenamos y evaluamos el modelo con las características RGB+HSV
+```{r}
+# Entrenar el modelo Random Forest con características combinadas
+modelo_rf_completo <- randomForest(
+  etiqueta ~ R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana,
+  data = datos_train,
+  ntree = 100
+)
+# Evaluar el modelo en el conjunto de prueba
+predicciones_completo <- predict(modelo_rf_completo, newdata = datos_validation)
+confusionMatrix(predicciones_completo, datos_validation$etiqueta)
+modelo_rf_completo$importance
+```
+
+
+# todo un poco desordenado:
 
 ```{r}
 # Entrenar el modelo Random Forest con características RGB
@@ -266,7 +520,7 @@ modelo_3_mejores$importance
 
 
 
-### validation con nuestras fotos
+### test con nuestras fotos
 
 Cargamos, leemos y etiquetamos los datos: 
 
@@ -275,37 +529,37 @@ Cargamos, leemos y etiquetamos los datos:
 ruta_base_imagenes_validation <- "Soleado_Nublado"
 
 # lectura de las imagenes de Nublado
-ruta_cloudy_validation <- file.path(ruta_base_imagenes_validation, "Nublado")
-archivos_cloudy_validation <- list.files(
-  path = ruta_cloudy_validation,
+ruta_nublado_validation <- file.path(ruta_base_imagenes_validation, "Nublado")
+archivos_nublado_validation <- list.files(
+  path = ruta_nublado_validation,
   pattern = "\\.jpe?g$",
   full.names = TRUE,
   recursive = FALSE
 )
 
-df_cloudy_validation <- data.frame(
-  ruta = archivos_cloudy_validation,
-  etiqueta = 0 # Cloudy
+df_nublado_validation <- data.frame(
+  ruta = archivos_nublado_validation,
+  etiqueta = 0 # nublado
 )
 
 
 # Leer y etiquetar imágenes del subdirectorio Despejado
 
-ruta_shine_validation <- file.path(ruta_base_imagenes_validation, "Despejado")
-archivos_shine_validation <- list.files(
-  path = ruta_shine_validation,
+ruta_despejado_validation <- file.path(ruta_base_imagenes_validation, "Despejado")
+archivos_despejado_validation <- list.files(
+  path = ruta_despejado_validation,
   pattern = "\\.jpe?g$",
   full.names = TRUE,
   recursive = FALSE
 )
 
-df_shine_validation <- data.frame(
-  ruta = archivos_shine_validation,
-  etiqueta = 1 # Shine
+df_despejado_validation <- data.frame(
+  ruta = archivos_despejado_validation,
+  etiqueta = 1 # despejado
 )
 
 # lectura de las imagenes 
-datos_imagenes_validation <- rbind(df_cloudy_validation, df_shine_validation)
+datos_imagenes_validation <- rbind(df_nublado_validation, df_despejado_validation)
 
 # leemos las imágenes y les pasamos un filtro
 lista <- leer_imagenes(datos_imagenes_validation)

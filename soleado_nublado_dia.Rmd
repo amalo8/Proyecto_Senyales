@@ -15,6 +15,7 @@ library(magick, quietly = T)
 library(tidyr, quietly = T)
 library(plotly, quietly = T)
 library(ggplot2, quietly = T)
+library(GGally, quietly = T)
 # cargamos las funciones de lectura y extracción de características de imágenes
 source("funciones_extraccion_caracteristicas.R")
 ```
@@ -282,8 +283,52 @@ ggplot(datos_train, aes(x = Brillo, fill = etiqueta)) +
 Como podemos ver en los histogramas, la variable brillo presenta una marcada distribución normal, mientras que las variables contraste y ratio de azul distan mucho de hacerlo, sobre todo el ratio de azul. Es por esto que solo hemos representado el brillo en un diagrama de cajas, que nos demuestra que la variable brillo no es capaz de distinguir claramente entre clases, ya que las medianas de ambas poblaciones están muy próximas y el IQR es bastante similar, lo que denota que el brillo entre imágenes de cielos despejados y cielos nublados es bastante similar. De forma contraria, y aunque no siga una distribución gaussiana, podemos ver en su histograma como el porcentaje de píxeles azules en la imagen distingue claramente entre cielos despejados y nublados, teniendo la mayoría de imágenes de cielos despejados ratios muy altos (cerca del 100%), mientras que la mayoría de cielos nublados tiene ratios muy bajos (cerca del 0%).
 
 ```{r}
-# Representamos el histograma de la magnitud del operador de Sobel
+# Representamos el histograma de la media de la magnitud del operador de Sobel
+ggplot(datos_train, aes(x = Sobel_mean, fill = etiqueta)) +
+  geom_histogram(position = "identity", alpha = 0.6, bins = 30) +
+  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Despejado")) +
+  theme_minimal() +
+  labs(title = "Histogramas por canal y clase",
+       x = "Valor",
+       y = "Frecuencia",
+       fill = "Clase")
+
+# Representamos la relación entre el ratio de azul y Sobel
+ggplot(datos_train, aes(x = Ratio_Azul, y = Sobel_mean, color = etiqueta)) + 
+  geom_jitter(size = 2, alpha = 0.3, width = 0.05, height = 0.05) +
+  scale_color_manual(values = c("grey", "skyblue"), 
+                     labels = c("Nublado", "Despejado")) + 
+  theme_minimal() +
+  labs(title = "Relación entre el ratio de azul y Sobel",
+       x = "Ratio de píxeles azules",
+       y = "Media de la magnitud del operador Sobel",
+       color = "Clase") 
 ```
+Aunque la distinción no sea clara, en el histograma de la media de la magnitud del operador de Sobel podemos ver que las imágenes de cielos despejados tienden a presentar valores más bajos que aquellos que presentan las imágenes de cielos nublados. 
+
+```{r}
+ggpairs(datos_train, 
+        columns = 3:5, 
+        mapping = aes(color = etiqueta, alpha = 0.5)) +
+  scale_color_manual(values = c("0" = "gray", "1" = "skyblue"), labels = c("Nublado", "Despejado")) +
+  scale_fill_manual(values = c("0" = "gray", "1" = "skyblue"), labels = c("Nublado", "Despejado")) +
+  theme_minimal()
+
+ggpairs(datos_train, 
+        columns = 6:9, 
+        mapping = aes(color = etiqueta, alpha = 0.5)) +
+  scale_color_manual(values = c("0" = "gray", "1" = "skyblue"), labels = c("Nublado", "Despejado")) +
+  scale_fill_manual(values = c("0" = "gray", "1" = "skyblue"), labels = c("Nublado", "Despejado")) +
+  theme_minimal()
+
+ggpairs(datos_train, 
+        columns = 10:13,
+        mapping = aes(color = etiqueta, alpha = 0.5)) +
+  scale_color_manual(values = c("0" = "gray", "1" = "skyblue"), labels = c("Nublado", "Despejado")) +
+  scale_fill_manualvalues = c("0" = "gray", "1" = "skyblue"), labels = c("Nublado", "Despejado")) +
+  theme_minimal()
+```
+
 
 
 ## Aplicación de PCA y Selección de Modelo

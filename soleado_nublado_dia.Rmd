@@ -100,6 +100,10 @@ datos_validation <- extraer_ratio_azul(datos_validation, lista_validation)
 # extraemos las medianas de brillo y contraste 
 datos_train <- extraer_brillo_contraste(datos_train, lista_train)
 datos_validation <- extraer_brillo_contraste(datos_validation, lista_validation)
+
+# extraemos los bordes
+datos_train <- extraer_sobel(datos_train, lista_train)
+datos_validation <- extraer_sobel(datos_validation, lista_validation)
 ```
 
 ```{r}
@@ -110,7 +114,7 @@ datos_long <- pivot_longer(datos_train, cols = c("R_mediana", "G_mediana", "B_me
 # Representamos los histogramas de las variables
 ggplot(datos_long, aes(x = Valor, fill = etiqueta)) +
   geom_histogram(position = "identity", alpha = 0.6, bins = 30) +
-  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Soleado")) +
+  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Despejado")) +
   facet_wrap(~ Feature, scales = "fixed") +
   theme_minimal() +
   labs(title = "Histogramas por canal y clase",
@@ -121,7 +125,7 @@ ggplot(datos_long, aes(x = Valor, fill = etiqueta)) +
 # Representamos el diagrama de cajas
 ggplot(datos_long, aes(x = Feature, y = Valor, fill = etiqueta)) +
   geom_boxplot() +
-  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Soleado")) +
+  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Despejado")) +
   labs(title = "Separación de clases usando las medianas de los canales RGB",
        y = "Intensidad Mediana (0-1)") +
   theme_minimal()
@@ -166,7 +170,7 @@ datos_long_hsv <- pivot_longer(
 # Representamos los histogramas de las variables
 ggplot(datos_long_hsv, aes(x = Valor, fill = etiqueta)) +
   geom_histogram(position = "identity", alpha = 0.6, bins = 30) +
-  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Soleado")) +
+  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Despejado")) +
   facet_wrap(~ Feature, scales = "fixed") +
   theme_minimal() +
   labs(title = "Histogramas por canal y clase",
@@ -177,7 +181,7 @@ ggplot(datos_long_hsv, aes(x = Valor, fill = etiqueta)) +
 # Representamos el diagrama de cajas
 ggplot(datos_long_hsv, aes(x = Feature, y = Valor, fill = etiqueta)) +
   geom_boxplot() +
-  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Soleado")) +
+  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Despejado")) +
   labs(title = "Separación de clases usando HSV",
        y = "Intensidad Mediana (0-1)") +
   theme_minimal()
@@ -234,16 +238,19 @@ Si representamos en el espacio las variables $\cos H$, S,V y después las variab
 
 
 ```{r}
-ggplot(datos_train, aes(x = H_cos_mediana, y = H_sin_mediana, color = etiqueta)) +
-  geom_point(size = 3, alpha = 0.7) +
-  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Soleado")) +
+# Representamos la relación entre las medianas del cos(H) y sin(H)
+ggplot(datos_train, aes(x = H_cos_mediana, y = H_sin_mediana, color = etiqueta)) + 
+  geom_jitter(size = 2, alpha = 0.3, width = 0.05, height = 0.05) +
+  scale_color_manual(values = c("grey", "skyblue"), 
+                     labels = c("Nublado", "Despejado")) + 
   theme_minimal() +
-  labs(title = "Relación entre el coseno y el seno del canal H",
+  labs(title = "Relación entre las medianas del coseno y seno del canal H",
        x = "cos(H)",
        y = "sin(H)",
-       color = "Clase")
+       color = "Clase") +
+  coord_fixed()
 ```
-
+Por último, hemos representado la relación entre las medianas del coseno y seno de los valores del canal H, donde vemos que, la mayoría de valores se agrupan en torno a valores de H entre $\pi$ y $\frac{3}{2}\pi$, sobre todo los puntos de la clase del cielo despejado. Esto es bastante coherente, ya que, sobre todo las imágenes de cielos despejados, contendrán en su mayoría colores azules, los cuales se representan con valores de hue dentro del intervalo 
 
 ```{r}
 # Transformar datos a formato largo para representarlos 
@@ -256,8 +263,8 @@ datos_long_bcr <- pivot_longer(
 # Representamos los histogramas de las variables
 ggplot(datos_long_bcr, aes(x = Valor, fill = etiqueta)) +
   geom_histogram(position = "identity", alpha = 0.6, bins = 30) +
-  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Soleado")) +
-  facet_wrap(~ Feature, scales = "free") +
+  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Despejado")) +
+  facet_wrap(~ Feature, scales = "fixed") +
   theme_minimal() +
   labs(title = "Histogramas por canal y clase",
        x = "Valor",
@@ -267,12 +274,17 @@ ggplot(datos_long_bcr, aes(x = Valor, fill = etiqueta)) +
 # Representamos el diagrama de cajas
 ggplot(datos_train, aes(x = Brillo, fill = etiqueta)) +
   geom_boxplot() +
-  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Soleado")) +
+  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Despejado")) +
   labs(title = "Separación de clases usando el brillo",
        y = "Intensidad Mediana (0-1)") +
   theme_minimal() 
 ```
-Como podemos ver en los histogramas, la variable brillo presenta una marcada distribución normal, mientras que las variables contraste y ratio de azul distan mucho de hacerlo, sobre todo el ratio de azul. Es por esto que solo hemos representado el brillo en un diagrama de cajas, que nos demuestra que la variable brillo no es capaz de distinguir claramente entre clases, ya que las medianas de ambas poblaciones están muy próximas y el IQR es bastante similar.
+Como podemos ver en los histogramas, la variable brillo presenta una marcada distribución normal, mientras que las variables contraste y ratio de azul distan mucho de hacerlo, sobre todo el ratio de azul. Es por esto que solo hemos representado el brillo en un diagrama de cajas, que nos demuestra que la variable brillo no es capaz de distinguir claramente entre clases, ya que las medianas de ambas poblaciones están muy próximas y el IQR es bastante similar, lo que denota que el brillo entre imágenes de cielos despejados y cielos nublados es bastante similar. De forma contraria, y aunque no siga una distribución gaussiana, podemos ver en su histograma como el porcentaje de píxeles azules en la imagen distingue claramente entre cielos despejados y nublados, teniendo la mayoría de imágenes de cielos despejados ratios muy altos (cerca del 100%), mientras que la mayoría de cielos nublados tiene ratios muy bajos (cerca del 0%).
+
+```{r}
+# Representamos el histograma de la magnitud del operador de Sobel
+```
+
 
 ## Aplicación de PCA y Selección de Modelo
 
@@ -417,7 +429,7 @@ datos_long <- pivot_longer(datos_train, cols = c("R_mediana", "G_mediana", "B_me
 
 ggplot(datos_long, aes(x = Feature, y = Valor, fill = etiqueta)) +
   geom_boxplot() +
-  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Soleado")) +
+  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Despejado")) +
   labs(title = "Separación de Clases usando RGB",
        y = "Intensidad Mediana (0-1)") +
   theme_minimal()
@@ -431,7 +443,7 @@ datos_long_hsv <- pivot_longer(datos_train, cols = c("H_cos_mediana", "H_sin_med
 
 ggplot(datos_long_hsv, aes(x = Feature, y = Valor, fill = etiqueta)) +
   geom_boxplot() +
-  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Soleado")) +
+  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Despejado")) +
   labs(title = "Separación de Clases usando RGB",
        y = "Intensidad Mediana (0-1)") +
   theme_minimal()
@@ -526,7 +538,7 @@ Cargamos, leemos y etiquetamos los datos:
 
 ```{r}
 # Definir la ruta base
-ruta_base_imagenes_validation <- "Soleado_Nublado"
+ruta_base_imagenes_validation <- "Despejado_Nublado"
 
 # lectura de las imagenes de Nublado
 ruta_nublado_validation <- file.path(ruta_base_imagenes_validation, "Nublado")

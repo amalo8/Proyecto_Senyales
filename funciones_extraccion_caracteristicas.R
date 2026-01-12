@@ -149,34 +149,52 @@ extraer_hsv <- function(df, lista) {
 #     read_images
 # parámetros de salida:
 #   - dataframe original con la adición de las columna Ratio_Azul
-
-extraer_ratio_azul <- function(df, lista) {
   
-  # vector vacío para guardar las ratios
-  features <- numeric(nrow(df))
-  
-  cat("Extrayendo ratios de", nrow(df), "imágenes...\n")
-  
-  j <- 1
-  for (nombre in df$ruta) {
-        
-      # Un pixel es "Azul cielo" si el canal Azul es mayor que el Rojo y el Verde
-      # y además tiene cierto brillo (para no confundir con objetos oscuros azules)
-      pixeles_azules <- sum(lista[[nombre]][,,3] > lista[[nombre]][,,1] & lista[[nombre]][,,3] > lista[[nombre]][,,2] & lista[[nombre]][,,3] > 0.4) 
-      features[j] <- (pixeles_azules / length(lista[[nombre]][,,3])) 
+  extraer_ratio_azul <- function(df, lista) {
+    # vector vacío para guardar las ratios
+    features <- numeric(nrow(df))
+    
+    cat("Extrayendo ratios de", nrow(df), "imágenes...\n")
+    
+    j <- 1
+    for (nombre in df$ruta) {
+      
+      # calculamos los valores HSV 
+      hsv_vals <- rgb_a_hsv(
+        as.vector(lista[[nombre]][,,1]), # R
+        as.vector(lista[[nombre]][,,2]), # G
+        as.vector(lista[[nombre]][,,3])  # B
+      )
+      
+      # obtenemos el canal H en grados (0 a 360)
+      H_grados <- hsv_vals[, 1] * 360
+      
+      # obtenemos a saturación (para no contar grises como azules vívidos)
+      S <- hsv_vals[, 2]
+      
+      # número total de píxeles
+      total_pixeles <- length(H_grados)
+      
+      # filtramos por tonos azules
+      # 240 
+      tonos_calidos <- sum(H_grados >= 180 & H_grados <= 240 & S > 0.3)
+      
+      # porcentaje de tonos cálidos
+      features[j] <- (tonos_calidos / total_pixeles)
       
       j <- j+1
       
-      }
+    }
     
-  # unimos la nueva info al dataframe y nos aseguramos de que la etiqueta es 
-  # de tipo factor
-  df_final <- cbind(df, Ratio_Azul = features)
-  df_final$etiqueta <- as.factor(df_final$etiqueta)
+    # unimos la nueva info al dataframe y nos aseguramos de que la etiqueta es 
+    # de tipo factor
+    df_final <- cbind(df, Ratio_Azul = features)
+    df_final$etiqueta <- as.factor(df_final$etiqueta)
+    
+    # devolvemos el dataframe original con los nuevos datos añadidos
+    return(df_final)
+  }
   
-  # devolvemos el dataframe original con los nuevos datos añadidos
-  return(df_final)
-}
 
 # Extracción del brillo y contraste de la imagen
 

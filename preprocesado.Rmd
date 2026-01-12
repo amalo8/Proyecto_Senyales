@@ -251,11 +251,11 @@ library(tools)
 # ==============================================================================
 
 # 1. Dónde están los recortes que quieres revisar
-dir_recortes <- "imagenes_recortadas/train/Meteorológico/Nublado"
+dir_recortes <- "imagenes_recortadas/train/Meteorológico/Despejado"
 
 # 2. Dónde están las fotos ORIGINALES (El dataset de train/test original)
 
-dir_originales <- "imagenes/train/Meteorológico/Nublado"
+dir_originales <- "imagenes/train/Meteorológico/Despejado"
 
 # ==============================================================================
 # PARÁMETROS DE SOSPECHA

@@ -42,11 +42,9 @@ Las imágenes utilizadas en este proyecto se han recopilado a partir de diversas
 En lo referente al conjunto de entrenamiento para la clasificación temporal, utilizamos el "Time of Day Dataset" disponible en Kaggle. Este repositorio nos proporcionó un total de 2.661 imágenes, distribuidas en 920 imágenes para la clase de día, 756 para la noche y 985 para el crepúsculo. Esta distribución ofrece una cantidad suficiente y equilibrada de muestras por categoría que permite un entrenamiento adecuado del modelo sin necesidad de aplicar técnicas adicionales de balanceo de clases.
 
 Para la clasificación meteorológica de entrenamiento, fue necesario realizar una fusión de distintas fuentes debido a la escasez de imágenes de cielos despejados en los datasets públicos 
-consultados. Partimos del dataset "Clouds Photos" de Kaggle, del cual obtuvimos las 826 imágenes que conforman la clase nublado y apenas 124 imágenes de cielo despejado. Realizamos una búsqueda exhaustiva de otros conjuntos de datos de cielos despejados tanto en Kaggle como en otros repositorios públicos, sin embargo, las imágenes que encontramos no mostraban realmente cielos despejados sino parcialmente nublados, por lo que consideramos que no eran adecuadas para nuestro propósito ya que podían inducir a errores en el entrenamiento del modelo. Tras varios intentos sin éxito, decidimos ampliar la cantidad de imágenes de cielo despejado recurriendo a la plataforma de imágenes de stock libre Unsplash. Mediante una búsqueda manual bajo el término "*clear blue sky*", integramos 583 imágenes adicionales a la clase despejado. De este modo, el conjunto de entrenamiento meteorológico alcanzó un total de 1.533 imágenes, logrando un balance mucho más adecuado con 707 imágenes para la clase despejado y 826 para la clase nublado.
+consultados. Partimos del dataset "Clouds Photos" de Kaggle, del cual obtuvimos las 826 imágenes que conforman la clase nublado y apenas 124 imágenes de cielo despejado. Realizamos una búsqueda exhaustiva de otros conjuntos de datos de cielos despejados tanto en Kaggle como en otros repositorios públicos, sin embargo, las imágenes que encontramos no mostraban realmente cielos despejados sino parcialmente nublados, por lo que consideramos que no eran adecuadas para nuestro propósito ya que podían inducir a errores en el entrenamiento del modelo. Tras varios intentos sin éxito, decidimos ampliar la cantidad de imágenes de cielo despejado recurriendo a la plataforma de imágenes de stock libre Unsplash. Mediante una búsqueda manual bajo el término "*clear blue sky*", integramos 578 imágenes adicionales a la clase despejado. Finalmente, el conjunto de entrenamiento meteorológico alcanzó un total de 1.528 imágenes, logrando un balance mucho más adecuado con 702 imágenes para la clase despejado y 826 para la clase nublado.
 
 Por otro lado, para la fase de evaluación final (o test), optamos por no reservar un porcentaje de los datasets de entrenamiento, sino generar un conjunto de datos totalmente nuevo a partir de las galerías de fotos de los miembros del grupo. Esta estrategia nos permite comprobar el comportamiento del modelo ante imágenes cotidianas y no vistas previamente, asegurando una evaluación más realista de su capacidad de generalización. Este conjunto de test fue diseñado para estar perfectamente balanceado: para el problema temporal se utilizaron 120 imágenes (40 de día, 40 de noche y 40 de crepúsculo), mientras que para el problema meteorológico se seleccionaron 100 imágenes (50 de despejado y 50 de nublado).
-
-Analizando la distribución global de los datos, observamos que la proporción entre entrenamiento y test ronda el 95% para entrenamiento y un 5% para test en ambos problemas. Mientras que los datos de entrenamiento presentan ligeras variaciones naturales en la cantidad de muestras por clase debido a la disponibilidad de imágenes en las fuentes originales, el conjunto de test manual fue forzado a una equidad exacta (33% por clase en temporal y 50% en meteorológico), lo cual se consideró fundamental para asegurar que las métricas de evaluación final, como la tasa de acierto (*accuracy*), sean fiables y no se vean distorsionadas por el predominio de una clase mayoritaria.
 
 # Preprocesamiento de Imágenes
 
@@ -66,18 +64,30 @@ Por el contrario, para la clasificación meteorológica, el enfoque fue opuesto.
 
 El algoritmo no se limita a realizar un recorte estático, sino que busca la mejor zona de cielo siguiendo una lógica de cuatro pasos:
 
-  1. Restricción del espacio de búsqueda: el algoritmo limita su análisis estrictamente al 40% superior de la imagen, asumiendo que en la imagen, el horizonte y los elementos terrestres suelen ocupar la mitad inferior, mientras que el cielo siempre se ubica en la zona de arriba. En el preprocesado de las imágenes nos aseguramos de que esto último fuera cierto en todos los casos.
+1. Restricción del espacio: El análisis se limita estrictamente al 40% superior de la imagen, garantizando la presencia de cielo y evitando la inclusión de horizontes o elementos terrestres.
 
-  2. Ventana deslizante: se emplea una ventana cuadrada cuyo tamaño se ajusta dinámicamente a las dimensiones de cada imagen. Por defecto, la longitud del lado se establece en un tercio del ancho total de la imagen, asegurando una muestra representativa, aunque este tamaño se reduce automáticamente si excede la altura de la zona del cielo (el 40% superior). Una vez definido el tamaño, la ventana escanea 3 posiciones estratégicas a lo largo del eje horizontal: el extremo izquierdo, el centro y el extremo derecho. Esta búsqueda permite encontrar un trozo de cielo libre de obstáculos.
+2. Ventana deslizante: Se emplea una ventana cuadrada dinámica (aprox. 1/3 del ancho de la imagen) que se ajusta a la altura disponible. Esta escanea tres posiciones horizontales (izquierda, centro, derecha) para localizar el área más despejada.
 
-  3. Criterio de selección: para elegir el recorte óptimo entre los candidatos, se evalúan dos métricas: la homogeneidad (buscando la menor desviación típica, ya que el cielo suele ser más liso que los objetos sólidos) y la luminosidad (descartando zonas con brillo insuficiente para evitar seleccionar siluetas oscuras que no sean cielo). El recorte final se selecciona como aquel que minimiza la desviación típica siempre que su brillo medio supere un umbral predefinido.
-  
-  4. Normalización final: el recorte seleccionado se redimensiona a un estándar de 224x224 píxeles. Esto garantiza que todas las muestras de entrada para el clasificador tengan exactamente las mismas dimensiones, independientemente del tamaño original de la imagen. Con ello, se evita que las diferencias de resolución introduzcan sesgos numéricos en el cálculo de las características.
+3. Criterio de selección: Se elige el recorte óptimo minimizando la desviación típica (mayor homogeneidad), sujeto a superar un umbral mínimo de luminosidad media para descartar zonas oscuras o siluetas.
+
+4. Normalización: El recorte resultante se redimensiona a 224x224 píxeles, garantizadno que todas las muestras de entrada tengan exactamente las mismas dimensiones, independientemente del tamaño original de la imagen. Con ello, se evita que las diferencias de resolución introduzcan sesgos numéricos en el cálculo de las características.
   
 El resultado de este proceso es una colección de imágenes que contienen la región de cada imagen con mayor porcentaje de cielo, estandarizadas en tamaño y optimizadas para la extracción de características relevantes para la clasificación meteorológica.
 
+Gracias a este preprocesado, fue posible detectar y corregir inconsistencias significativas en los datasets originales. Se observó que un gran número de imágenes etiquetadas como "nublado" generaban, tras el proceso, recortes de cielo totalmente azul. Esto no se debió únicamente a la tendencia de nuestra función de recorte a priorizar zonas homogéneas, sino a que las imágenes originales presentaban una nubosidad muy escasa. Al aislar la región de interés, se hizo evidente que estas muestras carecían de la densidad de nubes necesaria para representar fielmente su clase, lo que habría introducido ruido y confusión en el modelo. En consecuencia, estas imágenes fueron identificadas y eliminadas del conjunto de entrenamiento. Concretamente,
+154 imágenes fueron descartadas por este motivo, ya que visualmente serían etiquetadas sin duda como "despejado", lo que representa aproximadamente un 10% del total inicial de imágenes nubladas. El conjunto de imágenes nubladas se redujo de 826 imágenes a 672. 
 
-(PODEMOS PONER ALGUNOS RECORTE COMO EJEMPLO, O LO QUE HICE DE PONER LA IMAGEN ORIGINAL Y AL LADO LAS ÁREAS INSPECCIONADAS Y LA SELECCIONADA)
+A continuación, la Figura \ref{fig:figura1} ilustra ejemplos de estas muestras descartadas, donde se aprecia cómo imágenes teóricamente nubladas contenían áreas de cielo despejado predominantes.
+
+```{r figura1, echo=FALSE, fig.align='center', out.width="50%", fig.cap="Imagen original vs Recorte en imágenes nubladas realmente despejadas"}
+knitr::include_graphics("figura1.png")
+```
+En la Figura \ref{fig:figura2} se muestran ejemplos adicionales del funcionamiento del algoritmo de recorte, ilustrando casos exitosos tanto para la clase de despejado como para la de nublado.
+
+```{r figura2, echo=FALSE, fig.align='center', out.width="50%", fig.cap="Recortes Exitosos Despejado y Nublado"}
+knitr::include_graphics("figura2.png")
+```
+
 
 
 # Preparación de Datos para Entrenamiento
@@ -97,26 +107,26 @@ Además, hemos optado por utilizar el algoritmo Random Forest porque es rápido 
 ### Análisis de Características 
 La primera característica es la mediana de la intensidad de los canales RGB (función `extraer_rgb`). Cada imagen se descompone en estas tres capas y se determina para cada píxel un valor de intensidad en cada una de ellas. Estos valores oscilan entre 0 (ausencia de color) y 1 (intensidad máxima). A continuación, se realiza la mediana de cada canal para cada imagen, obteniendo tres valores representativos. Se ha escogido la mediana en lugar de la media debido a su robustez frente a outliers. Por ejemplo, en imágenes nocturnas podemos encontrarnos con puntos de luz artificial intensos, como farolas, que podrían ser ignorados y nos permitiría seguir conociendo un valor de la intensidad que representa a la imagen.
 
-Con esta característica esperaríamos valores bajos en las medianas RGB para las imágenes nocturnas ya que la mayoría de los píxeles tenderán a tener intensidades bajas. Por el contrario, en las imágenes diurnas, las medianas RGB deberían ser más altas debido a la mayor presencia de luz natural. Si representamos en un diagrama de cajas los valores de la mediana (Figura \ref{fig:fig1}) distinguiendo entre día y noche, se observa claramente esta diferencia. Además, la mediana del canal azul es ligeramente superior a los otros dos canales en ambas categorías, resultado esperado ya que el color predominante en el cielo es el azul. También se observa la presencia de outliers en la categoría noche debido al razonamiento anterior.
+Con esta característica esperaríamos valores bajos en las medianas RGB para las imágenes nocturnas ya que la mayoría de los píxeles tenderán a tener intensidades bajas. Por el contrario, en las imágenes diurnas, las medianas RGB deberían ser más altas debido a la mayor presencia de luz natural. Si representamos en un diagrama de cajas los valores de la mediana (Figura \ref{fig:figura3}) distinguiendo entre día y noche, se observa claramente esta diferencia. Además, la mediana del canal azul es ligeramente superior a los otros dos canales en ambas categorías, resultado esperado ya que el color predominante en el cielo es el azul. También se observa la presencia de outliers en la categoría noche debido al razonamiento anterior.
 
-```{r, echo=FALSE, label = fig1, fig.cap="Boxplot Medianas RGB", out.width="70%", fig.align="center"}
+```{r figura3, echo=FALSE, fig.cap="Boxplot Medianas RGB", out.width="50%", fig.align="center"}
 knitr::include_graphics("boxplotRGB.png")
 ```
 
 
 La segunda característica que hemos añadido son las medianas de los canales HSV (función `extraer_hsv`). Esta función permite extraer las medianas de las tres componentes: Hue que define el tono, Saturation define la viveza del color y Value es la cantidad de luz presente en el color. Previamente a este cálculo se ha de realizar una conversión de los vectores de cada píxel de RGB a HSV con la función `rgb_a_hsv`.
 
-Importante destacar que la mediana de V es la que más información nos puede aportar ya que representa la cantidad de luz que hay en la imagen. En imágenes diurnas tiende a ser un valor alto debido a la gran cantidad de luz natural, mientras que en imágenes nocturnas el valor es bajo. Con respecto a los canalas H y S podemos no encontrar diferencias significativas. Estas conclusiones se confirman representando un diagrama de cajas (Figura \ref{fig:fig2}).
+Importante destacar que la mediana de V es la que más información nos puede aportar ya que representa la cantidad de luz que hay en la imagen. En imágenes diurnas tiende a ser un valor alto debido a la gran cantidad de luz natural, mientras que en imágenes nocturnas el valor es bajo. Con respecto a los canalas H y S podemos no encontrar diferencias significativas. Estas conclusiones se confirman representando un diagrama de cajas (Figura \ref{fig:figura4}).
 
-```{r, echo=FALSE, label=fig2, fig.cap="Boxplot Medianas HSV", out.width="70%", fig.align="center"}
+```{r figura4, echo=FALSE, fig.cap="Boxplot Medianas HSV", out.width="50%", fig.align="center"}
 knitr::include_graphics("boxplotHSV.png")
 ```
 
 La tercera característica es la detección de bordes mediante el filtro Sobel (`extraer_sobel`) para detectar cambios bruscos en la intensidad lumínica (se utiliza el valor medio del gradiente horizontal y vertical de la intensidad) y, por tanto, en la identificación de bordes en una imagen. En un principio podríamos encontrar un valor mayor para imágenes diurnas ya que se pueden encontrar edificios/vegetación que debido a la gran cantidad de luz que hay en estas imágenes, se puedan identificar mejor esos bordes.
 
-La cuarta característica es la detección de fuentes de luz (`extraer_fuentes_luz`). Consiste en la cuantificación de puntos de alta luminosidad. Se ha utilizado la fórmula de la luminancia ($L=0,299R+0,587G+0,114B$) y se ha definido un umbral de 0,9 para detectar píxeles con intensidad cercana a la del blanco. Podemos observar en el diagrama de cajas (Figura \ref{fig:fig3}) que hay muchos outliers, entonces posiblemente esta característica no sea relevante en nuestro modelo.
+La cuarta característica es la detección de fuentes de luz (`extraer_fuentes_luz`). Consiste en la cuantificación de puntos de alta luminosidad. Se ha utilizado la fórmula de la luminancia ($L=0,299R+0,587G+0,114B$) y se ha definido un umbral de 0,9 para detectar píxeles con intensidad cercana a la del blanco. Podemos observar en el diagrama de cajas (Figura \ref{fig:figura5}) que hay muchos outliers, entonces posiblemente esta característica no sea relevante en nuestro modelo.
 
-```{r, echo=FALSE, label=fig3, fig.cap="Boxplot Fuentes de Luz", out.width="70%", fig.align="center"}
+```{r figura5, echo=FALSE, fig.cap="Boxplot Fuentes de Luz", out.width="50%", fig.align="center"}
 knitr::include_graphics("boxplotLUZ.png")
 ```
 
@@ -128,8 +138,8 @@ La séptima característica (`extraer_rango_dinamico_V`) mide el rango del canal
 
 La octava característica (`extraer_blur_V`) consiste en calcular la media del canal V una vez aplicado un filtro de paso bajo gaussiano (blur) para suavizar la imagen y eliminar variaciones bruscas o ruido de alta frecuencia. Esto podría ayudar a separar mejor un día nublado (gris) de una noche iluminada.
 
-La última característica es el cálculo de la desviación estándar de las intensidades del canal V (`extraer_sd_V`). Nos permite determinar la dispersión del brillo de una imagen con respecto a su media. De día esperamos una desviación mayor debido a la gran variedad de objetos que nos podemos encontrar en las imágenes como sombras, edificios, árboles, etc. Podemos verlo gráficamente a través del diagrama de cajas mostrado en la Figura \ref{fig:fig4}. 
-```{r, echo=FALSE, label=fig4, fig.cap="Boxplot Desviación Estándar de V", out.width="70%", fig.align="center"}
+La última característica es el cálculo de la desviación estándar de las intensidades del canal V (`extraer_sd_V`). Nos permite determinar la dispersión del brillo de una imagen con respecto a su media. De día esperamos una desviación mayor debido a la gran variedad de objetos que nos podemos encontrar en las imágenes como sombras, edificios, árboles, etc. Podemos verlo gráficamente a través del diagrama de cajas mostrado en la Figura \ref{fig:figura6}. 
+```{r figura6, echo=FALSE, fig.cap="Boxplot Desviación Estándar de V", out.width="50%", fig.align="center"}
 knitr::include_graphics("boxplotSDV.png")
 ```
 

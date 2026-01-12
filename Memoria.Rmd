@@ -75,7 +75,7 @@ El algoritmo no se limita a realizar un recorte estático, sino que busca la mej
 El resultado de este proceso es una colección de imágenes que contienen la región de cada imagen con mayor porcentaje de cielo, estandarizadas en tamaño y optimizadas para la extracción de características relevantes para la clasificación meteorológica.
 
 Gracias a este preprocesado, fue posible detectar y corregir inconsistencias significativas en los datasets originales. Se observó que un gran número de imágenes etiquetadas como "nublado" generaban, tras el proceso, recortes de cielo totalmente azul. Esto no se debió únicamente a la tendencia de nuestra función de recorte a priorizar zonas homogéneas, sino a que las imágenes originales presentaban una nubosidad muy escasa. Al aislar la región de interés, se hizo evidente que estas muestras carecían de la densidad de nubes necesaria para representar fielmente su clase, lo que habría introducido ruido y confusión en el modelo. En consecuencia, estas imágenes fueron identificadas y eliminadas del conjunto de entrenamiento. Concretamente,
-154 imágenes fueron descartadas por este motivo, ya que visualmente serían etiquetadas sin duda como "despejado", lo que representa aproximadamente un 10% del total inicial de imágenes nubladas. El conjunto de imágenes nubladas se redujo de 826 imágenes a 672. 
+154 imágenes fueron descartadas por este motivo, ya que visualmente serían etiquetadas sin duda como "despejado". El conjunto de imágenes nubladas se redujo de 826 imágenes a 672. 
 
 A continuación, la Figura \ref{fig:figura1} ilustra ejemplos de estas muestras descartadas, donde se aprecia cómo imágenes teóricamente nubladas contenían áreas de cielo despejado predominantes.
 

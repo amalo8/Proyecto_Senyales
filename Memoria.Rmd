@@ -107,48 +107,105 @@ Además, hemos optado por utilizar el algoritmo Random Forest porque es rápido 
 ### Análisis de Características 
 La primera característica es la mediana de la intensidad de los canales RGB (función `extraer_rgb`). Cada imagen se descompone en estas tres capas y se determina para cada píxel un valor de intensidad en cada una de ellas. Estos valores oscilan entre 0 (ausencia de color) y 1 (intensidad máxima). A continuación, se realiza la mediana de cada canal para cada imagen, obteniendo tres valores representativos. Se ha escogido la mediana en lugar de la media debido a su robustez frente a outliers. Por ejemplo, en imágenes nocturnas podemos encontrarnos con puntos de luz artificial intensos, como farolas, que podrían ser ignorados y nos permitiría seguir conociendo un valor de la intensidad que representa a la imagen.
 
-Con esta característica esperaríamos valores bajos en las medianas RGB para las imágenes nocturnas ya que la mayoría de los píxeles tenderán a tener intensidades bajas. Por el contrario, en las imágenes diurnas, las medianas RGB deberían ser más altas debido a la mayor presencia de luz natural. Si representamos en un diagrama de cajas los valores de la mediana (Figura \ref{fig:figura3}) distinguiendo entre día y noche, se observa claramente esta diferencia. Además, la mediana del canal azul es ligeramente superior a los otros dos canales en ambas categorías, resultado esperado ya que el color predominante en el cielo es el azul. También se observa la presencia de outliers en la categoría noche debido al razonamiento anterior.
+Con esta característica esperaríamos valores bajos en las medianas RGB para las imágenes nocturnas ya que la mayoría de los píxeles tenderán a tener intensidades bajas. Por el contrario, en las imágenes diurnas, las medianas RGB deberían ser más altas debido a la mayor presencia de luz natural. Si representamos en un diagrama de cajas los valores de la mediana (Figura \ref{fig:figura3} izquierda) distinguiendo entre día y noche, se observa claramente esta diferencia. Además, la mediana del canal azul es ligeramente superior a los otros dos canales en ambas categorías, resultado esperado ya que el color predominante en el cielo es el azul. Por otro lado, podemos ver a partir de los histogramas (Figura \ref{fig:figura3} derecha), que en el histograma de noche las imágenes se concentran más hacia la izquierda, mientras que el de día está más centrado siguiendo una distribución normal.
 
-```{r figura3, echo=FALSE, fig.cap="Boxplot Medianas RGB", out.width="50%", fig.align="center"}
-knitr::include_graphics("boxplotRGB.png")
+```{r figura3, echo=FALSE, fig.cap="Diagrama de cajas (izquierda) y histogramas (derecha) de medianas RGB", out.width="100%", fig.align="center", fig.height=2.75}
+library(png)
+par(mfrow = c(1, 2), mar = c(1, 1, 3, 1)) 
+img1 <- readPNG("boxplotRGB.png")
+plot.new() 
+rasterImage(img1, 0, 0, 1, 1)
+
+img2 <- readPNG("histogramasRGB.png")
+plot.new()
+rasterImage(img2, 0, 0, 1, 1)
+
+par(mfrow = c(1, 1))
 ```
 
 
-La segunda característica que hemos añadido son las medianas de los canales HSV (función `extraer_hsv`). Esta función permite extraer las medianas de las tres componentes: Hue que define el tono, Saturation define la viveza del color y Value es la cantidad de luz presente en el color. Previamente a este cálculo se ha de realizar una conversión de los vectores de cada píxel de RGB a HSV con la función `rgb_a_hsv`.
+La segunda característica que hemos añadido son las medianas de los canales HSV (función `extraer_hsv`). Esta función permite extraer las medianas de las tres componentes: _Hue_ que define el tono (descomponiendo H en sus valores de seno y coseno ya que al ser un ángulo no es conveniente tratarlo igual que las variables S y V), _Saturation_ define la viveza del color y _Value_ es la cantidad de luz presente en el color. Previamente a este cálculo se ha de realizar una conversión de los vectores de cada píxel de RGB a HSV con la función `rgb_a_hsv`.
 
-Importante destacar que la mediana de V es la que más información nos puede aportar ya que representa la cantidad de luz que hay en la imagen. En imágenes diurnas tiende a ser un valor alto debido a la gran cantidad de luz natural, mientras que en imágenes nocturnas el valor es bajo. Con respecto a los canalas H y S podemos no encontrar diferencias significativas. Estas conclusiones se confirman representando un diagrama de cajas (Figura \ref{fig:figura4}).
+Importante destacar que la mediana de V es la que más información nos puede aportar ya que representa la cantidad de luz que hay en la imagen. En imágenes diurnas tiende a ser un valor alto debido a la gran cantidad de luz natural, mientras que en imágenes nocturnas el valor es bajo. Con respecto a los canalas H y S podemos no encontrar diferencias significativas. Podemos ver en la Figura \ref{fig:figura4} estas observaciones, donde los histogramas de `V_mediana` para día y noche están menos solapados entre sí en comparación al resto de histogramas.
 
-```{r figura4, echo=FALSE, fig.cap="Boxplot Medianas HSV", out.width="50%", fig.align="center"}
-knitr::include_graphics("boxplotHSV.png")
+```{r figura4, echo=FALSE, fig.cap="Diagrama de cajas (izquierda) y histogramas (derecha) de medianas HSV", out.width="100%", fig.align="center", fig.height=2.75}
+library(png)
+par(mfrow = c(1, 2), mar = c(1, 1, 3, 1)) 
+img1 <- readPNG("boxplotHSV.png")
+plot.new() 
+rasterImage(img1, 0, 0, 1, 1)
+
+img2 <- readPNG("histogramaHSV.png")
+plot.new()
+rasterImage(img2, 0, 0, 1, 1)
+
+par(mfrow = c(1, 1))
 ```
 
 La tercera característica es la detección de bordes mediante el filtro Sobel (`extraer_sobel`) para detectar cambios bruscos en la intensidad lumínica (se utiliza el valor medio del gradiente horizontal y vertical de la intensidad) y, por tanto, en la identificación de bordes en una imagen. En un principio podríamos encontrar un valor mayor para imágenes diurnas ya que se pueden encontrar edificios/vegetación que debido a la gran cantidad de luz que hay en estas imágenes, se puedan identificar mejor esos bordes.
 
-La cuarta característica es la detección de fuentes de luz (`extraer_fuentes_luz`). Consiste en la cuantificación de puntos de alta luminosidad. Se ha utilizado la fórmula de la luminancia ($L=0,299R+0,587G+0,114B$) y se ha definido un umbral de 0,9 para detectar píxeles con intensidad cercana a la del blanco. Podemos observar en el diagrama de cajas (Figura \ref{fig:figura5}) que hay muchos outliers, entonces posiblemente esta característica no sea relevante en nuestro modelo.
+La cuarta característica es la detección de fuentes de luz (`extraer_fuentes_luz`). Consiste en la cuantificación de puntos de alta luminosidad. Se ha utilizado la fórmula de la luminancia ($L=0,299R+0,587G+0,114B$) y se ha definido un umbral de 0,9 para detectar píxeles con intensidad cercana a la del blanco. 
 
-```{r figura5, echo=FALSE, fig.cap="Boxplot Fuentes de Luz", out.width="50%", fig.align="center"}
-knitr::include_graphics("boxplotLUZ.png")
+La quinta característica es la entropía (`extraer_entropia`). A partir de la función `entropy` podemos determinarla. Puede ser útil ya que para valores bajos de la entropía esperamos una imagen más uniforme o con poca variación de niveles de intensidad, que podríamos encontrar en imágenes de noche. En la Figura \ref{fig:figura_triple} podemos ver los histogramas de estas últimas tres características, donde para cada una de ellas encontramos un gran solapamiento entre clases.
+```{r figura_triple, echo=FALSE, fig.cap="Histogramas", fig.width=15, fig.height=4, out.width="100%", fig.align="center"}
+par(mfrow = c(1, 3), mar = c(0, 0.5, 2, 0.5)) 
+
+img1 <- readPNG("histogramaSOBEL.png")
+plot(1:10, type="n", axes=FALSE, xlab="", ylab="", main="Característica detección de bordes (Sobel)")
+rasterImage(img1, 1, 1, 10, 10)
+
+img2 <- readPNG("histogramaLUZ.png")
+plot(1:10, type="n", axes=FALSE, xlab="", ylab="", main="Característica detección fuentes de luz")
+rasterImage(img2, 1, 1, 10, 10)
+
+img3 <- readPNG("histogramaENTROPIA.png") 
+plot(1:10, type="n", axes=FALSE, xlab="", ylab="", main="Característica entropía")
+rasterImage(img3, 1, 1, 10, 10)
+
+par(mfrow = c(1, 1))
 ```
-
-La quinta característica es la entropía (`extraer_entropia`). A partir de la función `entropy` podemos determinarla. Puede ser útil ya que para valores bajos de la entropía esperamos una imagen más uniforme o con poca variación de niveles de intensidad, que podríamos encontrar en imágenes de noche.
 
 La sexta característica es el cálculo del porcentaje de píxeles oscuros, es decir, de baja luminosidad (`extraer_pixeles_oscuros`). Utilizando de nuevo la fórmula de la luminancia, $L$, determinamos el porcentaje de píxeles oscuros en cada imagen (en imágenes nocturnas esperamos un porcentaje mayor).
 
 La séptima característica (`extraer_rango_dinamico_V`) mide el rango del canal V, es decir, calcula la diferencia entre el valor máximo de V y el valor mínimo de V de cada imagen. Un rango de 1 indica que la imagen tiene píxeles donde hay ausencia de luz (negro) hasta la máxima presencia de luz (blanco). Lo habitual es encontrar un rango más amplio en imágenes de día, aunque en las imágenes nocturnas pueden haber luces artificiales.
 
-La octava característica (`extraer_blur_V`) consiste en calcular la media del canal V una vez aplicado un filtro de paso bajo gaussiano (blur) para suavizar la imagen y eliminar variaciones bruscas o ruido de alta frecuencia. Esto podría ayudar a separar mejor un día nublado (gris) de una noche iluminada.
+La octava característica (`extraer_blur_V`) consiste en calcular la media del canal V una vez aplicado un filtro de paso bajo gaussiano (blur) para suavizar la imagen y eliminar variaciones bruscas o ruido de alta frecuencia. Esto podría ayudar a separar mejor un día nublado (gris) de una noche iluminada. Para estas últimas tres características representamos de nuevo los histogramas mostrados en la Figura \ref{fig:figura_triple2}, donde observamos que el que más destaca es el tercero ya que se observa una gran diferencia entre clases. No obstante, finalmente no añadiremos esta característica ya que está altamente correlacionada con la variable `V_mediana` (0,97).
 
-La última característica es el cálculo de la desviación estándar de las intensidades del canal V (`extraer_sd_V`). Nos permite determinar la dispersión del brillo de una imagen con respecto a su media. De día esperamos una desviación mayor debido a la gran variedad de objetos que nos podemos encontrar en las imágenes como sombras, edificios, árboles, etc. Podemos verlo gráficamente a través del diagrama de cajas mostrado en la Figura \ref{fig:figura6}. 
-```{r figura6, echo=FALSE, fig.cap="Boxplot Desviación Estándar de V", out.width="50%", fig.align="center"}
-knitr::include_graphics("boxplotSDV.png")
+```{r figura_triple2, echo=FALSE, fig.cap="Histogramas", fig.width=15, fig.height=4, out.width="100%", fig.align="center"}
+par(mfrow = c(1, 3), mar = c(0, 0.5, 2, 0.5)) 
+
+img1 <- readPNG("histogramaPIXEL_OSC.png")
+plot(1:10, type="n", axes=FALSE, xlab="", ylab="", main="Característica porcentaje de píxeles ocuros")
+rasterImage(img1, 1, 1, 10, 10)
+
+img2 <- readPNG("histogramaRANGO_V.png")
+plot(1:10, type="n", axes=FALSE, xlab="", ylab="", main="Característica rango de V")
+rasterImage(img2, 1, 1, 10, 10)
+
+img3 <- readPNG("histogramaBLUR.png") 
+plot(1:10, type="n", axes=FALSE, xlab="", ylab="", main="Característica de media de V aplicando filtro gaussiano (blur)")
+rasterImage(img3, 1, 1, 10, 10)
+
+par(mfrow = c(1, 1))
+```
+
+La última característica es el cálculo de la desviación estándar de las intensidades del canal V (`extraer_sd_V`). Nos permite determinar la dispersión del brillo de una imagen con respecto a su media. De día esperamos una desviación mayor debido a la gran variedad de objetos que nos podemos encontrar en las imágenes como sombras, edificios, árboles, etc. Podemos verlo gráficamente a través del diagrama de cajas mostrado en la Figura \ref{fig:figura6}. Respecto al histograma sí que observamos que no hay una gran diferencia entre día y noche aunque en este caso `sd_V` y `V_mediana` están muy poco correlacionadas (0,13).
+```{r figura6, echo=FALSE, fig.cap="Diagrama de caja desviación estándar de V", out.width="100%", fig.align="center", fig.height=2.75}
+library(png)
+par(mfrow = c(1, 2), mar = c(1, 1, 3, 1)) 
+img1 <- readPNG("boxplotSDV.png")
+plot.new() 
+rasterImage(img1, 0, 0, 1, 1)
+
+img2 <- readPNG("histogramaSDV.png")
+plot.new()
+rasterImage(img2, 0, 0, 1, 1)
+
+par(mfrow = c(1, 1))
 ```
 
 ### Selección del Mejor Modelo Binario
-Como hemos mencionado anteriormente, estas características se han ido añadiendo sucesivamente al modelo. Esto nos ha permitido ver qué variables aportaban mayor información para distinguir entre imágenes de día y de noche. Estas han sido: `extraer_rgb`, `extraer_hsv` y `extraer_sd_V`. 
-
-El modelo ha alcanzado un accuracy del 90,15%. Además, al analizar la importancia de las características mediante el índice \textit{MeanDecreaseGini}, se observa que las más influyentes a la hora de clasificar han sido `G_mediana` con un valor de 221,17, seguido de `V_mediana` con 117,04 y `B_mediana` con 98,48. Resultado sorprendente ya que el canal verde es el que más información aporta. Esto puede ser debido a que las cámaras digitales utilizan un filtro llamado Mosaico de Bayer que captura el doble de información en el espectro verde.
-
-En conclusión, el mejor modelo para esta clasificación binaria (día/noche) y modelo de partida para el siguiente apartado es el formado por las características: `extraer_rgb`, `extraer_hsv` y `extraer_sd_V`.
+Como hemos mencionado anteriormente, estas características se han ido añadiendo sucesivamente al modelo. Finalmente las características utilizadas en este modelo han sido 8: `R_mediana`, `G_mediana`, `B_mediana`, `H_cos_mediana`, `H_sin_mediana`, `S_mediana`, `V_mediana` y `sd_V`. Ha alcanzado un accuracy del 90,15% para el conjunto de validación. Además, al analizar la importancia de las características mediante el índice \textit{MeanDecreaseGini}, se observa que las más influyentes a la hora de clasificar han sido `G_mediana` con un valor de 221,17, seguido de `V_mediana` con 117,04 y `B_mediana` con 98,48. Resultado sorprendente ya que el canal verde es el que más información aporta. Esto puede ser debido a que las cámaras digitales utilizan un filtro llamado Mosaico de Bayer que captura el doble de información en el espectro verde.
 
 ## Clasificación Multiclase: Añadiendo "Sunrise"
 ### Nuevas Características para detectar Amanecer

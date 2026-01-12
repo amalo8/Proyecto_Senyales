@@ -308,272 +308,76 @@ Aunque la distinción no sea clara, en el histograma de la media de la magnitud 
 
 ```{r}
 ggpairs(datos_train, 
-        columns = 3:5, 
+        columns = 3:13, 
         mapping = aes(color = etiqueta, alpha = 0.5)) +
-  scale_color_manual(values = c("0" = "gray", "1" = "skyblue"), labels = c("Nublado", "Despejado")) +
-  scale_fill_manual(values = c("0" = "gray", "1" = "skyblue"), labels = c("Nublado", "Despejado")) +
+  scale_color_manual(values = c("gray", "skyblue"), labels = c("Nublado", "Despejado")) +
+  scale_fill_manual(values = c("gray",  "skyblue"), labels = c("Nublado", "Despejado")) +
   theme_minimal()
 
+# B_mediana, S_mediana, Ratio_Azul, V_mediana, Sobel
 ggpairs(datos_train, 
-        columns = 6:9, 
+        columns = c(5,8,9,10,13), 
         mapping = aes(color = etiqueta, alpha = 0.5)) +
-  scale_color_manual(values = c("0" = "gray", "1" = "skyblue"), labels = c("Nublado", "Despejado")) +
-  scale_fill_manual(values = c("0" = "gray", "1" = "skyblue"), labels = c("Nublado", "Despejado")) +
-  theme_minimal()
-
-ggpairs(datos_train, 
-        columns = 10:13,
-        mapping = aes(color = etiqueta, alpha = 0.5)) +
-  scale_color_manual(values = c("0" = "gray", "1" = "skyblue"), labels = c("Nublado", "Despejado")) +
-  scale_fill_manualvalues = c("0" = "gray", "1" = "skyblue"), labels = c("Nublado", "Despejado")) +
+  scale_color_manual(values = c("gray", "skyblue"), labels = c("Nublado", "Despejado")) +
+  scale_fill_manual(values = c("gray",  "skyblue"), labels = c("Nublado", "Despejado")) +
   theme_minimal()
 ```
 
 
 
-## Aplicación de PCA y Selección de Modelo
-
-
-
-```{r}
-# Entrenar el modelo Random Forest con características RGB
-modelo_rf_rgb <- randomForest(
-  etiqueta ~ R_mediana + G_mediana + B_mediana,
-  data = datos_train,
-  ntree = 100
-)
-# Evaluar el modelo en el conjunto de prueba
-predicciones_rgb <- predict(modelo_rf_rgb, newdata = datos_validation)
-confusionMatrix(predicciones_rgb, datos_validation$etiqueta)
-```
-
-```{r}
-mal_clasificados <- datos_validation[predicciones_rgb != datos_validation$etiqueta, ]
-rutas_mal_clasificados <- mal_clasificados$ruta
-for (i in 1:length(rutas_mal_clasificados)){
-  plot(image_read(rutas_mal_clasificados[i]))
-}
-```
-
-
-
-Entrenamos y evaluamos el modelo con las características HSV:
-```{r}
-# Entrenar el modelo Random Forest con características HSV
-modelo_rf_hsv <- randomForest(
-  etiqueta ~ H_cos_mediana + H_sin_mediana + S_mediana + V_mediana,
-  data = datos_train,
-  ntree = 100
-)
-# Evaluar el modelo en el conjunto de prueba
-predicciones_hsv <- predict(modelo_rf_hsv, newdata = datos_validation)
-confusionMatrix(predicciones_hsv, datos_validation$etiqueta)
-```
-Vemos cuáles ha clasificado mal:
-```{r}
-mal_clasificados <- datos_validation[predicciones_hsv != datos_validation$etiqueta, ]
-ruta_mal_clasificados <- mal_clasificados$ruta 
-for (ruta in ruta_mal_clasificados){
-  plot(as.raster(lista_validation[[ruta]]))
-}
-```
-
-Entrenamos y evaluamos el modelo con las características RGB+HSV
-```{r}
-# Entrenar el modelo Random Forest con características combinadas
-modelo_rf_completo <- randomForest(
-  etiqueta ~ R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana,
-  data = datos_train,
-  ntree = 100
-)
-# Evaluar el modelo en el conjunto de prueba
-predicciones_completo <- predict(modelo_rf_completo, newdata = datos_validation)
-confusionMatrix(predicciones_completo, datos_validation$etiqueta)
-modelo_rf_completo$importance
-```
-
-
-# todo un poco desordenado:
-
-```{r}
-# Entrenar el modelo Random Forest con características RGB
-modelo_rf_rgb <- randomForest(
-  etiqueta ~ R_mediana + G_mediana + B_mediana,
-  data = datos_train,
-  ntree = 100
-)
-# Evaluar el modelo en el conjunto de prueba
-predicciones_rgb <- predict(modelo_rf_rgb, newdata = datos_validation)
-confusionMatrix(predicciones_rgb, datos_validation$etiqueta)
-```
-
-```{r}
-mal_clasificados <- datos_validation[predicciones_rgb != datos_validation$etiqueta, ]
-rutas_mal_clasificados <- mal_clasificados$ruta
-for (i in 1:length(rutas_mal_clasificados)){
-  plot(image_read(rutas_mal_clasificados[i]))
-}
-```
-
-
-```{r}
-# Probar a extraer características del espacio HSV
-datos_train <- extraer_hsv(datos_train, lista_train)
-datos_validation <- extraer_hsv(datos_validation, lista_validation)
-```
-
-Entrenamos y evaluamos el modelo con las caracteristicas HSV
-```{r}
-# Entrenar el modelo Random Forest con características HSV
-modelo_rf_hsv <- randomForest(
-  etiqueta ~ H_cos_mediana + H_sin_mediana + S_mediana + V_mediana,
-  data = datos_train,
-  ntree = 100
-)
-# Evaluar el modelo en el conjunto de prueba
-predicciones_hsv <- predict(modelo_rf_hsv, newdata = datos_validation)
-confusionMatrix(predicciones_hsv, datos_validation$etiqueta)
-```
-Vemos cuáles ha clasificado mal:
-```{r}
-mal_clasificados <- datos_validation[predicciones_hsv != datos_validation$etiqueta, ]
-ruta_mal_clasificados <- mal_clasificados$ruta 
-for (ruta in ruta_mal_clasificados){
-  plot(as.raster(lista_validation[[ruta]]))
-}
-```
-
-Entrenamos y evaluamos el modelo con las caracteristicas RGB+HSV
-```{r}
-# Entrenar el modelo Random Forest con características combinadas
-modelo_rf_completo <- randomForest(
-  etiqueta ~ R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana,
-  data = datos_train,
-  ntree = 100
-)
-# Evaluar el modelo en el conjunto de prueba
-predicciones_completo <- predict(modelo_rf_completo, newdata = datos_validation)
-confusionMatrix(predicciones_completo, datos_validation$etiqueta)
-modelo_rf_completo$importance
-```
-
-
-Representamos las caracterísiticas:
-
-```{r}
-library(ggplot2)
-library(tidyr)
-```
-
-
-```{r}
-
-# Transformar datos a formato largo para plotear 
-datos_long <- pivot_longer(datos_train, cols = c("R_mediana", "G_mediana", "B_mediana"), 
-                           names_to = "Feature", values_to = "Valor")
-
-ggplot(datos_long, aes(x = Feature, y = Valor, fill = etiqueta)) +
-  geom_boxplot() +
-  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Despejado")) +
-  labs(title = "Separación de Clases usando RGB",
-       y = "Intensidad Mediana (0-1)") +
-  theme_minimal()
-```
-
-
-```{r}
-# Transformar datos a formato largo para plotear 
-datos_long_hsv <- pivot_longer(datos_train, cols = c("H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana"), 
-                           names_to = "Feature", values_to = "Valor")
-
-ggplot(datos_long_hsv, aes(x = Feature, y = Valor, fill = etiqueta)) +
-  geom_boxplot() +
-  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Despejado")) +
-  labs(title = "Separación de Clases usando RGB",
-       y = "Intensidad Mediana (0-1)") +
-  theme_minimal()
-```
-
-
-```{r}
-# Extraer característica ratio azul para los conjuntos de entrenamiento y prueba
-datos_train <- extraer_ratio_azul(datos_train, lista_train)
-datos_validation <- extraer_ratio_azul(datos_validation, lista_validation)
-# Entrenar el modelo Random Forest con características RGB
-modelo_ratio_azul <- randomForest(
-  etiqueta ~ Ratio_Azul,
-  data = datos_train,
-  ntree = 100
-)
-# Evaluar el modelo en el conjunto de prueba
-predicciones_ratio_azul <- predict(modelo_ratio_azul, newdata = datos_validation)
-confusionMatrix(predicciones_ratio_azul, datos_validation$etiqueta)
-```
-
-Probamos un modelo con características S y ratio de azul:
-
-```{r}
-# Entrenar el modelo Random Forest con características RGB
-modelo_s_azul <- randomForest(
-  etiqueta ~ S_mediana + Ratio_Azul,
-  data = datos_train,
-  ntree = 100
-)
-# Evaluar el modelo en el conjunto de prueba
-predicciones_s_azul <- predict(modelo_s_azul, newdata = datos_validation)
-confusionMatrix(predicciones_s_azul, datos_validation$etiqueta)
-```
-
-```{r}
-modelo_mas_completo <- randomForest(
-  etiqueta ~ R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul,
-  data = datos_train,
-  ntree = 100,
-)
-# Evaluar el modelo en el conjunto de prueba
-predicciones_mas_completas <- predict(modelo_mas_completo, newdata = datos_validation)
-confusionMatrix(predicciones_mas_completas, datos_validation$etiqueta)
-modelo_mas_completo$importance
-```
-Probamos a incluir al modelo más completo las características brillo y contraste:
-
-
-```{r}
-# Probamos más características
-datos_train <- extraer_brillo_contraste(datos_train, lista_train)
-datos_validation <- extraer_brillo_contraste(datos_validation, lista_validation)
-```
+## Aplicación de PCA y selección del modelo
 
 
 ```{r}
 set.seed(42)
-modelo_bc <- randomForest(
-  etiqueta ~  R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste,
+modelo <- randomForest(
+  etiqueta ~  R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_mean,
   data = datos_train,
   ntree = 100
 )
 # Evaluar el modelo en el conjunto de prueba
-predicciones_bc <- predict(modelo_bc, newdata = datos_validation)
-confusionMatrix(predicciones_bc, datos_validation$etiqueta)
-modelo_bc$importance
+predicciones <- predict(modelo, newdata = datos_validation)
+confusionMatrix(predicciones, datos_validation$etiqueta)
+modelo$importance
 ```
-
-
 
 
 ```{r}
-set.seed(42)
-modelo_3_mejores <- randomForest(
-  etiqueta ~  S_mediana + Ratio_Azul + Contraste,
-  data = datos_train,
-  ntree = 100
-)
-# Evaluar el modelo en el conjunto de prueba
-predicciones_3_mejores <- predict(modelo_3_mejores, newdata = datos_validation)
-confusionMatrix(predicciones_3_mejores, datos_validation$etiqueta)
-modelo_3_mejores$importance
+mal_clasificados <- datos_validation[predicciones != datos_validation$etiqueta, ]
+par(mfrow=c(2,3), mar=c(0.1, 0.1, 0.1, 0.1))
+for (i in 1:dim(mal_clasificados)[1]){
+  plot(image_read(mal_clasificados[i, "ruta"]))
+  if (mal_clasificados[i, "etiqueta"] == 0){aux <- "Nublado"} else{aux <- "Despejado"}
+  legend("top", legend = paste0("Etiqueta real:\n", aux), bg = "transparent", bty = "n")
+}
 ```
 
+Al mostrar las imágenes erróneamente clasificadas, podemos ver que todas las imágenes de cielos nublados mal clasificadas son trozos de la fotografía en los que el cielo está prácticamente (y en algunas, totalmente) despejados. En las imágenes de cielos despejados mal clasificados destacan dos imágenes: una que tiene un gran árbol en medio de la imagen y una en la que se divisa un pájaro. 
+
+```{r}
+pca <- prcomp(~ R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_mean,
+              data=datos_train, center=TRUE, scale=TRUE)
+
+prop_varianza <- pca$sdev^2 / sum(pca$sdev^2)
+
+ggplot(data = data.frame(prop_varianza, pc = 1:11),
+       aes(x = pc, y = prop_varianza)) +
+  geom_col(width = 0.3) +
+  scale_y_continuous(limits = c(0,1)) +
+  theme_bw() +
+  labs(x = "Componente principal",
+       y = "Prop. de varianza explicada")
+
+prop_varianza_acum <- cumsum(prop_varianza)
+
+ggplot(data = data.frame(prop_varianza_acum, pc = 1:11),
+       aes(x = pc, y = prop_varianza_acum, group = 1)) +
+  geom_point() +
+  geom_line() +
+  theme_bw() +
+  labs(x = "Componente principal",
+       y = "Prop. varianza explicada acumulada")
+```
 
 
 
@@ -621,150 +425,12 @@ datos_imagenes_validation <- rbind(df_nublado_validation, df_despejado_validatio
 # leemos las imágenes y les pasamos un filtro
 lista <- leer_imagenes(datos_imagenes_validation)
 
-SoloCieloVersionada <- function(df, lista, corte, girar=FALSE, ploteamos = FALSE){
-  
-  # creamos lista vacía donde almacenaremos las imagenes filtradas
-  lista2 <- list()
-  
-  # definimos el kernel
-  k <- matrix(c(-1,-1,-1,-1,8,-1,-1,-1,-1), ncol = 3, nrow = 3)
-  
-  for(ruta in df$ruta){
-    img <- lista[[ruta]]
-    img <- image_scale(img,"501x501!")
-    # aplicamos el filtro
-    imgf <- img %>% image_convolve(kernel = k)
-    # pasamos a escala de grises
-    imgf <- imgf %>% image_quantize(colorspace = 'gray') %>% image_data(channels = 'gray')
-    imgf <- as.numeric(imgf)
-    
-    # sacamos los colores de la imagen
-    rgb_im <- image_data(img, channels = "rgb")
-    
-    # rotamos si ha sido especificado
-    if(girar){
-      imgf<- aperm(imgf,c(2,1,3))
-      rgb_im <- aperm(rgb_im, c(2,3,1))
-    } else{
-      rgb_im <- aperm(rgb_im,c(3,2,1))
-    }
-    
-    rgb_num <- as.integer(rgb_im)/255
-    dim(rgb_num) <- dim(rgb_im)
-    rgb_final <- rgb_num
-    
-    # tapar con negro partes no identificadas como cielo
-    for(i in seq(51, 501, by=50)){
-      for(j in seq(51, 501, by=50)){
-          a <- sum(as.numeric(imgf[(j-50):j,(i-50):i,1]))
-        if(a>corte){
-          rgb_final[(j-50):nrow(rgb_num),(i-50):i,] <- 0 
-        }
-        # Intentar volver a mostrar trozos de cielo que igual 
-        # tienen algo que no es cielo arriba
-        b <- sum(rgb_num[(j-50):j,(i-50):i,3])
-        if(b>1300&a<0.8*corte){
-          rgb_final[(j-50):nrow(rgb_num),(i-50):i,] <- rgb_num[(j-50):nrow(rgb_num),(i-50):i,]
-        }
-      }
-    }
-    
-    # sacamos por pantalla el resultado si así se pide
-    if(ploteamos){plot(as.raster(rgb_final)) }
-    
-    # añadimos la imagen filtrada a la lista
-    lista2[[ruta]] <- rgb_final
-    
-  }
-  
-  # devolvemos la lista con las imágenes filtradas
-  return(lista2)
-
-}
-
 # extracción de caracterísitcas
 datos_imagenes_validation <- extraer_rgb(datos_imagenes_validation, lista)
 datos_imagenes_validation <- extraer_hsv(datos_imagenes_validation, lista)
 datos_imagenes_validation <- extraer_ratio_azul(datos_imagenes_validation, lista)
 ```
 
-
-```{r}
-SoloCieloVersionada <- function(df, lista, corte, girar=FALSE, ploteamos = FALSE){
-  
-  # creamos lista vacía donde almacenaremos las imagenes filtradas
-  lista2 <- list()
-  
-  # definimos el kernel
-  k <- matrix(c(-1,-1,-1,-1,8,-1,-1,-1,-1), ncol = 3, nrow = 3)
-  
-  for(ruta in df$ruta){
-    img <- image_read(ruta)
-    img <- image_scale(img,"501x501!")
-    # aplicamos el filtro
-    imgf <- img %>% image_convolve(kernel = k)
-    # pasamos a escala de grises
-    imgf <- imgf %>% image_quantize(colorspace = 'gray') %>% image_data(channels = 'gray')
-    imgf <- as.numeric(imgf)
-    
-    # sacamos los colores de la imagen
-    rgb_im <- image_data(img, channels = "rgb")
-    
-    # rotamos si ha sido especificado
-    if(girar){
-      imgf<- aperm(imgf,c(2,1,3))
-      rgb_im <- aperm(rgb_im, c(2,3,1))
-    } else{
-      rgb_im <- aperm(rgb_im,c(3,2,1))
-    }
-    
-    rgb_num <- as.integer(rgb_im)/255
-    dim(rgb_num) <- dim(rgb_im)
-    rgb_final <- rgb_num
-    
-    # tapar con negro partes no identificadas como cielo
-    for(i in seq(51, 501, by=50)){
-      for(j in seq(51, 501, by=50)){
-          a <- sum(as.numeric(imgf[(j-50):j,(i-50):i,1]))
-        if(a>corte){
-          rgb_final[(j-50):nrow(rgb_num),(i-50):i,] <- 0 
-        }
-        # Intentar volver a mostrar trozos de cielo que igual 
-        # tienen algo que no es cielo arriba
-        b <- sum(rgb_num[(j-50):j,(i-50):i,3])
-        if(b>1300&a<0.8*corte){
-          rgb_final[(j-50):nrow(rgb_num),(i-50):i,] <- rgb_num[(j-50):nrow(rgb_num),(i-50):i,]
-        }
-      }
-    }
-    
-    # sacamos por pantalla el resultado si así se pide
-    if(ploteamos){plot(as.raster(rgb_final)) }
-    
-    # añadimos la imagen filtrada a la lista
-    lista2[[ruta]] <- rgb_final
-    
-  }
-  
-  # devolvemos la lista con las imágenes filtradas
-  return(lista2)
-
-}
-```
-
-
-```{r}
-# filtramos imágenes y extraemos características de estas 
-lista_filtro <- SoloCieloVersionada(datos_imagenes_validation, lista, 130)
-datos_imagenes_filtradas <- data.frame(
-  ruta = datos_imagenes_validation$ruta,
-  etiqueta = datos_imagenes_validation$etiqueta
-  )
-
-datos_imagenes_filtradas <- extraer_rgb(datos_imagenes_filtradas, lista_filtro)
-datos_imagenes_filtradas <- extraer_hsv(datos_imagenes_filtradas, lista_filtro)
-datos_imagenes_filtradas <- extraer_ratio_azul(datos_imagenes_filtradas, lista_filtro)
-```
 
 ```{r}
 predicciones_mas_completas <- predict(modelo_mas_completo, newdata = datos_imagenes_filtradas)
@@ -786,46 +452,4 @@ rutas_mal_clasificadas <- mal_clasificadas$ruta
 ```
 
 
-
-
-Probamos solo con el S
-
-```{r}
-modelo_s <- randomForest(
-  etiqueta ~  S_mediana ,
-  data = datos_train,
-  ntree = 100
-)
-# Evaluar el modelo en el conjunto de prueba
-predicciones_s <- predict(modelo_s, newdata = datos_validation)
-confusionMatrix(predicciones_s, datos_validation$etiqueta)
-modelo_s$importance
-```
-
-
-<!-- Modelo a guardar (usa todo el train): -->
-<!-- ```{r} -->
-<!-- set.seed(42) -->
-<!-- rf_despejado_nublado <- randomForest( -->
-<!--   etiqueta ~  R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste, -->
-<!--   data = rbind(datos_train,datos_validation), -->
-<!--   ntree = 100, -->
-<!--   importance = TRUE -->
-<!-- ) -->
-<!-- importance(rf_despejado_nublado) -->
-
-<!-- save(rf_despejado_nublado,file="datosR/rf_despejado_nublado.RData") -->
-<!-- ``` -->
-<!-- ```{r} -->
-<!-- set.seed(42) -->
-<!-- rf_despejado_nublado3 <- randomForest( -->
-<!--   etiqueta ~  S_mediana + Ratio_Azul + Contraste, -->
-<!--   data = rbind(datos_train,datos_validation), -->
-<!--   ntree = 100, -->
-<!--   importance = TRUE -->
-<!-- ) -->
-<!-- importance(rf_despejado_nublado3) -->
-
-<!-- save(rf_despejado_nublado3, file="datosR/rf_despejado_nublado3.RData") -->
-<!-- ``` -->
 

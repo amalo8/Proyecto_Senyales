@@ -13,8 +13,8 @@ rm(list=ls())
 **EN RESUMEN**  
 |                     | Día/Noche | Día/Noche/Crepúsculo* | Nublado/Despejado* | Nublado/Despejado (3 mejores) |
 |:-------------------:|:---------:|:---------------------:|:------------------:|:-----------------------------:|
-| Accuracy validation |  89.55 %  |        83.46 %        |       90.85 %      |            81.37 %            |
-|    Accuracy test    |  97.50 %  |        91.67 %        |       71.00 %      |            92.00 %            |
+| Accuracy validation |  89.55 %  |        82.71 %        |       XX.XX %      |            XX.XX %            |
+|    Accuracy test    |  97.50 %  |        90.83 %        |       XX.XX %      |            XX.XX %            |
 
 *: Usamos por el momento todas las variables, cuando sepamos las que se prefieren lo hacemos con eso.  
 
@@ -55,7 +55,7 @@ df_dia <- data.frame(ruta = archivos_dia, etiqueta = 1)
 df_amanecer <- data.frame(ruta=archivos_amanecer, etiqueta = 2)
 
 # Combinación de los dataframes
-datos_test <- rbind(df_noche, df_dia, df_amanecer)
+datos_imagenes <- rbind(df_noche, df_dia, df_amanecer)
 ```
 
 
@@ -64,9 +64,9 @@ Extracción de características:
 source("funciones_extraccion_caracteristicas.R")
 
 ######## Lectura de las imágenes ########
-lista_test <- leer_imagenes(datos_test)
+lista_test <- leer_imagenes(datos_imagenes)
 
-datos_test <- datos_test %>% extraer_rgb(lista_test) %>% extraer_hsv(lista_test) %>% extraer_sd_V(lista_test) %>% extraer_tonos_calidos(lista_test) %>% extraer_caracteristicas_bloques(lista_test) %>% extraer_pixeles_extremos_bloques(lista_test)
+datos_test <- datos_imagenes %>% extraer_rgb(lista_test) %>% extraer_hsv(lista_test) %>% extraer_sd_V(lista_test) %>% extraer_tonos_calidos(lista_test) %>% extraer_caracteristicas_bloques(lista_test) %>% extraer_pixeles_extremos_bloques(lista_test)
 ```
 
 ## Test para el modelo dia/noche
@@ -119,8 +119,151 @@ for(i in 1:length(imagenes_fallidas)){
 Cargamos el modelo desarrollado y los datos extraídos, y hacemos el test:  
 ```{r}
 # Cargamos el modelo
-load("datosR/rf_dia_noche_crep.RData")
+load("datosR/rf_dia_noche_crep2.RData")
 
+# Funciones para extracción de características
+source("funciones_extraccion_caracteristicas.R")
+
+# division de la imagen en bloques. para cada bloque calcular mediana de V, desviacion de V, mediana de Hm porcentaje de pixeles brillantes
+extraer_caracteristicas_bloques <- function(df_datos, n_filas = 3, n_cols = 1) {
+ features_list <- list()
+
+ for (j in 1:nrow(df_datos)) {
+ tryCatch({
+ img <- readJPEG(df_datos$ruta[j])
+
+ if (length(dim(img)) == 3) {
+ r <- img[,,1]
+ g <- img[,,2]
+ b <- img[,,3]
+ hsv_vals <- rgb_a_hsv(as.vector(r), as.vector(g), as.vector(b))
+ H_channel <- matrix(hsv_vals[, 1], nrow = nrow(r), ncol = ncol(r))
+ V_channel <- matrix(hsv_vals[, 3], nrow = nrow(r), ncol = ncol(r))
+ } else {
+ H_channel <- matrix(0, nrow = nrow(img), ncol = ncol(img))
+ V_channel <- matrix(0, nrow = nrow(img), ncol = ncol(img))
+ }
+
+ altura <- nrow(V_channel)
+ ancho <- ncol(V_channel)
+
+ bloque_altura <- floor(altura / n_filas)
+ bloque_ancho <- floor(ancho / n_cols)
+
+ caracteristicas_bloques <- c()
+
+ # i recorre filas (vertical), k recorre columnas (horizontal)
+ for (i in 0:(n_filas - 1)) {
+ for (k in 0:(n_cols - 1)) {
+
+ fila_inicio <- i * bloque_altura + 1
+ fila_fin <- ifelse(i==n_filas-1, altura, (i+1)*bloque_altura)
+
+ col_inicio <- k * bloque_ancho + 1
+ col_fin <- ifelse(k == n_cols - 1, ancho, (k + 1) * bloque_ancho)
+
+ bloque_H <- H_channel[fila_inicio:fila_fin, col_inicio:col_fin]
+ bloque_V <- V_channel[fila_inicio:fila_fin, col_inicio:col_fin]
+
+ mediana_H <- median(bloque_H, na.rm = TRUE)
+ sd_V <- sd(as.vector(bloque_V), na.rm = TRUE)
+ porcentaje_brillantes <- sum(bloque_V > 0.9) / length(bloque_V) * 100
+
+ caracteristicas_bloques <- c(caracteristicas_bloques, mediana_H, sd_V, porcentaje_brillantes)
+ }
+ }
+
+ features_list[[j]] <- caracteristicas_bloques
+
+ }, error = function(e) {
+ cat("Error leyendo:", df_datos$ruta[j], "\n")
+ features_list[[j]] <- rep(NA, n_filas * n_cols * 3)
+ })
+ }
+
+ features_matrix <- do.call(rbind, features_list)
+
+ colnames(features_matrix) <- paste0(
+ "Bloque_",
+ rep(1:(n_filas * n_cols), each = 3),
+ c("_Mediana_H", "_SD_V", "_Porcentaje_Brillantes")
+ )
+
+ df_final <- cbind(df_datos, features_matrix)
+ df_final$etiqueta <- as.factor(df_final$etiqueta)
+ return(df_final)
+}
+
+# proporcion de pixeles extremos por bloque (3x1: arriba/medio/abajo)
+extraer_pixeles_extremos_bloques <- function(df_datos, num_bloques = 3) {
+features_list <- vector("list", nrow(df_datos))
+for (j in 1:nrow(df_datos)) {
+tryCatch({
+img <- readJPEG(df_datos$ruta[j])
+if (length(dim(img)) == 3) {
+r <- img[,,1]
+g <- img[,,2]
+b <- img[,,3]
+hsv_vals <- rgb_a_hsv(as.vector(r), as.vector(g), as.vector(b))
+V_channel <- matrix(hsv_vals[, 3], nrow = nrow(r), ncol = ncol(r))
+} else {
+# si la imagen no es RGB, dejamos V en 0 para no romper
+V_channel <- matrix(0, nrow = nrow(img), ncol = ncol(img))
+}
+altura <- nrow(V_channel)
+ancho <- ncol(V_channel)
+# num_bloques controla SOLO filas (bandas horizontales)
+bloque_altura <- floor(altura / num_bloques)
+caracteristicas_bloques <- numeric(num_bloques * 2)
+for (i in 0:(num_bloques - 1)) {
+fila_inicio <- i * bloque_altura + 1
+fila_fin <- if (i == num_bloques - 1) altura else (i + 1) * bloque_altura
+# una sola columna: toda la anchura
+bloque_V <- V_channel[fila_inicio:fila_fin, 1:ancho]
+total_pixeles_bloque <- length(bloque_V)
+pixeles_oscuros <- sum(bloque_V < 0.1, na.rm = TRUE)
+pixeles_brillantes <- sum(bloque_V > 0.9, na.rm = TRUE)
+proporcion_oscuros <- (pixeles_oscuros / total_pixeles_bloque) * 100
+proporcion_brillantes <- (pixeles_brillantes / total_pixeles_bloque) * 100
+idx <- i * 2 + 1
+caracteristicas_bloques[idx] <- proporcion_oscuros
+caracteristicas_bloques[idx + 1] <- proporcion_brillantes
+}
+features_list[[j]] <- caracteristicas_bloques
+}, error = function(e) {
+cat("Error leyendo:", df_datos$ruta[j], "\n")
+features_list[[j]] <- rep(NA, num_bloques * 2)
+})
+}
+features_matrix <- do.call(rbind, features_list)
+# nombres: Bloque_1, Bloque_2, Bloque_3 (arriba/medio/abajo)
+colnames(features_matrix) <- paste0(
+"Bloque_", rep(1:num_bloques, each = 2),
+c("_Proporcion_Oscuros", "_Proporcion_Brillantes")
+)
+df_final <- cbind(df_datos, features_matrix)
+df_final$etiqueta <- as.factor(df_final$etiqueta)
+return(df_final)
+}
+```
+
+
+```{r}
+####### LECTURA IMÁGENES ########
+lista_test <- leer_imagenes(datos_imagenes)
+
+######## MEDIANAS RGB ########
+datos_test <- extraer_rgb(datos_imagenes, lista_test)
+datos_test <- extraer_hsv(datos_test, lista_test)
+datos_test <- extraer_sd_V(datos_test, lista_test)
+datos_test <- extraer_tonos_calidos(datos_test, lista_test)
+datos_test <- extraer_gradientes_horizontales(datos_test, lista_test)
+datos_test <- extraer_caracteristicas_bloques(datos_test) 
+datos_test <- extraer_pixeles_extremos_bloques(datos_test, num_bloques = 3)
+```
+
+
+```{r}
 # Test para día noche crepúsculo
 test_x_dnc <- datos_test[,-c(1,2)]
 test_y_dnc <- datos_test$etiqueta

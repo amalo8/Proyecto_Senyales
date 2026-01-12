@@ -15,10 +15,10 @@ library(caret)
 library(randomForest)
 
 # Definir la ruta base
-ruta_base_imagenes <- "imagenes"
+ruta_base_imagenes <- "imagenes/train"
 
 # lectura de las imagenes de noche
-ruta_noche <- file.path(ruta_base_imagenes, "nighttime")
+ruta_noche <- file.path(ruta_base_imagenes, "Temporal/Noche")
 archivos_noche <- list.files(
   path = ruta_noche,
   pattern = "\\.jpe?g$",
@@ -34,7 +34,7 @@ df_noche <- data.frame(
 
 # Leer y etiquetar imágenes del subdirectorio dia
 
-ruta_dia <- file.path(ruta_base_imagenes, "daytime")
+ruta_dia <- file.path(ruta_base_imagenes, "Temporal/Día")
 archivos_dia <- list.files(
   path = ruta_dia,
   pattern = "\\.jpe?g$",
@@ -152,7 +152,7 @@ cat("Precisión del modelo Random Forest:", cm_rf$overall['Accuracy'] * 100, "%\
 datos_train <- extraer_hsv(datos_train, lista_train)
 datos_test <- extraer_hsv(datos_test, lista_test)
 # Seleccionar solo columnas numéricas HSV
-cols_hsv <- c("H_mediana", "S_mediana", "V_mediana")
+cols_hsv <- c("H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana")
 train_x_hsv <- datos_train[, cols_hsv]
 test_x_hsv <- datos_test[, cols_hsv]
 train_y_hsv <- datos_train$etiqueta
@@ -162,7 +162,7 @@ test_y_hsv <- datos_test$etiqueta
 ```{r}
 
 #Mostrar boxplots de las caracteristicas HSV
-datos_long_hsv <- pivot_longer(datos_train, cols = c("H_mediana", "S_mediana", "V_mediana"), 
+datos_long_hsv <- pivot_longer(datos_train, cols = c("H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana"), 
                            names_to = "Feature", values_to = "Valor")
 ggplot(datos_long_hsv, aes(x = Feature, y = Valor, fill = etiqueta)) +
   geom_boxplot() +
@@ -175,26 +175,26 @@ ggplot(datos_long_hsv, aes(x = Feature, y = Valor, fill = etiqueta)) +
 
 ```{r}
 #plotear en 3D las caracteristicas HSV medianos, con cada punto segun su etiqueta
-library(plotly)
-fig_hsv <- plot_ly(
-  data = datos_train,
-  x = ~H_mediana,
-  y = ~S_mediana,
-  z = ~V_mediana,
-  color = ~as.factor(etiqueta),
-  colors = c('blue', 'yellow'),
-  type = 'scatter3d',
-  mode = 'markers'
-)
-fig_hsv <- fig_hsv %>% layout(
-  scene = list(
-    xaxis = list(title = 'H Mediana'),
-    yaxis = list(title = 'S Mediana'),
-    zaxis = list(title = 'V Mediana')
-  ),
-  title = 'Distribución de Imágenes por Características HSV Medianas'
-)
-fig_hsv
+#library(plotly)
+#fig_hsv <- plot_ly(
+ # data = datos_train,
+  #x = ~H_mediana,
+  #y = ~S_mediana,
+  #z = ~V_mediana,
+  #color = ~as.factor(etiqueta),
+  #colors = c('blue', 'yellow'),
+  #type = 'scatter3d',
+  #mode = 'markers'
+#)
+#fig_hsv <- fig_hsv %>% layout(
+ # scene = list(
+  #  xaxis = list(title = 'H Mediana'),
+   # yaxis = list(title = 'S Mediana'),
+  #  zaxis = list(title = 'V Mediana')
+#  ),
+ # title = 'Distribución de Imágenes por Características HSV Medianas'
+#)
+#fig_hsv
 ```
 
 
@@ -215,8 +215,8 @@ cat("Precisión del modelo Random Forest con HSV:", cm_rf_hsv$overall['Accuracy'
 ```
 ```{r}
 #Entrenar con todas las caracteristicas RGB + HSV
-train_x_todas <- datos_train[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana")]
-test_x_todas <- datos_test[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana")]
+train_x_todas <- datos_train[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana")]
+test_x_todas <- datos_test[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana")]
 train_y_todas <- datos_train$etiqueta
 test_y_todas <- datos_test$etiqueta
 
@@ -276,8 +276,8 @@ extraer_sobel <- function(df_datos) {
 datos_train_sobel <- extraer_sobel(datos_train_hsv)
 datos_test_sobel <- extraer_sobel(datos_test_hsv)
 # Entrenar Random Forest con todas las características + Sobel
-train_x_sobel <- datos_train_sobel[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean")]
-test_x_sobel <- datos_test_sobel[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean")]
+train_x_sobel <- datos_train_sobel[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "Sobel_mean")]
+test_x_sobel <- datos_test_sobel[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "Sobel_mean")]
 train_y_sobel <- datos_train_sobel$etiqueta
 test_y_sobel <- datos_test_sobel$etiqueta
 ```
@@ -378,8 +378,8 @@ ggplot(datos_train_fuentes, aes(x = etiqueta, y = Fuentes_luz, fill = etiqueta))
 
 ```{r}
 #entrenar modelo con caracteristicas + Sobel + Fuentes de Luz
-train_x_fuentes <- datos_train_fuentes[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz")]
-test_x_fuentes <- datos_test_fuentes[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz")]
+train_x_fuentes <- datos_train_fuentes[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz")]
+test_x_fuentes <- datos_test_fuentes[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz")]
 train_y_fuentes <- datos_train_fuentes$etiqueta
 test_y_fuentes <- datos_test_fuentes$etiqueta
 
@@ -432,8 +432,8 @@ datos_test_entropia <- extraer_entropia(datos_test_fuentes)
 
 ```{r}
 #entrenar modelo con caracteristicas + Sobel + Fuentes de Luz + Entropía
-train_x_entropia <- datos_train_entropia[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia")]
-test_x_entropia <- datos_test_entropia[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia")]
+train_x_entropia <- datos_train_entropia[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia")]
+test_x_entropia <- datos_test_entropia[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia")]
 train_y_entropia <- datos_train_entropia$etiqueta
 test_y_entropia <- datos_test_entropia$etiqueta
 
@@ -488,8 +488,8 @@ datos_test_final <- extraer_pixeles_oscuros(datos_test_entropia)
 
 ```{r}
 #entrenar modelo con todas las caracteristicas + Pixeles oscuros
-train_x_final <- datos_train_final[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros")]
-test_x_final <- datos_test_final[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros")]
+train_x_final <- datos_train_final[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros")]
+test_x_final <- datos_test_final[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros")]
 train_y_final <- datos_train_final$etiqueta
 test_y_final <- datos_test_final$etiqueta
 
@@ -542,8 +542,8 @@ datos_test_rango <- extraer_rango_dinamico_V(datos_test_final)
 
 ```{r}
 #entrenar modelo con todas las caracteristicas + Rango dinamico de V
-train_x_rango <- datos_train_rango[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "Rango_dinamico_V")]
-test_x_rango <- datos_test_rango[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "Rango_dinamico_V")]
+train_x_rango <- datos_train_rango[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "Rango_dinamico_V")]
+test_x_rango <- datos_test_rango[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "Rango_dinamico_V")]
 train_y_rango <- datos_train_rango$etiqueta
 test_y_rango <- datos_test_rango$etiqueta
 
@@ -599,8 +599,8 @@ datos_test_blur <- extraer_blur_V(datos_test_rango)
 
 ```{r}
 #entrenar modelo con todas las caracteristicas + V blur quitando rango dinamico de V
-train_x_blur <- datos_train_blur[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "V_blurred_mean")]
-test_x_blur <- datos_test_blur[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "V_blurred_mean")]
+train_x_blur <- datos_train_blur[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "V_blurred_mean")]
+test_x_blur <- datos_test_blur[, c("R_mediana", "G_mediana", "B_mediana","H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "V_blurred_mean")]
 train_y_blur <- datos_train_blur$etiqueta
 test_y_blur <- datos_test_blur$etiqueta
 
@@ -651,8 +651,8 @@ datos_test_sd <- extraer_sd_V(datos_test_blur)
 
 ```{r}
 #entrenar modelo con todas las caracteristicas + SD de V
-train_x_sd <- datos_train_sd[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "V_blurred_mean", "SD_V")]
-test_x_sd <- datos_test_sd[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "V_blurred_mean", "SD_V")]
+train_x_sd <- datos_train_sd[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "V_blurred_mean", "SD_V")]
+test_x_sd <- datos_test_sd[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "V_blurred_mean", "SD_V")]
 train_y_sd <- datos_train_sd$etiqueta
 test_y_sd <- datos_test_sd$etiqueta
 
@@ -713,8 +713,8 @@ datos_test_multi <- extraer_entropia(datos_test_multi)
 datos_test_multi <- extraer_pixeles_oscuros(datos_test_multi)
 
 #entrenar modelo hasta la carcateristica de pixeles oscuros
-train_x_multi <- datos_train_multi[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros")]
-test_x_multi <- datos_test_multi[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros")]
+train_x_multi <- datos_train_multi[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros")]
+test_x_multi <- datos_test_multi[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros")]
 train_y_multi <- datos_train_multi$etiqueta
 test_y_multi <- datos_test_multi$etiqueta
 
@@ -768,8 +768,8 @@ datos_test_multi_tonos <- extraer_tonos_calidos(datos_test_multi)
 
 ```{r}
 #entrenar modelo con todas las caracteristicas hasta pixeles oscuros + Tonos cálidos
-train_x_multi_tonos <- datos_train_multi_tonos[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "Tonos_calidos")]
-test_x_multi_tonos <- datos_test_multi_tonos[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "Tonos_calidos")]
+train_x_multi_tonos <- datos_train_multi_tonos[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "Tonos_calidos")]
+test_x_multi_tonos <- datos_test_multi_tonos[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "Tonos_calidos")]
 train_y_multi_tonos <- datos_train_multi_tonos$etiqueta
 test_y_multi_tonos <- datos_test_multi_tonos$etiqueta
 
@@ -830,8 +830,8 @@ datos_test_multi_gradientes <- extraer_gradientes_hv(datos_test_multi_tonos)
 
 ```{r}
 #entrenar modelo con todas las caracteristicas hasta tonos cálidos + Gradientes H y V
-train_x_multi_gradientes <- datos_train_multi_gradientes[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "Tonos_calidos", "Gradiente_H", "Gradiente_V")]
-test_x_multi_gradientes <- datos_test_multi_gradientes[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "Tonos_calidos", "Gradiente_H", "Gradiente_V")]
+train_x_multi_gradientes <- datos_train_multi_gradientes[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "Tonos_calidos", "Gradiente_H", "Gradiente_V")]
+test_x_multi_gradientes <- datos_test_multi_gradientes[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "Tonos_calidos", "Gradiente_H", "Gradiente_V")]
 train_y_multi_gradientes <- datos_train_multi_gradientes$etiqueta
 test_y_multi_gradientes <- datos_test_multi_gradientes$etiqueta
 
@@ -896,8 +896,8 @@ datos_test_multi_bandas <- extraer_gradientes_horizontales(datos_test_multi_grad
 
 ```{r}
 #entrenar modelo con todas las caracteristicas hasta gradientes H y V + Gradientes bandas horizontales
-train_x_multi_bandas <- datos_train_multi_bandas[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "Tonos_calidos", "Gradiente_H", "Gradiente_V", "Gradiente_V_bandas")]
-test_x_multi_bandas <- datos_test_multi_bandas[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "Tonos_calidos", "Gradiente_H", "Gradiente_V", "Gradiente_V_bandas")]
+train_x_multi_bandas <- datos_train_multi_bandas[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "Tonos_calidos", "Gradiente_H", "Gradiente_V", "Gradiente_V_bandas")]
+test_x_multi_bandas <- datos_test_multi_bandas[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "Tonos_calidos", "Gradiente_H", "Gradiente_V", "Gradiente_V_bandas")]
 train_y_multi_bandas <- datos_train_multi_bandas$etiqueta
 test_y_multi_bandas <- datos_test_multi_bandas$etiqueta
 
@@ -980,9 +980,9 @@ datos_test_multi_bloques <- extraer_caracteristicas_bloques(datos_test_multi_ban
 
 ```{r}
 #entrenar modelo con todas las caracteristicas hasta gradientes bandas horizontales + caracteristicas de bloques
-train_x_multi_bloques <- datos_train_multi_bloques[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "Tonos_calidos", "Gradiente_H", "Gradiente_V", "Gradiente_V_bandas",
+train_x_multi_bloques <- datos_train_multi_bloques[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "Tonos_calidos", "Gradiente_H", "Gradiente_V", "Gradiente_V_bandas",
                                                        grep("Bloque_", colnames(datos_train_multi_bloques), value = TRUE))]
-test_x_multi_bloques <- datos_test_multi_bloques[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "Tonos_calidos", "Gradiente_H", "Gradiente_V", "Gradiente_V_bandas",
+test_x_multi_bloques <- datos_test_multi_bloques[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "Tonos_calidos", "Gradiente_H", "Gradiente_V", "Gradiente_V_bandas",
                                                      grep("Bloque_", colnames(datos_test_multi_bloques), value = TRUE))]
 train_y_multi_bloques <- datos_train_multi_bloques$etiqueta
 test_y_multi_bloques <- datos_test_multi_bloques$etiqueta
@@ -1057,9 +1057,9 @@ datos_test_multi_extremos <- extraer_pixeles_extremos_bloques(datos_test_multi_b
 
 ```{r}
 #entrenar modelo con todas las caracteristicas hasta caracteristicas de bloques + proporcion de pixeles extremos por bloque
-train_x_multi_extremos <- datos_train_multi_extremos[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "Tonos_calidos", "Gradiente_H", "Gradiente_V", "Gradiente_V_bandas",
+train_x_multi_extremos <- datos_train_multi_extremos[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "Tonos_calidos", "Gradiente_H", "Gradiente_V", "Gradiente_V_bandas",
                                                          grep("Bloque_", colnames(datos_train_multi_extremos), value = TRUE))]
-test_x_multi_extremos <- datos_test_multi_extremos[, c("R_mediana", "G_mediana", "B_mediana", "H_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "Tonos_calidos", "Gradiente_H", "Gradiente_V", "Gradiente_V_bandas",
+test_x_multi_extremos <- datos_test_multi_extremos[, c("R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana", "Sobel_mean", "Fuentes_luz", "Entropia", "Pixeles_oscuros", "Tonos_calidos", "Gradiente_H", "Gradiente_V", "Gradiente_V_bandas",
                                                        grep("Bloque_", colnames(datos_test_multi_extremos), value = TRUE))]
 train_y_multi_extremos <- datos_train_multi_extremos$etiqueta
 test_y_multi_extremos <- datos_test_multi_extremos$etiqueta

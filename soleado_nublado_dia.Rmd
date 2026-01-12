@@ -79,7 +79,7 @@ datos_validation <- datos_imagenes[-indices_entrenamiento, ]
 
 ## Extracción y análisis de características
 
-Para entrenar este nuevo clasificador, que tendrá que distinguir entre cielos nublados y despejados, hemos propuesto un total de 10 características: los valores de los tres canales RGB originales de la imagen, los valores de HSV; descomponiendo el matiz o _hue_ (H) en sus valores de seno y coseno (ya que al ser H un ángulo no es conveniente tratarlo igual que las variables S y V), el brillo, el contraste y el ratio de píxeles azules.
+Para entrenar este nuevo clasificador, que tendrá que distinguir entre cielos nublados y despejados, hemos propuesto un total de 11 características: los valores de los tres canales RGB originales de la imagen, los valores de HSV; descomponiendo el matiz o _hue_ (H) en sus valores de seno y coseno (ya que al ser H un ángulo no es conveniente tratarlo igual que las variables S y V), el brillo, el contraste, el ratio de píxeles azules y la magnitud mediana del operador Sobel (para detectar los bordes de las nubes).
 
 ```{r}
 # leemos las imágenes
@@ -321,6 +321,13 @@ ggpairs(datos_train,
   scale_color_manual(values = c("gray", "skyblue"), labels = c("Nublado", "Despejado")) +
   scale_fill_manual(values = c("gray",  "skyblue"), labels = c("Nublado", "Despejado")) +
   theme_minimal()
+
+df <- datos_train[,3:13]
+
+cor_matrix<-abs(cor(df))
+diag(cor_matrix)<-0
+library(corrplot)
+corrplot(cor_matrix, method="square")
 ```
 
 
@@ -348,108 +355,188 @@ par(mfrow=c(2,3), mar=c(0.1, 0.1, 0.1, 0.1))
 for (i in 1:dim(mal_clasificados)[1]){
   plot(image_read(mal_clasificados[i, "ruta"]))
   if (mal_clasificados[i, "etiqueta"] == 0){aux <- "Nublado"} else{aux <- "Despejado"}
-  legend("top", legend = paste0("Etiqueta real:\n", aux), bg = "transparent", bty = "n")
+  legend("top", legend = paste0("Etiqueta real:\n", aux), bg = "transparent", bty = "n", text.col = 'white')
 }
 ```
 
-Al mostrar las imágenes erróneamente clasificadas, podemos ver que todas las imágenes de cielos nublados mal clasificadas son trozos de la fotografía en los que el cielo está prácticamente (y en algunas, totalmente) despejados. En las imágenes de cielos despejados mal clasificados destacan dos imágenes: una que tiene un gran árbol en medio de la imagen y una en la que se divisa un pájaro. 
+
 
 ```{r}
-pca <- prcomp(~ R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_mean,
-              data=datos_train, center=TRUE, scale=TRUE)
+# Calculamos el PCA centrando y escalando los datos
+pca <- prcomp(
+  ~ R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_mean,
+  data=datos_train, 
+  center=TRUE, 
+  scale=TRUE
+  )
 
+# Calculamos la proporción de varianza explicada y las proporciones acumuladas
 prop_varianza <- pca$sdev^2 / sum(pca$sdev^2)
-
-ggplot(data = data.frame(prop_varianza, pc = 1:11),
-       aes(x = pc, y = prop_varianza)) +
-  geom_col(width = 0.3) +
-  scale_y_continuous(limits = c(0,1)) +
-  theme_bw() +
-  labs(x = "Componente principal",
-       y = "Prop. de varianza explicada")
-
 prop_varianza_acum <- cumsum(prop_varianza)
 
+# Representamos la proporción de varianza explicada acumulada
 ggplot(data = data.frame(prop_varianza_acum, pc = 1:11),
        aes(x = pc, y = prop_varianza_acum, group = 1)) +
-  geom_point() +
-  geom_line() +
+  geom_point(color='skyblue') +
+  geom_line(color = 'skyblue') +
   theme_bw() +
   labs(x = "Componente principal",
-       y = "Prop. varianza explicada acumulada")
+       y = "Prop. varianza explicada acumulada")#+
+
+```
+
+En la curva de proporción de varianza acumulada vemos que, a partir de la sexta componente principal, la proporción de varianza que explica cada una de las siguientes componentes es casi imperceptible. Es por esto por lo que escogeremos solamente las 6 primeras componentes principales para entrenar otro modelo de Random Forest, con la intención de simplificar el modelo para evitar sobreajustarnos a los datos de entrenamiento.
+
+```{r}
+# Creamos el conjunto de entrenamiento formado por las 6 primeras componentes principales
+datos_pca_train <- data.frame(
+  etiqueta = datos_train$etiqueta, 
+  pca$x
+  ) %>% select("etiqueta", paste0("PC",1:6))
+
+# Calculamos el modelo
+set.seed(42)
+modelo_pca <- randomForest(
+  etiqueta ~  PC1 + PC2 + PC3 + PC4 + PC5 + PC6,
+  data = datos_pca_train,
+  ntree = 100
+)
+
+# Calculamos el conjunto de validación
+datos_pca_validacion <- predict(pca, newdata = datos_validation) 
+datos_pca_validacion <- data.frame(
+  etiqueta = datos_validation$etiqueta,
+  ruta = datos_validation$ruta,
+  datos_pca_validacion
+) %>% select("etiqueta", "ruta", paste0("PC",1:6))
+
+# Evaluar el modelo en el conjunto de prueba
+predicciones_pca <- predict(modelo_pca, newdata = datos_pca_validacion)
+confusionMatrix(predicciones_pca, datos_pca_validacion$etiqueta)
+modelo$importance
+```
+
+
+Mostramos las imágenes mal clasificadas:
+
+```{r}
+mal_clasificados <- datos_pca_validacion[predicciones_pca != datos_pca_validacion$etiqueta, ]
+par(mfrow=c(2,3), mar=c(0.1, 0.1, 0.1, 0.1))
+for (i in 1:dim(mal_clasificados)[1]){
+  plot(image_read(mal_clasificados[i, "ruta"]))
+  if (mal_clasificados[i, "etiqueta"] == 0){aux <- "Nublado"} else{aux <- "Despejado"}
+  legend("top", legend = paste0("Etiqueta real:\n", aux), bg = "transparent", bty = "n", text.col = '#a44')
+}
 ```
 
 
 
-### test con nuestras fotos
+### Test con nuestras fotos
 
 Cargamos, leemos y etiquetamos los datos: 
 
 ```{r}
 # Definir la ruta base
-ruta_base_imagenes_validation <- "Despejado_Nublado"
+ruta_base_imagenes <- "imagenes_recortadas/test/Meteorológico"
 
-# lectura de las imagenes de Nublado
-ruta_nublado_validation <- file.path(ruta_base_imagenes_validation, "Nublado")
-archivos_nublado_validation <- list.files(
-  path = ruta_nublado_validation,
+# lectura de las imágenes de Nublado
+ruta_nublado <- file.path(ruta_base_imagenes, "Nublado")
+archivos_nublado <- list.files(
+  path = ruta_nublado,
   pattern = "\\.jpe?g$",
   full.names = TRUE,
   recursive = FALSE
 )
 
-df_nublado_validation <- data.frame(
-  ruta = archivos_nublado_validation,
+df_nublado <- data.frame(
+  ruta = archivos_nublado,
   etiqueta = 0 # nublado
 )
 
 
 # Leer y etiquetar imágenes del subdirectorio Despejado
 
-ruta_despejado_validation <- file.path(ruta_base_imagenes_validation, "Despejado")
-archivos_despejado_validation <- list.files(
-  path = ruta_despejado_validation,
+ruta_despejado <- file.path(ruta_base_imagenes, "Despejado")
+archivos_despejado <- list.files(
+  path = ruta_despejado,
   pattern = "\\.jpe?g$",
   full.names = TRUE,
   recursive = FALSE
 )
 
-df_despejado_validation <- data.frame(
-  ruta = archivos_despejado_validation,
+df_despejado <- data.frame(
+  ruta = archivos_despejado,
   etiqueta = 1 # despejado
 )
 
-# lectura de las imagenes 
-datos_imagenes_validation <- rbind(df_nublado_validation, df_despejado_validation)
+# lectura de las imágenes 
+datos_test <- rbind(df_nublado, df_despejado)
+lista_test <- leer_imagenes(datos_test)
 
-# leemos las imágenes y les pasamos un filtro
-lista <- leer_imagenes(datos_imagenes_validation)
-
-# extracción de caracterísitcas
-datos_imagenes_validation <- extraer_rgb(datos_imagenes_validation, lista)
-datos_imagenes_validation <- extraer_hsv(datos_imagenes_validation, lista)
-datos_imagenes_validation <- extraer_ratio_azul(datos_imagenes_validation, lista)
+# extracción de características
+datos_test <- datos_test %>% 
+  extraer_rgb(lista_test) %>% 
+  extraer_hsv(lista_test) %>% 
+  extraer_brillo_contraste(lista_test) %>% 
+  extraer_ratio_azul(lista_test) %>% 
+  extraer_sobel(lista_test)
 ```
 
 
+
 ```{r}
-predicciones_mas_completas <- predict(modelo_mas_completo, newdata = datos_imagenes_filtradas)
-confusionMatrix(predicciones_mas_completas, datos_imagenes_filtradas$etiqueta)
-mal_clasificadas <- datos_imagenes_filtradas[predicciones_mas_completas != datos_imagenes_filtradas$etiqueta, ]
-for (i in 1:length(mal_clasificadas)){plot(as.raster(lista_filtro[[mal_clasificadas[i,]$ruta]]))}
-mal_clasificadas
+datos_entrenamiento <- rbind(datos_train, datos_test)
+modelo2 <- randomForest(
+  etiqueta ~  R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_mean,
+  data = datos_entrenamiento,
+  ntree = 100
+)
+# Evaluar el modelo en el conjunto de prueba
+predicciones2 <- predict(modelo2, newdata = datos_test)
+confusionMatrix(predicciones2, datos_test$etiqueta)
+modelo$importance
 ```
 
 
 Aplicamos el modelo:
 
 ```{r}
-predicciones_mas_completas <- predict(modelo_mas_completo, newdata = datos_imagenes_validation)
-confusionMatrix(predicciones_mas_completas, datos_imagenes_validation$etiqueta)
-modelo_mas_completo$importance
-mal_clasificadas <- datos_imagenes_validation[predicciones_hsv != datos_imagenes_validation$etiqueta, ]
-rutas_mal_clasificadas <- mal_clasificadas$ruta
+# Calculamos el PCA centrando y escalando los datos
+pca2 <- prcomp(
+  ~ R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_mean,
+  data=datos_entrenamiento, 
+  center=TRUE, 
+  scale=TRUE
+  )
 ```
 
+```{r}
+# Creamos el conjunto de entrenamiento formado por las 8 primeras componentes principales
+datos_pca2_train <- data.frame(
+  etiqueta = datos_entrenamiento$etiqueta, 
+  pca2$x
+  ) %>% select("etiqueta", paste0("PC",1:6))
+
+# Calculamos el modelo
+set.seed(42)
+modelo_pca2 <- randomForest(
+  etiqueta ~  PC1 + PC2 + PC3 + PC4 + PC5 + PC6,
+  data = datos_pca2_train,
+  ntree = 100
+)
+
+# Calculamos el conjunto de test
+datos_pca_test <- predict(pca2, newdata = datos_test) 
+datos_pca_test <- data.frame(
+  etiqueta = datos_test$etiqueta,
+  ruta = datos_test$ruta,
+  datos_pca_test
+) %>% select("etiqueta", "ruta", paste0("PC",1:6))
+
+# Evaluar el modelo en el conjunto de prueba
+predicciones_pca2 <- predict(modelo_pca2, newdata = datos_pca_test)
+confusionMatrix(predicciones_pca2, datos_pca_test$etiqueta)
+modelo$importance
+```
 
 

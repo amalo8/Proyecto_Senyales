@@ -76,7 +76,7 @@ ReescalarImagenes(
 
 # 3. Procesar AMANECER (Sunrise)
 ReescalarImagenes(
-  dir_origen  = "imagenes/test/Temporal/Crepúsculo", 
+  dir_origen  = "imagenes/test/Temporal/Crepúsculo",
   dir_destino = file.path(root_destino, "test/Temporal/Crepúsculo")
 )
 ```
@@ -175,8 +175,8 @@ RecorteCielo <- function(ruta_entrada, salida_px = 224) {
 ```{r}
 # --- CONFIGURACIÓN ---
 # Rutas de origen y destino
-path_origen  <- "imagenes/test/despejadonublado/Nublado"
-path_destino <- "imagenes_recortadas/test/shinecloudy/nublado"
+path_origen  <- "imagenes/train/Meteorológico/Despejado"
+path_destino <- "imagenes_recortadas/train/Meteorológico/Despejado"
 TAMAÑO_FINAL <- 224 # Tamaño de salida (px). Todas serán cuadradas de este tamaño.
 
 # Crear la carpeta de destino si no existe
@@ -235,4 +235,208 @@ for(i in seq_along(rutas_proceso)){
 cat("--- Proceso finalizado ---\n")
 ```
 
+
+
+#QUITAR ESTOS CODIGOS A LA HORA DE ENTREGAR
+
+# Función de auditoría visual para detectar "falsos nublados"
+
+
+```{r}
+library(magick)
+library(tools)
+
+# ==============================================================================
+# CONFIGURACIÓN DE RUTAS
+# ==============================================================================
+
+# 1. Dónde están los recortes que quieres revisar
+dir_recortes <- "imagenes_recortadas/train/Meteorológico/Nublado"
+
+# 2. Dónde están las fotos ORIGINALES (El dataset de train/test original)
+
+dir_originales <- "imagenes/train/Meteorológico/Nublado"
+
+# ==============================================================================
+# PARÁMETROS DE SOSPECHA
+# ==============================================================================
+
+# ¿Qué consideramos "blanco" (nube)? 
+# Un píxel con valor > 180 (en escala 0-255) se considera brillante/blanco.
+UMBRAL_BRILLO_PIXEL <- 150
+
+# ¿Qué porcentaje mínimo de blanco debe tener para ser una nube clara?
+# Si tiene menos del 20% de píxeles brillantes, sospechamos que es cielo azul plano.
+PORCENTAJE_MINIMO_BLANCO <- 0.20 
+
+# ==============================================================================
+# FUNCIÓN DE AUDITORÍA
+# ==============================================================================
+
+AuditoriaVisual <- function() {
+  
+  archivos_recortes <- list.files(dir_recortes, full.names = TRUE, pattern = "\\.jpg$")
+  
+  cat(sprintf("Analizando %d recortes en busca de 'Falsos Nublados'...\n", length(archivos_recortes)))
+  
+  count_revisados <- 0
+  count_borrados <- 0
+  
+  for (ruta_recorte in archivos_recortes) {
+    
+    # --- 1. ANÁLISIS AUTOMÁTICO DEL RECORTE ---
+    img_crop <- image_read(ruta_recorte)
+    
+    # Convertimos a gris y obtenemos valores crudos (0-255)
+    vals <- as.integer(image_data(image_quantize(img_crop, colorspace = "gray")))
+    
+    # Calculamos qué fracción de la imagen es "blanca" (nube)
+    fraccion_blanca <- mean(vals > UMBRAL_BRILLO_PIXEL)
+    
+    # Si la imagen tiene suficiente blanco, asumimos que está bien y PASAMOS a la siguiente.
+    # Solo te molestaré si hay POCO blanco (posible cielo azul).
+    if (fraccion_blanca >= PORCENTAJE_MINIMO_BLANCO) {
+      next 
+    }
+    
+    # --- 2. SI LLEGAMOS AQUÍ, ES SOSPECHOSA ---
+    count_revisados <- count_revisados + 1
+    
+    # Buscamos la original correspondiente
+    nombre_recorte <- basename(ruta_recorte)
+    # Tu formato es "nombre_recorte.jpg", quitamos "_recorte" para buscar la original
+    nombre_base <- sub("_recorte.jpg$", "", nombre_recorte)
+    
+    # Buscamos la original con cualquier extensión común
+    patron <- paste0("^", nombre_base, "\\.(jpg|jpeg|png|bmp)$")
+    ruta_original <- list.files(dir_originales, pattern = patron, full.names = TRUE, ignore.case = TRUE)
+    
+    if (length(ruta_original) == 0) {
+      cat(sprintf("[AVISO] No se encontró original para %s. Saltando.\n", nombre_base))
+      next
+    }
+    
+    # Leemos original y la hacemos pequeña para visualizar rápido
+    img_orig <- image_read(ruta_original[1])
+    img_orig_small <- image_resize(img_orig, "400x400") # Solo para previsualizar
+    
+    # --- 3. MOSTRAR AL USUARIO (Recorte vs Original) ---
+    
+    # Montaje: Recorte a la izq, Original a la derecha
+    # Les ponemos borde para separarlas
+    crop_border <- image_border(img_crop, "red", "5x5")
+    orig_border <- image_border(img_orig_small, "green", "5x5")
+    
+    montaje <- image_append(c(crop_border, orig_border))
+    
+    # Dibujamos en el plot de RStudio
+    plot(as.raster(montaje))
+    title(
+      main = paste0("SOSPECHA DE CIELO DESPEJADO\nBlanco detectado: ", round(fraccion_blanca*100, 1), "%"),
+      sub = "IZQ: Recorte (Lo que ve el modelo) | DER: Foto Original"
+    )
+    
+    # --- 4. PREGUNTA ---
+    cat("\n-------------------------------------------------------\n")
+    cat(sprintf("Archivo: %s\n", nombre_base))
+    cat(sprintf("Nivel de blanco: %.1f%% (Umbral era %.0f%%)\n", fraccion_blanca*100, PORCENTAJE_MINIMO_BLANCO*100))
+    cat("¿Eliminar del conjunto de TRAIN (borrar original y recorte)?\n")
+    resp <- readline(prompt = "Escribe 's' (Sí/Borrar), 'Enter' (Mantener), 'q' (Salir): ")
+    
+    resp <- tolower(trimws(resp))
+    
+    if (resp == "q") {
+      break
+    } else if (resp == "s") {
+      # Borrar ORIGINAL
+      file.remove(ruta_original[1])
+      # Borrar RECORTE (para que no moleste más)
+      file.remove(ruta_recorte)
+      
+      cat(sprintf(" -> ELIMINADA: %s\n", nombre_base))
+      count_borrados <- count_borrados + 1
+    } else {
+      cat(" -> Mantenida.\n")
+    }
+  }
+  
+  cat("\n========================================\n")
+  cat(sprintf("Revisión finalizada.\nImágenes revisadas manualmente: %d\nImágenes borradas: %d\n", count_revisados, count_borrados))
+}
+
+# Ejecutar la función
+AuditoriaVisual()
+```
+```{r}
+library(tools)
+
+ReordenarSecuencialmente <- function(directorio) {
+  
+  # 1. Obtenemos la lista de archivos actuales
+  archivos <- list.files(directorio, full.names = TRUE)
+  
+  # Filtramos solo imágenes
+  archivos <- archivos[grepl("\\.(jpg|jpeg|png|bmp)$", archivos, ignore.case = TRUE)]
+  
+  if(length(archivos) == 0) {
+    stop("No hay imágenes en la carpeta.")
+  }
+  
+  cat(sprintf("Se han encontrado %d imágenes. Iniciando re-numeración...\n", length(archivos)))
+  
+  # Ordenamos alfabéticamente para mantener el orden relativo actual
+  # (Así la foto 10 seguirá yendo después de la 9, etc.)
+  archivos <- sort(archivos)
+  
+  # ============================================================================
+  # PASO 1: RENOMBRADO TEMPORAL (Para evitar colisiones)
+  # ============================================================================
+  # Renombramos todo a "temp_XYZ.jpg" para dejar los números libres.
+  
+  rutas_temporales <- character(length(archivos))
+  prefix_temp <- file.path(directorio, "temp_renaming_process_")
+  
+  for (i in seq_along(archivos)) {
+    ext <- file_ext(archivos[i])
+    # Creamos un nombre temporal único
+    rutas_temporales[i] <- paste0(prefix_temp, i, ".", ext)
+    file.rename(from = archivos[i], to = rutas_temporales[i])
+  }
+  
+  # ============================================================================
+  # PASO 2: RENOMBRADO FINAL (1.jpg, 2.jpg...)
+  # ============================================================================
+  
+  cat("Aplicando nuevos nombres secuenciales (1.jpg, 2.jpg, ...)\n")
+  
+  for (i in seq_along(rutas_temporales)) {
+    # Mantenemos la extensión que tenía (.jpg, .png, etc)
+    ext <- file_ext(rutas_temporales[i])
+    
+    # Nuevo nombre: 1.jpg, 2.jpg, etc.
+    nuevo_nombre <- file.path(directorio, paste0(i, ".", ext))
+    
+    file.rename(from = rutas_temporales[i], to = nuevo_nombre)
+    
+    # Barra de progreso simple
+    if (i %% 20 == 0) cat(sprintf("... Procesadas %d/%d\n", i, length(rutas_temporales)))
+  }
+  
+  cat("------------------------------------------------------\n")
+  cat(sprintf("¡LISTO! Carpeta reordenada de 1.jpg a %d.jpg\n", length(rutas_temporales)))
+}
+
+# ==============================================================================
+# EJECUCIÓN
+# ==============================================================================
+
+# Ruta de las imágenes ORIGINALES (las que quieres reordenar)
+ruta_originales <- "imagenes/train/Meteorológico/Despejado"
+
+if(dir.exists(ruta_originales)){
+  ReordenarSecuencialmente(ruta_originales)
+} else {
+  cat("La carpeta no existe.")
+}
+```
 

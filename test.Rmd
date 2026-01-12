@@ -11,12 +11,18 @@ rm(list=ls())
 ```
 
 **EN RESUMEN**  
-|                     | Día/Noche | Día/Noche/Crepúsculo* | Nublado/Despejado* | Nublado/Despejado (3 mejores) |
-|:-------------------:|:---------:|:---------------------:|:------------------:|:-----------------------------:|
-| Accuracy validation |  89.55 %  |        82.71 %        |       XX.XX %      |            XX.XX %            |
-|    Accuracy test    |  97.50 %  |        90.83 %        |       XX.XX %      |            XX.XX %            |
+|                     | Día/Noche | Día/Noche/Crepúsculo | Nublado/Despejado* | Nublado/Despejado (3 mejores) |
+|:-------------------:|:---------:|:--------------------:|:------------------:|:-----------------------------:|
+| Accuracy validation |  90,15 %  |        82,71 %       |       XX.XX %      |            XX.XX %            |
+|    Accuracy test    |  97,50 %  |        90,83 %       |       XX.XX %      |            XX.XX %            |
 
 *: Usamos por el momento todas las variables, cuando sepamos las que se prefieren lo hacemos con eso.  
+
+Características de cada modelo:  
+Día/Noche: Intensidad mediana de los canales RGB y HSV (con H como seno y coseno) y desviación estándar del canal V. **Total: 8**
+<!-- R_mediana, G_mediana, B_mediana, H_cos_mediana, H_sin_mediana, S_mediana, V_mediana, sd_V.   -->
+Día/Noche/Crepúsculo: Intensidad mediana de los canales RGB y HSV (con H como seno y coseno), desviación estándar del canal V y características de la imagen en tres bloques separados (alto medio y bajo): las previamente mencionadas junto con la proporción de píxeles brillantes y oscuros. **Total: 25**
+<!-- R_mediana, G_mediana, B_mediana, H_cos_mediana, H_sin_mediana, S_mediana, V_mediana, sd_V, Porcentaje_Calidos, Gradiente_V_Bandas; RGB, HSV, sd_V, porcentaje de píxeles brillantes, proporción de píxeles brillantes y oscuros por bloques (3 bloques: alto medio y bajo).   -->
 
 ```{r}
 # Carga de librerías
@@ -86,10 +92,69 @@ predicciones_rf_daynight <- predict(rf_dia_noche, newdata = test_x_daynight)
 cm_rf_daynight <- confusionMatrix(predicciones_rf_daynight, test_y_daynight)
 print(cm_rf_daynight)
 cat("Precisión del modelo Random Forest (Día, Noche):", cm_rf_daynight$overall['Accuracy'] * 100, "%\n")
+
 # Algo de aquí está cambiando las rutas y no sé por qué así que de momento las voy a volver a cambiar a lo cutre
 datos_test_dn$ruta <- gsub("imagenes/test/dianocheamanecer/","imagenes_escaladas/test/Temporal/",datos_test_dn$ruta)
 datos_test_dn$ruta <- gsub("Dia","Día", datos_test_dn$ruta)
 datos_test_dn$ruta <- gsub(".jpeg",".jpg", datos_test_dn$ruta)
+```
+
+
+```{r}
+# convert confusion matrix to data frame
+hm <- as.data.frame(as.table(cm_rf_daynight))
+colnames(hm) <- c("Prediccion", "Real", "Freq")
+# same code as previous block
+plot <- ggplot(hm, aes(x = Prediccion, y = Real, fill = Freq)) +
+  geom_tile() + theme_bw() + coord_equal() +
+  scale_fill_distiller(palette = "Blues", direction = 1) +
+  guides(fill = FALSE) +
+  geom_text(aes(label = Freq), color = "black", size = 10)
+
+# reorder quadrants
+plot <- plot +
+  scale_x_discrete(limits = c("0", "1"),
+                    labels = c("Noche", "Día")) +
+  scale_y_discrete(limits = c("1", "0"),
+                    labels = c("Noche", "Día")) +
+  # following lines only increase text size (optional)
+  theme(axis.text.x = element_text(size = 17),
+        axis.text.y = element_text(size = 17),
+        axis.title.x = element_text(size = 20),
+        axis.title.y = element_text(size = 20))
+
+
+plot
+```
+
+
+
+```{r}
+library(cowplot)
+# Añadir información cm_rf_daynight$byClass
+evaluacion <- cm_rf_daynight$byClass[c(11,1,2,5,7)]
+names(evaluacion) <- c("Exactitud: ", "Sensibilidad: ", "Especifidad: ", "Precisión: ", "F1: ")
+texto <- paste0(names(evaluacion), round(evaluacion,3), collapse = "\n")
+#  paste0(paste0('Precisión (Accuracy): ',cm_rf_daynight$byClass[11],'\n'), paste0(paste0(colnames(cm_rf_daynight$byClass[-11]),": ", cm_rf_daynight$byClass[-11], "\n")))
+
+texto_plot <- ggplot() +
+  annotate(
+    "text",
+    x = 0, y = 1,
+    label = texto,
+    hjust = 0.5, vjust = 0.25,
+    size = 6
+  ) +
+  theme_void()
+
+plot_info <- plot_grid(
+  plot,
+  texto_plot,
+  ncol = 2,
+  rel_widths = c(2, 1)
+)
+
+ggsave("figuras/Conf_dn.pdf", plot=plot_info)
 ```
 
 
@@ -104,7 +169,8 @@ print("Imágenes mal clasificadas:")
 length(imagenes_fallidas)
 
 library(magick)
-#par(mfrow=c(3,2), mar=c(1,3,1,1)) ya buscaré una forma mejor de juntarlas para el pdf, a lo mejor el grid que poníais vosotros
+#par(mfrow=c(1,2))#, mar=c(1,3,1,1)) ya buscaré una forma mejor de juntarlas para el pdf, a lo mejor el grid que poníais vosotros
+pdf("figuras/Mal_clas_dn.pdf")
 categorias <- c("Noche", "Día")
 for(i in 1:length(imagenes_fallidas)){
   img <- image_read(imagenes_fallidas[i])
@@ -112,6 +178,33 @@ for(i in 1:length(imagenes_fallidas)){
   plot(img)
   title(main=titulo)
 }
+dev.off()
+```
+
+
+```{r}
+correctos <- datos_test[-indices_fallidos,1:10]
+correctos <- droplevels(correctos[correctos$etiqueta!=2,2:10])
+fallidos <- datos_test[indices_fallidos,1:10]
+fallidos <- droplevels(fallidos[fallidos$etiqueta!=2,2:10])
+fallidos$etiqueta <- "Noche mal (es día)"
+#correctos <- rbind(correctos, fallidos)
+colnames(correctos) <- c("etiqueta", "R", "G", "B", "H_cos", "H_sin", "S", "V", "sd_V")
+colnames(fallidos) <- c("etiqueta", "R", "G", "B", "H_cos", "H_sin", "S", "V", "sd_V")
+
+# Transformar datos a formato largo para plotear
+datos_long <- pivot_longer(correctos, cols = colnames(correctos[,-1]),
+                           names_to = "Feature", values_to = "Valor")
+fallidos_long <- pivot_longer(fallidos, cols = colnames(fallidos[,-1]),
+                           names_to = "Feature", values_to = "Valor")
+
+ggplot(datos_long, aes(x = Feature, y = Valor, fill = etiqueta)) +
+  geom_boxplot() +
+  geom_point(data = fallidos_long, aes(x=Feature, y=Valor, fill = etiqueta), shape=23, size=2.4) +
+  scale_fill_manual(values = c("grey40", "skyblue", "firebrick2"), labels = c("Noche bien clasificado", "Día bien clasificado", "Noche mal clasificado")) +
+   labs(title = "Características de las imágenes test en función de su clasificación") + 
+   theme_minimal()
+ggsave("figuras/Mal_noche.pdf")
 ```
 
 
@@ -279,6 +372,58 @@ datos_test$ruta <- gsub("Dia","Día", datos_test$ruta)
 datos_test$ruta <- gsub("Amanecer","Crepúsculo", datos_test$ruta)
 datos_test$ruta <- gsub(".jpeg",".jpg", datos_test$ruta)
 ```
+```{r}
+# convert confusion matrix to data frame
+hm <- as.data.frame(as.table(cm_rf_dnc))
+colnames(hm) <- c("Prediccion", "Real", "Freq")
+# same code as previous block
+plot <- ggplot(hm, aes(x = Prediccion, y = Real, fill = Freq)) +
+  geom_tile() + theme_bw() + coord_equal() +
+  scale_fill_distiller(palette = "Blues", direction = 1) +
+  guides(fill = FALSE) +
+  geom_text(aes(label = Freq), color = "black", size = 10)
+
+# reorder quadrants
+plot <- plot +
+  scale_x_discrete(limits = c("0", "1", "2"),
+                    labels = c("Noche", "Día", "Crepúsculo")) +
+  scale_y_discrete(limits = c("0", "1", "2"),
+                    labels = c("Noche", "Día", "Crepúsculo")) +
+  # following lines only increase text size (optional)
+  theme(axis.text.x = element_text(size = 15),
+        axis.text.y = element_text(size = 15),
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+
+
+plot
+
+
+# Añadir información cm_rf_daynight$byClass
+evaluacion <- cm_rf_dnc$byClass[c(11,1,2,5,7)]
+names(evaluacion) <- c("Exactitud: 0.983", "Sensibilidad: ", "Especifidad: ", "Precisión: ", "F1: ")
+texto <- paste0(names(evaluacion), round(evaluacion,3), collapse = "\n")
+#  paste0(paste0('Precisión (Accuracy): ',cm_rf_daynight$byClass[11],'\n'), paste0(paste0(colnames(cm_rf_daynight$byClass[-11]),": ", cm_rf_daynight$byClass[-11], "\n")))
+
+texto_plot <- ggplot() +
+  annotate(
+    "text",
+    x = 0, y = 1,
+    label = "Exactitud cojunta: \n0.908",
+    hjust = 0.45, vjust = 0,
+    size = 7
+  ) +
+  theme_void()
+
+plot_info <- plot_grid(
+  plot,
+  texto_plot,
+  ncol = 2,
+  rel_widths = c(2, 1)
+)
+ggsave("figuras/matriz_conf_dnc.pdf")
+```
+
 
 Representamos las imágenes en las que se ha equivocado:  
 ```{r}
@@ -299,7 +444,101 @@ for(i in 1:length(imagenes_fallidas)){
   title(main=titulo)
 }
 ```
+```{r}
+# Imágenes para guardar y poner en la memoria
+indices <- indices_fallidos[c(3,7,8,9)]
+imagenes <- datos_test$ruta[indices]
+etiquetas_reales <- datos_test$etiqueta[indices]
+etiquetas_fallidas <- predicciones_rf_dnc[indices]
 
+#pdf("figuras/Mal_clas_dnc.pdf")
+categorias <- c("Noche", "Día", "Crepúsculo")
+par(mfrow=c(1,3))
+for(i in 1:length(imagenes)){
+  if(indices[i]==92){
+    img <- image_rotate(image_read(imagenes[i]),90)
+  } else {
+    img <- image_read(imagenes[i])
+  }
+  titulo <- paste0('Clase predicha: ',categorias[etiquetas_fallidas[i]],"\n",'Clase real: ',categorias[etiquetas_reales[i]])
+  plot(img)
+  title(main=titulo)
+}
+#dev.off()
+```
+
+
+```{r}
+pdf("figuras/Mal_clas_dnc.pdf")
+img <- image_rotate(image_read(imagenes[4]),90)
+titulo <- paste0('Clase predicha: ',categorias[etiquetas_fallidas[4]],"\n",'Clase real: ',categorias[etiquetas_reales[4]])
+plot(img)
+title(main=titulo)
+dev.off()
+```
+
+
+
+```{r}
+correctos <- datos_test[-indices_fallidos,1:10]
+correctos <- droplevels(correctos[,2:10])
+fallidos <- datos_test[indices_fallidos,1:10]
+fallidos <- droplevels(fallidos[,2:10])
+fallidos$tipo <- "dummy"
+# for(indice in indices_fallidos){
+#   if(datos_test$etiqueta[indice]==0&predicciones_rf_dnc[indice]==2){
+#     fallidos$tipo[indice] <- "Noche_clasificado_Crepúsculo"
+#   } else if(datos_test$etiqueta[indice]==1&predicciones_rf_dnc[indice]==2){
+#     fallidos$tipo[indice] <- "Día_clasificado_Crepúsculo"
+#   } else if(datos_test$etiqueta[indice]==2&predicciones_rf_dnc[indice]==0){
+#     fallidos$tipo[indice] <- "Crepúsculo_clasificado_Noche"
+#   } else if(datos_test$etiqueta[indice]==2&predicciones_rf_dnc[indice]==1){
+#     fallidos$tipo[indice] <- "Crepúsculo_clasificado_Día"
+#   }
+# }
+# fallidos$tipo <- factor(fallidos$tipo)
+fallidos$pred <- predicciones_rf_dnc[indices_fallidos]
+fallidos <- fallidos %>%
+  mutate(
+    tipo = case_when(
+      etiqueta == 0 & pred == 2 ~ "Noche clasificado Crepúsculo",
+      etiqueta == 1 & pred == 2 ~ "Día clasificado Crepúsculo",
+      etiqueta == 2 & pred == 0 ~ "Crepúsculo clasificado Noche",
+      etiqueta == 2 & pred == 1 ~ "Crepúsculo clasificado Día",
+      TRUE ~ NA_character_
+    )
+  )
+
+fallidos$tipo <- factor(fallidos$tipo)
+fallidos <- fallidos[,-c(1,length(fallidos))]
+
+# #correctos <- rbind(correctos, fallidos)
+colnames(correctos) <- c("etiqueta", "R", "G", "B", "H_cos", "H_sin", "S", "V", "sd_V")
+colnames(fallidos) <- c("R", "G", "B", "H_cos", "H_sin", "S", "V", "sd_V", "tipo")
+
+# Transformar datos a formato largo para plotear
+datos_long <- pivot_longer(correctos, cols = colnames(correctos[,-1]),
+                           names_to = "Feature", values_to = "Valor")
+fallidos_long <- pivot_longer(fallidos, cols = colnames(fallidos[,-length(fallidos)]),
+                           names_to = "Feature", values_to = "Valor")
+scale_x_discrete(expand = expansion(add = 0.8))
+ggplot(datos_long, aes(x = factor(Feature), y = Valor)) +
+  geom_boxplot(aes(fill=etiqueta), position = position_dodge2(width = 2), width=0.5) + # ,position = position_dodge(width=0.8))
+  geom_point(data = fallidos_long, aes(x=as.numeric(factor(Feature))+0.5, y=Valor, color = tipo, shape=tipo), 
+              size=3, alpha=0.7) + #, position = position_dodge(width=0.8)
+  scale_fill_manual(values = c("grey40", "skyblue", "sienna2"), labels = c("Noche bien clasificado", "Día bien clasificado", "Crepúsculo bien clasificado")) +
+  scale_color_brewer(
+    palette = "Set1",
+    name = "Tipo de error"
+  ) +
+   labs(title = "Características de las imágenes test en función de su clasificación") + 
+   theme_minimal()
+```
+```{r}
+for(indice in indices_fallidos){
+  print(indice)
+  }
+```
 
 
 ## Test para nublado/despejado
@@ -417,13 +656,13 @@ rutas_completas <- gsub("_recorte","",rutas_completas)
 print("Imágenes mal clasificadas:")
 length(imagenes_fallidas)
 
-par(mfrow=c(1,2))#, mar=c(1,3,1,1)) 
+par(mfrow=c(1,2), oma = c(0,0,3,0), mar=c(1,1,1,1)) 
 categorias <- c("Nublado","Despejado")
 for(i in 1:length(imagenes_fallidas)){
   img <- image_read(imagenes_fallidas[i])
   titulo <- paste0('Clase predicha: ',categorias[etiquetas_fallidas[i]],"\n",'Clase real: ',categorias[etiquetas_reales[i]])
   plot(img)
-  title(main=titulo)
+  #title(main=titulo)
   img <- tryCatch(
     {
       image_read(rutas_completas[i])
@@ -433,7 +672,8 @@ for(i in 1:length(imagenes_fallidas)){
     image_read(ruta_jpeg)
   })
   plot(img)
-  title(main=titulo)
+  #title(main=titulo)
+  mtext(titulo, side = 3, outer = TRUE, cex = 1.5, font=2)
 }
 ```
 

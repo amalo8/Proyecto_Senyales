@@ -218,31 +218,28 @@ Como hemos mencionado anteriormente, estas características se han ido añadiend
 ## Aplicación de PCA y Selección de Modelo
 
 # Evaluación con Conjunto de Test 
-Tras haber desarrollado los modelos *Random Forest* pertinentes para la clasificación temporal y meteorológica de imágenes, procederemos a evaluar su desempeño en un conjunto de test, constituido por imágenes tomadas por los integrantes del grupo y preprocesadas como se indicó en el apartado 2.  
-Para ello crearemos un modelo definitivo *Random Forest* para cada problema de clasificación estudiado que utilice las características óptimas escogidas para cada caso y se entrene usando todo el conjunto de test disponible, es decir, se incorporará al entrenamiento de los modelos desarrollados el conjunto de datos utilizado previamente para validación.
+Tras haber desarrollado los modelos Random Forest pertinentes para la clasificación temporal y meteorológica de imágenes, procederemos a evaluar su desempeño en un conjunto de test, constituido por imágenes tomadas por los integrantes del grupo y preprocesadas como se indicó en el apartado 2.  
+Para ello crearemos un modelo definitivo Random Forest para cada problema de clasificación estudiado que utilice las características óptimas escogidas para cada caso y se entrene usando todo el conjunto de test disponible, es decir, se incorporará al entrenamiento de los modelos desarrollados el conjunto de datos utilizado previamente para validación.
 
 ## Resultados en Clasificación Temporal
-Para la clasificación temporal contamos con dos modelos diferentes desarrollados, un *Random Forest* más sencillo y con un menor número de características para la clasificación binaria de imágenes en día/noche y otro más complejo para la clasificiación de imágenes en día/noche/crepúsculo.  
+Para la clasificación temporal contamos con dos modelos diferentes desarrollados, un Random Forest más sencillo y con un menor número de características para la clasificación binaria de imágenes en día/noche y otro más complejo para la clasificiación de imágenes en día/noche/crepúsculo.  
 
 
 ### Resultados en Clasificación Temporal Binaria
-Evaluaremos el modelo seleccionado en el apartado 4.1.2 en un total de 80 imágenes de test, de las cuales 40 pertenecen a la clase Día y 40 pertenecen a la clase Noche. Realizando las predicciones y comparando con las etiquetas reales obtenemos la siguiente matriz de confusión y métricas de evaluación:  
-
-![Matriz de confusión resultante del test con nuestras imágenes para la clasificación temporal binaria](figuras/Conf_dn.png){width=50%}
-
+Evaluaremos el modelo seleccionado en el apartado 4.1.2 en un total de 80 imágenes de test, de las cuales 40 pertenecen a la clase Día y 40 pertenecen a la clase Noche. Realizando las predicciones y comparando con las etiquetas reales obtenemos las siguientes métricas de evaluación:  
 
 | Exactitud | Sensibilidad | Especifidad | Precisión |   F1  |
 |:---------:|:------------:|:-----------:|:---------:|:-----:|
 |   0.988   |     0.975    |      1      |     1     | 0.987 |
 
-Encontramos que el modelo seleccionado para la clasificación binaria es robusto y clasifica bien nuestras imágenes de test ya que posee una exactitud balanceada de 0,988. A partir de la matriz de confusión averiguamos solamente se ha clasificado incorrectamente una imagen, para analizar más detalladamente este error representaremos esta imagen y sus características en relación al resto de imágenes de test en la siguiente figura:  
+Encontramos que el modelo seleccionado para la clasificación binaria es robusto y clasifica bien nuestras imágenes de test ya que posee una exactitud balanceada de 0.988. A partir de los resultados obtenidos averiguamos que solamente se ha clasificado incorrectamente una imagen. Para analizar más detalladamente este error representaremos esta imagen y sus características en relación al resto de imágenes de test en la siguiente figura:  
 
 ![Imagen mal clasificada para el modelo binario día/noche](figuras/mal_clas_dn.png){width=33%}
 ![Imagen mal clasificada para el modelo binario día/noche](figuras/Caracteristicas_clasificadas_dn.png){width=65%}
-Podemos comprobar que la mayoría de las características de la imagen mal clasificada se encuentran en un rango intermedio entre las características de las imágenes bien clasificadas de día y noche, lo cual probablemente explique su mala clasificación. Random Forest no utiliza solamente separaciones de cada característica sino que también incorpora las relaciones entre características, para este caso en que las características individuales no parecen permitir una clasificación clara alguna relación entre características probablemente haya indicado una mayor similitud entre la imagen fallida de test y las imágenes de la clase Día del dataset de entrenamiento.
+Podemos comprobar que la mayoría de las características de la imagen mal clasificada se encuentran en un rango intermedio entre las características de las imágenes bien clasificadas de día y noche, teniendo valores de `V_mediana` y `R_mediana` altos para ser una imagen de noche. Esto es debido a que, aunque sea una imagen nocturna, está muy iluminada y presenta colores vivos, hecho que puede confundir al clasificador.
 
 ### Resultados en Clasificación Temporal Multiclase
-Evaluaremos el modelo seleccionado en el apartado *B* en un total de 120 imágenes de test, equitativamente distribuidas en las clases Día, Noche y Crepúsculo. Realizando las predicciones y comparando con las etiquetas reales obtenemos la siguiente matriz de confusión y métricas de evaluación:  
+Evaluaremos el modelo seleccionado en el apartado 4.3 en un total de 120 imágenes de test, equitativamente distribuidas en las clases Día, Noche y Crepúsculo. Realizando las predicciones y comparando con las etiquetas reales obtenemos las siguientes métricas de evaluación:  
 
 |    Clase   | Exactitud | Sensibilidad | Especifidad | Precisión |   F1  |
 |:----------:|:---------:|:------------:|:-----------:|:---------:|:-----:|
@@ -250,7 +247,7 @@ Evaluaremos el modelo seleccionado en el apartado *B* en un total de 120 imágen
 |    Noche   |   0.963   |     0.975    |    0.950    |   0.950   | 0.939 |
 | Crepúsculo |   0.900   |     0.875    |    0.925    |   0.853   | 0.864 |
 
-Obtenemos también la exactitud conjunta (todas las predicciones correctas respecto del total) para las tres clases que será de **0.908**. Encontramos que se ha reducido la exactitud respecto del caso de clasificación binaria, lo cual es esperable ya que este es un caso más complejo, no obstante las características adicionales añadidas para este clasificador han permitido matener un buen desempeño en nuestras imágenes de test.  
+Obtenemos también la exactitud conjunta (todas las predicciones correctas respecto del total) para las tres clases que será de **0.908**. Encontramos que se ha reducido la exactitud respecto del caso de clasificación binaria, lo cual es esperable ya que este es un caso más complejo. No obstante las características adicionales para este clasificador han permitido mantener un buen desempeño en nuestras imágenes de test.  
 Podemos comprobar que la nueva clase, Crepúsculo, es la que ha dado lugar a mayor confusión en el modelo, todos los errores vienen dados por imágenes de la categoría Crepúsculo siendo clasificadas como Día/Noche o imágenes de las categorías Día/Noche siendo clasificadas como Crepúsculo. Esto queda reflejado también en los estadísticos para la matriz de confusión para la categoría Crepúsculo, que presenta una menor exactitud, especifidad, precisión y estadístico F1 que el resto de categorías.  
 Dado que temporalmente el crepúsculo es el momento que se encuentra entre el día y la noche es razonable que estas imágenes presenten una mayor similitud a Día o Noche, dando lugar a un mayor error de clasificación para esta clase.   
 A continuación representamos a modo de ejemplo una imagen para cada tipo de error de clasificación cometido por el modelo, así como sus características frente a las características de las imágenes test bien clasificadas:  

@@ -72,7 +72,6 @@ El algoritmo no se limita a realizar un recorte estático, sino que busca la mej
 3. Criterio de selección: Se elige el recorte óptimo minimizando la desviación típica (mayor homogeneidad), sujeto a superar un umbral mínimo de luminosidad media para descartar zonas oscuras o siluetas.
 
 4. Normalización: El recorte resultante se redimensiona a 224x224 píxeles, garantizando que todas las muestras de entrada tengan exactamente las mismas dimensiones, independientemente del tamaño original de la imagen. Con ello, se evita que las diferencias de resolución introduzcan sesgos numéricos en el cálculo de las características. 
-<!-- El resultado de este proceso es una colección de imágenes que contienen la región de cada imagen con mayor porcentaje de cielo, estandarizadas en tamaño y optimizadas para la extracción de características relevantes para la clasificación meteorológica. -->
 
 Gracias a este preprocesado, fue posible detectar y corregir inconsistencias significativas en los datasets originales. Se observó que un gran número de imágenes etiquetadas como "nublado" generaban, tras el proceso, recortes de cielo totalmente azul. Esto no se debió únicamente a la tendencia de nuestra función de recorte a priorizar zonas homogéneas, sino a que las imágenes originales presentaban una nubosidad muy escasa. Al aislar la región de interés, se hizo evidente que estas muestras carecían de la densidad de nubes necesaria para representar fielmente su clase, lo que habría introducido ruido y confusión en el modelo. En consecuencia, estas imágenes fueron identificadas y eliminadas del conjunto de entrenamiento. Concretamente,
 154 imágenes fueron descartadas por este motivo, ya que visualmente serían etiquetadas sin duda como "despejado". El conjunto de imágenes nubladas se redujo de 826 imágenes a 672. 
@@ -92,7 +91,11 @@ knitr::include_graphics("figura2.png")
 
 # Preparación de Datos para Entrenamiento
  
-Recordar que train y test ya estaban separados, pero (Hablar de validación)
+Para la construcción de los modelos predictivos, se procedió a la partición de los conjuntos de datos de ambos problemas siguiendo una estrategia de partición simple (*Hold-Out*). El objetivo de esta división es evaluar la capacidad de aprendizaje del algoritmo y evitar el sobreajuste, asegurando que el modelo sea capaz de generalizar patrones en lugar de memorizar imágenes específicas.
+
+Se estableció una división del 80% de las imágenes destinado al conjunto de entrenamiento (*training set*), utilizado para la construcción de los árboles de decisión y el aprendizaje de características, y se reservó el 20% restante para el conjunto de validación (*validation set*), cuya única función la monitorización del entrenamiento y el ajuste de hiperparámetros del modelo. Para garantizar la consistencia estadística entre ambos subconjuntos, se aplicó una técnica de muestreo estratificado, gracias a la función $createDataPartition$ de la librería $caret$. Este método asegura que la distribución de clases original se preserve en ambas particiones: la proporción de clases se mantiene idéntica tanto en el entrenamiento como en la validación, evitando sesgos en la evaluación del rendimiento. 
+
+En términos cuantitativos, esta distribución supuso el empleo de 2.129 imágenes de entrenamiento y 532 de validación para el problema temporal, mientras que para el problema meteorológico se destinaron 1.099 imágenes al entrenamiento y 275 a la validación.
 
 # Entrenamiento I: Clasificación Temporal
 La clasificación de imágenes requiere un proceso previo de extracción de características. En esta sección, nos centraremos en la determinación de estas características y en el entrenamiento y validación de nuestro algoritmo. Como hemos mencionado anteriormente, se han empleado un conjunto de imágenes extraídas de repositorios públicos, que nos garantizan una gran variedad de imágenes en diferentes contextos geográficos.
@@ -101,8 +104,6 @@ La clasificación de imágenes requiere un proceso previo de extracción de cara
 En primer lugar, abordaremos este problema como una clasificación binaria (día/noche) para tener una primera toma de contacto en la extracción de características y en el entrenamiento del modelo. En el siguiente apartado, añadiremos una nueva categoría (crepúsculo) para lograr un modelo más completo. El objetivo es construir un modelo de aprendizaje supervisado que permita diferenciar claramente entre las dos categorías y, posteriormente, tenga la capacidad de generalizar correctamente para clasificar las imágenes capturadas por nosotros. 
 
 El procedimiento que hemos seguido para construir el clasificador ha sido el siguiente: incorporar sucesivamente características al modelo (de una en una). Esta decisión se ha tomado para poder observar si al añadir una característica, mejora o no nuestro clasificador. Esto nos da un control completo, en el que podemos identificar claramente que características funcionan mejor para diferenciar entre imagen de día y de noche.
-
-Además, hemos optado por utilizar el algoritmo Random Forest porque es rápido de implementar, permite capturar relaciones complejas entre características (construye múltiples árboles de decisión donde cada split selecciona un subconjunto de las características, garantizando la aleatoriedad y reduciendo la correlación entre estas). También, es robusto ante outliers, lo cual es interesante ya que en el conjunto de datos utilizado en esta parte pueden haber ruidos visuales o iluminaciones extremas.
 
 ### Análisis de Características 
 La primera característica es la mediana de la intensidad de los canales RGB (función `extraer_rgb`). Cada imagen se descompone en estas tres capas y se determina para cada píxel un valor de intensidad en cada una de ellas. Estos valores oscilan entre 0 (ausencia de color) y 1 (intensidad máxima). A continuación, se realiza la mediana de cada canal para cada imagen, obteniendo tres valores representativos. Se ha escogido la mediana en lugar de la media debido a su robustez frente a outliers. Por ejemplo, en imágenes nocturnas podemos encontrarnos con puntos de luz artificial intensos, como farolas, que podrían ser ignorados y nos permitiría seguir conociendo un valor de la intensidad que representa a la imagen.
@@ -142,7 +143,7 @@ rasterImage(img2, 0, 0, 1, 1)
 par(mfrow = c(1, 1))
 ```
 
-La tercera característica es la detección de bordes mediante el filtro Sobel (`extraer_sobel`) para detectar cambios bruscos en la intensidad lumínica (se utiliza el valor medio del gradiente horizontal y vertical de la intensidad) y, por tanto, en la identificación de bordes en una imagen. En un principio podríamos encontrar un valor mayor para imágenes diurnas ya que se pueden encontrar edificios/vegetación que debido a la gran cantidad de luz que hay en estas imágenes, se puedan identificar mejor esos bordes.
+La tercera característica es la detección de bordes mediante el filtro Sobel (`extraer_sobel`) para detectar cambios bruscos en la intensidad lumínica (se utiliza el valor medio de la magnitudde los gradientes horizontal y vertical de la intensidad) y, por tanto, en la identificación de bordes en una imagen. En un principio podríamos encontrar un valor mayor para imágenes diurnas ya que se pueden encontrar edificios/vegetación que debido a la gran cantidad de luz que hay en estas imágenes, se puedan identificar mejor esos bordes.
 
 La cuarta característica es la detección de fuentes de luz (`extraer_fuentes_luz`). Consiste en la cuantificación de puntos de alta luminosidad. Se ha utilizado la fórmula de la luminancia ($L=0,299R+0,587G+0,114B$) y se ha definido un umbral de 0,9 para detectar píxeles con intensidad cercana a la del blanco. 
 

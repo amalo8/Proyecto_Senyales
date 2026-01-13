@@ -207,8 +207,8 @@ par(mfrow = c(1, 1))
 ### Selección del Mejor Modelo Binario
 Como hemos mencionado anteriormente, estas características se han ido añadiendo sucesivamente al modelo. Finalmente las características utilizadas en este modelo han sido 8: `R_mediana`, `G_mediana`, `B_mediana`, `H_cos_mediana`, `H_sin_mediana`, `S_mediana`, `V_mediana` y `sd_V`. Ha alcanzado un accuracy del 90,15% para el conjunto de validación. Además, al analizar la importancia de las características mediante el índice \textit{MeanDecreaseGini}, se observa que las más influyentes a la hora de clasificar han sido `G_mediana` con un valor de 221,17, seguido de `V_mediana` con 117,04 y `B_mediana` con 98,48. Resultado sorprendente ya que el canal verde es el que más información aporta. Esto puede ser debido a que las cámaras digitales utilizan un filtro llamado Mosaico de Bayer que captura el doble de información en el espectro verde.
 
-## Clasificación Multiclase: Añadiendo "Sunrise"
-### Nuevas Características para detectar Amanecer
+## Clasificación Multiclase: Añadiendo "Crepúsculo"
+### Nuevas Características para detectar Crepúsculo
 ### Análisis de Componentes Principales (PCA)
 ## Modelo Final Temporal
 

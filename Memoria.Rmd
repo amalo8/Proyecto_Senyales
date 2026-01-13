@@ -264,7 +264,7 @@ Tras haber desarrollado los modelos Random Forest pertinentes para la clasificac
 Para ello crearemos un modelo definitivo Random Forest para cada problema de clasificación estudiado que utilice las características óptimas escogidas para cada caso y se entrene usando todo el conjunto de test disponible, es decir, se incorporará al entrenamiento de los modelos desarrollados el conjunto de datos utilizado previamente para validación.
 
 ## Resultados en Clasificación Temporal
-Para la clasificación temporal contamos con dos modelos diferentes desarrollados, un Random Forest más sencillo y con un menor número de características para la clasificación binaria de imágenes en día/noche y otro más complejo para la clasificación de imágenes en día/noche/crepúsculo.  
+Para la clasificación temporal contamos con dos modelos diferentes desarrollados, un Random Forest más sencillo y con un menor número de características para la clasificación binaria de imágenes en día/noche y otro más complejo para la clasificiación de imágenes en día/noche/crepúsculo.  
 
 
 ### Resultados en Clasificación Temporal Binaria
@@ -273,24 +273,27 @@ Evaluaremos el modelo seleccionado en el apartado 4.1.2 en un total de 80 imáge
 | Exactitud | Sensibilidad | Especifidad | Precisión |   F1  |
 |:---------:|:------------:|:-----------:|:---------:|:-----:|
 |   0.988   |     0.975    |      1      |     1     | 0.987 |
+Table: Estadísticos de la matriz de confusión para el test de nuestro clasificador temporal binario.
 
 Encontramos que el modelo seleccionado para la clasificación binaria es robusto y clasifica bien nuestras imágenes de test ya que posee una exactitud balanceada de 0.988. A partir de los resultados obtenidos averiguamos que solamente se ha clasificado incorrectamente una imagen. Para analizar más detalladamente este error representaremos esta imagen y sus características en relación al resto de imágenes de test en la siguiente figura:  
 
-![Imagen mal clasificada para el modelo binario día/noche](figuras/mal_clas_dn.png){width=33%}
-![Imagen mal clasificada para el modelo binario día/noche](figuras/Caracteristicas_clasificadas_dn.png){width=65%}
-Podemos comprobar que la mayoría de las características de la imagen mal clasificada se encuentran en un rango intermedio entre las características de las imágenes bien clasificadas de día y noche, teniendo valores de `V_mediana` y `R_mediana` altos para ser una imagen de noche. Esto es debido a que, aunque sea una imagen nocturna, está muy iluminada y presenta colores vivos, hecho que puede confundir al clasificador.
+![Imagen mal clasificada para el modelo binario día/noche](figuras/Mal_dn_combinado.png){width=80%}
+
+Podemos comprobar que la mayoría de las características de la imagen mal clasificada se encuentran en un rango intermedio entre las características de las imágenes bien clasificadas de día y noche, teniendo valores de `V_mediana`, `R_mediana` y `G_mediana` altos para ser una imagen de noche. Esto es debido a que, aunque sea una imagen nocturna, está muy iluminada y presenta colores vivos, hecho que puede confundir al clasificador.
 
 ### Resultados en Clasificación Temporal Multiclase
 Evaluaremos el modelo seleccionado en el apartado 4.3 en un total de 120 imágenes de test, equitativamente distribuidas en las clases Día, Noche y Crepúsculo. Realizando las predicciones y comparando con las etiquetas reales obtenemos las siguientes métricas de evaluación:  
 
 |    Clase   | Exactitud | Sensibilidad | Especifidad | Precisión |   F1  |
 |:----------:|:---------:|:------------:|:-----------:|:---------:|:-----:|
-|     Día    |   0.931   |     0.875    |    0.9875   |   0.972   | 0.921 |
-|    Noche   |   0.963   |     0.975    |    0.950    |   0.950   | 0.939 |
-| Crepúsculo |   0.900   |     0.875    |    0.925    |   0.853   | 0.864 |
+|     Día    |   0.907   |     0.850    |    0.963    |   0.919   | 0.892 |
+|    Noche   |   0.907   |     0.825    |    0.988    |   0.970   | 0.883 |
+| Crepúsculo |   0.888   |     0.925    |    0.850    |   0.755   | 0.831 |
 
-Obtenemos también la exactitud conjunta (todas las predicciones correctas respecto del total) para las tres clases que será de **0.908**. Encontramos que se ha reducido la exactitud respecto del caso de clasificación binaria, lo cual es esperable ya que este es un caso más complejo. No obstante las características adicionales para este clasificador han permitido mantener un buen desempeño en nuestras imágenes de test.  
-Podemos comprobar que la nueva clase, Crepúsculo, es la que ha dado lugar a mayor confusión en el modelo, todos los errores vienen dados por imágenes de la categoría Crepúsculo siendo clasificadas como Día/Noche o imágenes de las categorías Día/Noche siendo clasificadas como Crepúsculo. Esto queda reflejado también en los estadísticos para la matriz de confusión para la categoría Crepúsculo, que presenta una menor exactitud, especifidad, precisión y estadístico F1 que el resto de categorías.  
+Table: Estadísticos de la matriz de confusión para el test de nuestro clasificador temporal multiclase.
+
+Obtenemos también la exactitud conjunta (todas las predicciones correctas respecto del total) para las tres clases que será de **0.908**. Encontramos que se ha reducido la exactitud respecto del caso de clasificación binaria, lo cual es esperable ya que este es un problema más complejo. No obstante las características adicionales para este clasificador han permitido mantener un buen desempeño en nuestras imágenes de test.  
+A partir de nuestros resultados podemos comprobar que la nueva clase, Crepúsculo, es la que ha dado lugar a mayor confusión en el modelo: del las 16 imágenes mal clasificadas 15 de los errores vienen dados por imágenes de la categoría Crepúsculo siendo clasificadas como Día/Noche o imágenes de las categorías Día/Noche siendo clasificadas como Crepúsculo. Esto queda reflejado también en los estadísticos para la matriz de confusión para la categoría Crepúsculo, que presenta una menor exactitud, especifidad, precisión y estadístico F1 que el resto de categorías.  
 Dado que temporalmente el crepúsculo es el momento que se encuentra entre el día y la noche es razonable que estas imágenes presenten una mayor similitud a Día o Noche, dando lugar a un mayor error de clasificación para esta clase.   
 A continuación representamos a modo de ejemplo una imagen para cada tipo de error de clasificación cometido por el modelo, así como sus características frente a las características de las imágenes test bien clasificadas:  
 
@@ -304,6 +307,41 @@ Hemos evaluado el modelo entrenado con las seis primeras componentes principales
 |      |         |            |          |  |
 
 
-## Conclusiones y Líneas Futuras
+## Conclusiones y Líneas Futuras 
+
+```{r, echo=FALSE, message=FALSE}
+library(dplyr)
+library(kableExtra)
+
+modelo <- c("Temporal binario", "Temporal multiclase", "Meteorológico")
+
+# VARIABLES DE CADA MODELO
+variables_dia_noche <- "Mediana de los canales R, G, B, H_cos, H_sin, S y V; y desviación estándar de V"
+variables_dia_noche_crepusculo <- "Mediana de los canales R, G, B, H_cos, H_sin, S y V; desviación estándar de V, porcentaje de tonos cálidos + características de la imagen dividida en 3 bloques (medianas de RGB y HSV, desviación de V y proporción de tonos oscuros y brillantes) + PCA (8 componentes)"
+variables_despejado_nublado <- "Mediana de los canales R, G, B, H_sin, H_cos, S y V; ratio de azul en la imagen, brillo, contraste, media del gradiente Sobel + PCA (6 componentes)"
+variables <- c(variables_dia_noche, variables_dia_noche_crepusculo,variables_despejado_nublado)
+
+# ACCURACY DE VALIDATION DE CADA MODELO
+val_dia_noche <- "90.15 %"
+val_dia_noche_crepusculo <- "XX.XX %"
+val_despejado_nublado <- "XX.XX %"
+accuracy_validacion <- c(val_dia_noche, val_dia_noche_crepusculo, val_despejado_nublado)
+
+# ACCURACY DE TEST DE CADA MODELO
+test_dia_noche <- "98.75 %"
+test_dia_noche_crepusculo <- "XX.XX %"
+test_despejado_nublado <- "XX.XX %"
+accuracy_test <- c(test_dia_noche, test_dia_noche_crepusculo, test_despejado_nublado)
+
+datos_tabla <- data.frame(modelo, variables, accuracy_validacion, accuracy_test)
+
+knitr::kable(
+  datos_tabla,
+  format = "latex",
+  booktabs = TRUE,
+  col.names = c("Clasificador", "Variables", "Exactitud validacion", "Exactitud test")
+) %>%
+  kableExtra::column_spec(2, width = "6.5cm")
+```
 
 # Bibliografía

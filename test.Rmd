@@ -35,6 +35,8 @@ library(tidyr)
 library(plotly)
 library(grDevices)
 library(magick)
+library(kableExtra)
+library(cowplot)
 ```
 
 # Test para dia/noche y dia/noche/crepúsculo
@@ -115,7 +117,7 @@ plot <- ggplot(hm, aes(x = Prediccion, y = Real, fill = Freq)) +
 plot <- plot +
   scale_x_discrete(limits = c("0", "1"),
                     labels = c("Noche", "Día")) +
-  scale_y_discrete(limits = c("1", "0"),
+  scale_y_discrete(limits = c("0", "1"),
                     labels = c("Noche", "Día")) +
   # following lines only increase text size (optional)
   theme(axis.text.x = element_text(size = 17),
@@ -170,7 +172,7 @@ length(imagenes_fallidas)
 
 library(magick)
 #par(mfrow=c(1,2))#, mar=c(1,3,1,1)) ya buscaré una forma mejor de juntarlas para el pdf, a lo mejor el grid que poníais vosotros
-pdf("figuras/Mal_clas_dn.pdf")
+#pdf("figuras/Mal_clas_dn.pdf")
 categorias <- c("Noche", "Día")
 for(i in 1:length(imagenes_fallidas)){
   img <- image_read(imagenes_fallidas[i])
@@ -178,7 +180,7 @@ for(i in 1:length(imagenes_fallidas)){
   plot(img)
   title(main=titulo)
 }
-dev.off()
+#dev.off()
 ```
 
 
@@ -189,8 +191,8 @@ fallidos <- datos_test[indices_fallidos,1:10]
 fallidos <- droplevels(fallidos[fallidos$etiqueta!=2,2:10])
 fallidos$etiqueta <- "Noche mal (es día)"
 #correctos <- rbind(correctos, fallidos)
-colnames(correctos) <- c("etiqueta", "R", "G", "B", "H_cos", "H_sin", "S", "V", "sd_V")
-colnames(fallidos) <- c("etiqueta", "R", "G", "B", "H_cos", "H_sin", "S", "V", "sd_V")
+#colnames(correctos) <- c("etiqueta", "R", "G", "B", "H_cos", "H_sin", "S", "V", "sd_V")
+#colnames(fallidos) <- c("etiqueta", "R", "G", "B", "H_cos", "H_sin", "S", "V", "sd_V")
 
 # Transformar datos a formato largo para plotear
 datos_long <- pivot_longer(correctos, cols = colnames(correctos[,-1]),
@@ -203,7 +205,8 @@ ggplot(datos_long, aes(x = Feature, y = Valor, fill = etiqueta)) +
   geom_point(data = fallidos_long, aes(x=Feature, y=Valor, fill = etiqueta), shape=23, size=2.4) +
   scale_fill_manual(values = c("grey40", "skyblue", "firebrick2"), labels = c("Noche bien clasificado", "Día bien clasificado", "Noche mal clasificado")) +
    labs(title = "Características de las imágenes test en función de su clasificación") + 
-   theme_minimal()
+   theme_minimal() + scale_x_discrete(guide = guide_axis(angle = 90)) +
+  xlab('Característica')
 ggsave("figuras/Mal_noche.pdf")
 ```
 
@@ -212,7 +215,7 @@ ggsave("figuras/Mal_noche.pdf")
 Cargamos el modelo desarrollado y los datos extraídos, y hacemos el test:  
 ```{r}
 # Cargamos el modelo
-load("datosR/rf_dia_noche_crep2.RData")
+load("datosR/rf_dnc_pca.RData")
 
 # Funciones para extracción de características
 source("funciones_extraccion_caracteristicas.R")
@@ -338,6 +341,37 @@ df_final <- cbind(df_datos, features_matrix)
 df_final$etiqueta <- as.factor(df_final$etiqueta)
 return(df_final)
 }
+
+extraer_gradientes_hv <- function(df_datos) {
+  features_H <- numeric(nrow(df_datos))
+  features_V <- numeric(nrow(df_datos))
+  for (j in 1:nrow(df_datos)) {
+    tryCatch({
+      img <- readJPEG(df_datos$ruta[j])
+      if (length(dim(img)) == 3) {
+        r <- img[,,1]
+        g <- img[,,2]
+        b <- img[,,3]
+        hsv_vals <- rgb_a_hsv(as.vector(r), as.vector(g), as.vector(b))
+        H_channel <- matrix(hsv_vals[, 1], nrow = nrow(r), ncol = ncol(r))
+        V_channel <- matrix(hsv_vals[, 3], nrow = nrow(r), ncol = ncol(r))
+      } else {
+        H_channel <- matrix(0, nrow = nrow(img), ncol = ncol(img))
+        V_channel <- matrix(0, nrow = nrow(img), ncol = ncol(img))
+      }
+      # Calcular gradiente vertical usando diferencias finitas
+      gradiente_H <- abs(diff(H_channel, differences = 1, axis = 1))
+      gradiente_V <- abs(diff(V_channel, differences = 1, axis = 1))
+      features_H[j] <- mean(gradiente_H, na.rm = TRUE)
+      features_V[j] <- mean(gradiente_V, na.rm = TRUE)
+    }, error = function(e) {
+      cat("Error leyendo:", df_datos$ruta[j], "\n")
+    })
+  }
+  df_final <- cbind(df_datos, Gradiente_H = features_H, Gradiente_V = features_V)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  return(df_final)
+}
 ```
 
 
@@ -350,28 +384,48 @@ datos_test <- extraer_rgb(datos_imagenes, lista_test)
 datos_test <- extraer_hsv(datos_test, lista_test)
 datos_test <- extraer_sd_V(datos_test, lista_test)
 datos_test <- extraer_tonos_calidos(datos_test, lista_test)
-datos_test <- extraer_gradientes_horizontales(datos_test, lista_test)
+datos_test <- extraer_gradientes_hv(datos_test)
 datos_test <- extraer_caracteristicas_bloques(datos_test) 
 datos_test <- extraer_pixeles_extremos_bloques(datos_test, num_bloques = 3)
 ```
 
+```{r}
+colnames(datos_test) <-  gsub("Porcentaje_Calidos","Tonos_calidos",colnames(datos_test))
+datos_test <- datos_test[,!grepl(".*Porcentaje.*",colnames(datos_test))]
+colnames(datos_test) <-  gsub("sd_V","SD_V",colnames(datos_test))
+# Hacemos la PCA
+x_test_pca <- predict(pca_resultado, datos_test[,-1])
+y_test_pca <- datos_test$etiqueta
+
+# Reducimos características a 8 como se ha escogido al desarrollar el modelo
+x_test_pca <- x_test_pca[,1:8]
+```
 
 ```{r}
-# Test para día noche crepúsculo
-test_x_dnc <- datos_test[,-c(1,2)]
-test_y_dnc <- datos_test$etiqueta
-# Predecir en el conjunto de prueba
-predicciones_rf_dnc <- predict(rf_dia_noche_crep, newdata = test_x_dnc)
+predicciones_rf_dnc <- predict(rf_dnc_pca, newdata = x_test_pca)
 # Matriz de confusión
-cm_rf_dnc <- confusionMatrix(predicciones_rf_dnc, test_y_dnc)
+cm_rf_dnc <- confusionMatrix(predicciones_rf_dnc, y_test_pca)
 print(cm_rf_dnc)
-cat("Precisión del modelo Random Forest (Día, Noche, Amanecer):", cm_rf_dnc$overall['Accuracy'] * 100, "%\n")
-# Algo de aquí está cambiando las rutas y no sé por qué así que de momento las voy a volver a cambiar a lo cutre
-datos_test$ruta <- gsub("imagenes/test/dianocheamanecer/","imagenes_escaladas/test/Temporal/",datos_test$ruta)
-datos_test$ruta <- gsub("Dia","Día", datos_test$ruta)
-datos_test$ruta <- gsub("Amanecer","Crepúsculo", datos_test$ruta)
-datos_test$ruta <- gsub(".jpeg",".jpg", datos_test$ruta)
 ```
+
+```{r}
+# # Test para día noche crepúsculo
+# test_x_dnc <- datos_test[,-c(1,2)]
+# test_y_dnc <- datos_test$etiqueta
+# # Predecir en el conjunto de prueba
+# predicciones_rf_dnc <- predict(rf_dia_noche_crep, newdata = test_x_dnc)
+# # Matriz de confusión
+# cm_rf_dnc <- confusionMatrix(predicciones_rf_dnc, test_y_dnc)
+# print(cm_rf_dnc)
+# cat("Precisión del modelo Random Forest (Día, Noche, Amanecer):", cm_rf_dnc$overall['Accuracy'] * 100, "%\n")
+# # Algo de aquí está cambiando las rutas y no sé por qué así que de momento las voy a volver a cambiar a lo cutre
+# datos_test$ruta <- gsub("imagenes/test/dianocheamanecer/","imagenes_escaladas/test/Temporal/",datos_test$ruta)
+# datos_test$ruta <- gsub("Dia","Día", datos_test$ruta)
+# datos_test$ruta <- gsub("Amanecer","Crepúsculo", datos_test$ruta)
+# datos_test$ruta <- gsub(".jpeg",".jpg", datos_test$ruta)
+```
+
+
 ```{r}
 # convert confusion matrix to data frame
 hm <- as.data.frame(as.table(cm_rf_dnc))
@@ -427,9 +481,10 @@ ggsave("figuras/matriz_conf_dnc.pdf")
 
 Representamos las imágenes en las que se ha equivocado:  
 ```{r}
+test_y_dnc <- y_test_pca
 # sacar imagenes que falla
 indices_fallidos <- which(predicciones_rf_dnc != test_y_dnc)
-imagenes_fallidas <- datos_test$ruta[indices_fallidos]
+imagenes_fallidas <- datos_imagenes$ruta[indices_fallidos]
 etiquetas_reales <- datos_test$etiqueta[indices_fallidos]
 etiquetas_fallidas <- predicciones_rf_dnc[indices_fallidos]
 print("Imágenes mal clasificadas:")
@@ -444,6 +499,9 @@ for(i in 1:length(imagenes_fallidas)){
   title(main=titulo)
 }
 ```
+
+
+
 ```{r}
 # Imágenes para guardar y poner en la memoria
 indices <- indices_fallidos[c(3,7,8,9)]
@@ -453,7 +511,7 @@ etiquetas_fallidas <- predicciones_rf_dnc[indices]
 
 #pdf("figuras/Mal_clas_dnc.pdf")
 categorias <- c("Noche", "Día", "Crepúsculo")
-par(mfrow=c(1,3))
+par(mfrow=c(1,4))
 for(i in 1:length(imagenes)){
   if(indices[i]==92){
     img <- image_rotate(image_read(imagenes[i]),90)
@@ -480,10 +538,11 @@ dev.off()
 
 
 ```{r}
-correctos <- datos_test[-indices_fallidos,1:10]
-correctos <- droplevels(correctos[,2:10])
-fallidos <- datos_test[indices_fallidos,1:10]
-fallidos <- droplevels(fallidos[,2:10])
+datos_resultados <- data.frame(x_test_pca)
+datos_resultados$etiqueta <- y_test_pca
+correctos <- datos_resultados[-indices_fallidos,]
+print(correctos)
+fallidos <- datos_resultados[indices_fallidos,]
 fallidos$tipo <- "dummy"
 # for(indice in indices_fallidos){
 #   if(datos_test$etiqueta[indice]==0&predicciones_rf_dnc[indice]==2){
@@ -513,13 +572,14 @@ fallidos$tipo <- factor(fallidos$tipo)
 fallidos <- fallidos[,-c(1,length(fallidos))]
 
 # #correctos <- rbind(correctos, fallidos)
-colnames(correctos) <- c("etiqueta", "R", "G", "B", "H_cos", "H_sin", "S", "V", "sd_V")
-colnames(fallidos) <- c("R", "G", "B", "H_cos", "H_sin", "S", "V", "sd_V", "tipo")
-
+#colnames(correctos) <- c("etiqueta", "R", "G", "B", "H_cos", "H_sin", "S", "V", "sd_V")
+#colnames(fallidos) <- c("R", "G", "B", "H_cos", "H_sin", "S", "V", "sd_V", "tipo")
+# fallidos <- fallidos[,c(1,2,8,length(fallidos)-1,length(fallidos))]
+# correctos <- correctos[,c(1,2,8,length(fallidos)-1,length(fallidos))]
 # Transformar datos a formato largo para plotear
-datos_long <- pivot_longer(correctos, cols = colnames(correctos[,-1]),
+datos_long <- pivot_longer(correctos, cols = colnames(correctos[,-length(correctos)]),
                            names_to = "Feature", values_to = "Valor")
-fallidos_long <- pivot_longer(fallidos, cols = colnames(fallidos[,-length(fallidos)]),
+fallidos_long <- pivot_longer(fallidos, cols = colnames(fallidos[,-c(length(fallidos),length(fallidos)-1)]),
                            names_to = "Feature", values_to = "Valor")
 scale_x_discrete(expand = expansion(add = 0.8))
 ggplot(datos_long, aes(x = factor(Feature), y = Valor)) +

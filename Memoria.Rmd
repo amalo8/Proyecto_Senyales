@@ -231,7 +231,7 @@ Al representar los histogramas de los 4 valores extraídos de la representación
 
 ```{r figura8, echo=FALSE, fig.cap="Histogramas y diagramas de caja de los canales HSV", out.width="90%", fig.align="center", fig.height=2.75}
 
-knitr::include_graphics("HSV_despejado_nublado.png")
+#knitr::include_graphics("HSV_despejado_nublado.png")
 ```
 
 Como podemos ver en los histogramas de la Figura \ref{fig:figura9}, la variable `Brillo` presenta una marcada distribución normal, mientras que las variables `Contraste`, `Ratio_Azul` y `Sobel_mean` distan mucho de hacerlo, sobre todo `Ratio_Azul`. Es por esto que solo hemos representado el brillo en un diagrama de cajas (derecha, Figura \ref{fig:figura8}), que nos demuestra que la variable brillo no es capaz de distinguir claramente entre clases, ya que las medianas de ambas poblaciones están muy próximas y el IQR es bastante similar, lo que denota que el brillo entre imágenes de cielos despejados y cielos nublados es bastante similar. De forma contraria, y aunque no siga una distribución gaussiana, podemos ver en su histograma como el porcentaje de píxeles azules en la imagen distingue claramente entre cielos despejados y nublados, teniendo la mayoría de imágenes de cielos despejados ratios muy altos (cerca del 100%), mientras que la mayoría de cielos nublados tiene ratios muy bajos (cerca del 0%).
@@ -275,7 +275,7 @@ Evaluaremos el modelo seleccionado en el apartado 4.1.2 en un total de 80 imáge
 |   0.988   |     0.975    |      1      |     1     | 0.987 |
 Table: Estadísticos de la matriz de confusión para el test de nuestro clasificador temporal binario.
 
-Encontramos que el modelo seleccionado para la clasificación binaria es robusto y clasifica bien nuestras imágenes de test ya que posee una exactitud balanceada de 0.988. A partir de los resultados obtenidos averiguamos que solamente se ha clasificado incorrectamente una imagen. Para analizar más detalladamente este error representaremos esta imagen y sus características en relación al resto de imágenes de test en la siguiente figura:  
+Encontramos que el modelo seleccionado para la clasificación binaria es robusto y clasifica bien nuestras imágenes de test ya que posee una exactitud balanceada de 0.988. A partir de los resultados obtenidos averiguamos que solamente se ha clasificado incorrectamente una imagen. Para analizar más detalladamente este error representaremos esta imagen y sus características en relación al resto de imágenes de test en la Figura 13:  
 
 ![Imagen mal clasificada para el modelo binario día/noche](figuras/Mal_dn_combinado.png){width=80%}
 
@@ -305,10 +305,11 @@ Hemos evaluado el modelo entrenado con las seis primeras componentes principales
 | Exactitud | Sensibilidad | Especifidad | Precisión |   F1  |
 |:---------:|:------------:|:-----------:|:---------:|:-----:|
 |      |         |            |          |  |
-
+Table: Estadísticos de la matriz de confusión para el test de nuestro clasificador meteorológico.
 
 ## Conclusiones y Líneas Futuras 
 
+Tras realizar la extracción de características y desarrollo de los tres modelos clasificadores en los que se ha centrado este proyecto obtenemos los siguientes resultado para los tres problemas de clasificación abordados, expuestos en la Tabla 4:  
 ```{r, echo=FALSE, message=FALSE}
 library(dplyr)
 library(kableExtra)
@@ -339,9 +340,15 @@ knitr::kable(
   datos_tabla,
   format = "latex",
   booktabs = TRUE,
-  col.names = c("Clasificador", "Variables", "Exactitud validacion", "Exactitud test")
+  col.names = c("Clasificador", "Variables", "Exactitud validacion", "Exactitud test"),
+  caption = "Resultados finales para cada clasificador"
 ) %>%
   kableExtra::column_spec(2, width = "6.5cm")
 ```
+(cosas sobre los resultados)  
+
+
 
 # Bibliografía
+
+

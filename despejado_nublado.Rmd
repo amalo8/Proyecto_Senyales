@@ -627,3 +627,313 @@ for (i in 1:dim(mal_clasificados)[1]){
 }
 ```
 
+
+## Probamos cositas nuevas:
+
+
+```{r}
+extraer_saturacion_bloques <- function(df, lista, num_bloques = 4) {
+  
+  # lista para guardar los vectores de características de cada imagen
+  features_list <- list()
+  
+  cat("Extrayendo saturación por bloques de", nrow(df), "imágenes...\n")
+  
+  for (j in 1:nrow(df)) {
+    nombre <- df$ruta[j]
+    
+    # dimensiones originales
+    altura <- nrow(lista[[nombre]][,,1])
+    ancho <- ncol(lista[[nombre]][,,1])
+    
+    # extraer canales HSV
+    hsv_vals <- rgb_a_hsv(
+      as.vector(lista[[nombre]][,,1]), 
+      as.vector(lista[[nombre]][,,2]), 
+      as.vector(lista[[nombre]][,,3])
+    )
+    
+    # reconstruimos solo la matriz de Saturación (canal 2)
+    # cada valor corresponde a un píxel y la estructura es como la imagen
+    S_matrix <- matrix(hsv_vals[, 2], nrow = altura, ncol = ancho)
+    
+    # calculamos el tamaño de cada bloque
+    bloque_altura <- floor(altura / num_bloques)
+    bloque_ancho <- floor(ancho / num_bloques)
+    
+    # vector para las características de la imagen actual
+    caracteristicas_imagen <- c()
+    
+    # doble bucle para recorrer la cuadrícula
+    for (i in 0:(num_bloques - 1)) {
+      for (k in 0:(num_bloques - 1)) {
+        
+        # índices de inicio y fin del bloque
+        fila_inicio <- i * bloque_altura + 1
+        fila_fin <- ifelse(i == num_bloques - 1, altura, (i + 1) * bloque_altura)
+        col_inicio <- k * bloque_ancho + 1
+        col_fin <- ifelse(k == num_bloques - 1, ancho, (k + 1) * bloque_ancho)
+        
+        # extraemos el bloque de la matriz de saturación
+        bloque_S <- S_matrix[fila_inicio:fila_fin, col_inicio:col_fin]
+        
+        # cálculo de la saturación media del bloque
+        # Un cielo despejado tendrá valores altos (>0.3), uno nublado valores bajos (<0.15)
+        media_S <- mean(bloque_S, na.rm = TRUE)
+        
+        # acumulamos en el vector de la imagen
+        caracteristicas_imagen <- c(caracteristicas_imagen, media_S)
+      }
+    }
+    features_list[[j]] <- caracteristicas_imagen
+  }
+  
+# convertimos la lista a matriz
+  features_matrix <- do.call(rbind, features_list)
+  
+  # asignamos nombres a las columnas 
+  colnames(features_matrix) <- paste0("Bloque_", rep(1:(num_bloques^2)), "_media_S")
+  
+  # unimos la nueva info al dataframe y nos aseguramos de que la etiqueta es 
+  # de tipo factor
+  df_final <- cbind(df, features_matrix)
+  # devolvemos el dataframe original con los nuevos datos añadidos
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  
+  return(df_final)
+}
+
+extraer_entropia <- function(df, lista) {
+  
+  # Inicializamos el vector para la entropía
+  features <- matrix(0, nrow = nrow(df), ncol = 1)
+  
+  cat("Extrayendo características de Entropía de", nrow(df), "imágenes...\n")
+  
+  j <- 1
+  for (nombre in df$ruta) {
+    img_array <- lista[[nombre]]
+    
+    # conversión a grises
+    gris_matrix <- 0.299 * img_array[,,1] + 0.587 * img_array[,,2] + 0.114 * img_array[,,3]
+    tabla_frecuencias <- table(as.vector(round(gris_matrix, 3))) 
+    # cálculo de la entropía
+    features[j] <- entropy(tabla_frecuencias)
+    
+    j <- j + 1
+  }
+  
+  df_final <- cbind(df, Entropia = features)
+  
+  if("etiqueta" %in% names(df_final)) {
+    df_final$etiqueta <- as.factor(df_final$etiqueta)
+  }
+  return(df_final)
+}
+
+extraer_ratio_blanco <- function(df, lista) {
+  features <- numeric(nrow(df))
+  cat("Extrayendo ratios de blanco de", nrow(df), "imágenes...\n")
+  
+  j <- 1
+  for (nombre in df$ruta) {
+    # Convertimos a HSV
+    hsv_vals <- rgb_a_hsv(
+      as.vector(lista[[nombre]][,,1]), 
+      as.vector(lista[[nombre]][,,2]), 
+      as.vector(lista[[nombre]][,,3])
+    )
+    
+    S <- hsv_vals[, 2] # Saturación
+    V <- hsv_vals[, 3] # Valor (Brillo)
+    
+    total_pixeles <- length(S)
+    
+    # Filtro: Poca saturación y mucho brillo
+    pixeles_blancos <- sum(S <= 0.15 & V >= 0.85)
+    
+    features[j] <- (pixeles_blancos / total_pixeles)
+    j <- j + 1
+  }
+  
+  df_final <- cbind(df, Ratio_Blanco = features)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  return(df_final)
+}
+
+extraer_ratio_gris <- function(df, lista) {
+  features <- numeric(nrow(df))
+  cat("Extrayendo ratios de gris de", nrow(df), "imágenes...\n")
+  
+  j <- 1
+  for (nombre in df$ruta) {
+    hsv_vals <- rgb_a_hsv(
+      as.vector(lista[[nombre]][,,1]), 
+      as.vector(lista[[nombre]][,,2]), 
+      as.vector(lista[[nombre]][,,3])
+    )
+    
+    S <- hsv_vals[, 2]
+    V <- hsv_vals[, 3]
+    
+    total_pixeles <- length(S)
+    
+    # Filtro: Saturación casi nula y brillo intermedio
+    # Ajustamos V entre 0.2 y 0.85 para evitar negros y blancos puros
+    pixeles_grises <- sum(S <= 0.15 & V > 0.15 & V < 0.85)
+    
+    features[j] <- (pixeles_grises / total_pixeles)
+    j <- j + 1
+  }
+  
+  df_final <- cbind(df, Ratio_Gris = features)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  return(df_final)
+}
+
+
+extraer_ratio_sombras <- function(df, lista) {
+  # vector vacío para guardar los ratios
+  features <- numeric(nrow(df))
+  
+  cat("Extrayendo ratios de sombras de", nrow(df), "imágenes...\n")
+  
+  j <- 1
+  for (nombre in df$ruta) {
+    
+    # Calculamos los valores HSV 
+    # (Asumiendo que rgb_a_hsv devuelve una matriz con H, S, V)
+    hsv_vals <- rgb_a_hsv(
+      as.vector(lista[[nombre]][,,1]), # R
+      as.vector(lista[[nombre]][,,2]), # G
+      as.vector(lista[[nombre]][,,3])  # B
+    )
+    
+    # El canal V (Value/Brightness) es el 3º
+    V <- hsv_vals[, 3]
+    
+    # número total de píxeles
+    total_pixeles <- length(V)
+    
+    # Filtramos por píxeles muy oscuros (sombras)
+    # Umbral sugerido: V < 0.2 (20% de brillo)
+    pixeles_sombras <- sum(V < 0.2)
+    
+    # Porcentaje de sombras
+    features[j] <- (pixeles_sombras / total_pixeles)
+    
+    j <- j + 1
+  }
+  
+  # Unimos la info al dataframe
+  df_final <- cbind(df, Ratio_Sombras = features)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  
+  return(df_final)
+}
+```
+
+```{r}
+datos_train <- extraer_saturacion_bloques(datos_train, lista_train) 
+datos_train <- extraer_entropia(datos_train, lista_train)
+datos_train <- extraer_ratio_blanco(datos_train, lista_train)
+datos_train <- extraer_ratio_gris(datos_train, lista_train)
+datos_train <- extraer_sd_V(datos_train, lista_train)
+datos_train <- extraer_ratio_sombras(datos_train, lista_train)
+
+datos_validation <- extraer_saturacion_bloques(datos_validation, lista_validation) 
+datos_validation <- extraer_entropia(datos_validation, lista_validation)
+datos_validation <- extraer_ratio_blanco(datos_validation, lista_validation)
+datos_validation <- extraer_ratio_gris(datos_validation, lista_validation)
+datos_validation <- extraer_sd_V(datos_validation, lista_validation)
+datos_validation <- extraer_ratio_sombras(datos_validation, lista_validation)
+
+datos_entrenamiento <- rbind(datos_train,datos_validation)
+
+datos_test <- extraer_saturacion_bloques(datos_test, lista_test) 
+datos_test <- extraer_entropia(datos_test, lista_test)
+datos_test <- extraer_ratio_blanco(datos_test, lista_test)
+datos_test <- extraer_ratio_gris(datos_test, lista_test)
+datos_test <- extraer_sd_V(datos_test, lista_test)
+datos_test <- extraer_ratio_sombras(datos_test, lista_test)
+```
+
+
+```{r}
+# MODELO CON VALIDACION
+set.seed(42)
+modelo <- randomForest(
+  etiqueta ~  R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_mean + Entropia + Ratio_Blanco + Ratio_Gris + sd_V + Ratio_Sombras,
+  data = datos_train,
+  ntree = 100
+)
+# Evaluar el modelo en el conjunto de prueba
+predicciones <- predict(modelo, newdata = datos_validation)
+confusionMatrix(predicciones, datos_validation$etiqueta)
+modelo$importance
+
+
+# MODELO CON TEST
+datos_entrenamiento <- rbind(datos_train, datos_validation)
+pca2 <- prcomp(
+  ~ R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_mean + Entropia + Ratio_Blanco + Ratio_Gris + sd_V+ Ratio_Sombras,
+  data=datos_entrenamiento, 
+  center=TRUE, 
+  scale=TRUE
+  )
+
+modelo <- randomForest(
+  etiqueta ~  R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_mean + Entropia + Ratio_Blanco + Ratio_Gris + sd_V+ Ratio_Sombras,
+  data = datos_entrenamiento,
+  ntree = 100
+)
+
+# Evaluar el modelo en el conjunto de prueba
+predicciones <- predict(modelo, newdata = datos_test)
+confusionMatrix(predicciones, datos_test$etiqueta)
+modelo$importance
+```
+
+
+```{r}
+prop_varianza <- pca2$sdev^2 / sum(pca2$sdev^2)
+prop_varianza_acum <- cumsum(prop_varianza)
+
+# Representamos la proporción de la varianza explicada
+f<-ggplot(data = data.frame(prop_varianza, pc = 1:15),
+aes(x = pc, y = prop_varianza)) +
+  geom_col(width = 0.3, color='skyblue', fill = 'skyblue') +
+  scale_y_continuous(limits = c(0,1)) +
+  theme_bw()+
+  labs(x = "Componentes principales",
+       y = "Proporción de varianza explicada")
+
+# Representamos la proporción de varianza explicada acumulada
+g<-ggplot(data = data.frame(prop_varianza_acum, pc = 1:15),
+       aes(x = pc, y = prop_varianza_acum, group = 1)) +
+  geom_point(color='skyblue') +
+  geom_line(color = 'skyblue') +
+  theme_bw() +
+  labs(x = "Número de componentes principales",
+       y = "Proporción de varianza explicada acumulada")
+g
+```
+
+```{r}
+library(waveslim)
+img_raw <- readJPEG("imagenes_recortadas/train/Meteorológico/Nublado/5_recorte.jpg")
+
+# 2. Convert to grayscale if it's a color image (RGB)
+# Wavelet transforms are typically applied to single channels
+
+img_gray <- 0.2126 * img_raw[,,1] + 0.7152 * img_raw[,,2] + 0.0722 * img_raw[,,3]
+img_denoise <- denoise.modwt.2d(img_gray, wf = "d4", rule = "hard")
+img_denoise2 <- denoise.dwt.2d(img_gray)
+par(mfrow = c(1,3))
+plot(as.raster(img_gray))
+plot(as.raster(img_denoise))
+plot(as.raster(img_denoise2))
+plot(as.raster(abs(img_gray-img_denoise)))
+plot(as.raster(abs(img_gray-img_denoise2)))
+```
+

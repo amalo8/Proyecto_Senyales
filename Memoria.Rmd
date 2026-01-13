@@ -6,14 +6,13 @@ date: "`r Sys.Date()`"
 output:
   pdf_document:
     toc: true
-    toc_depth: '3'
-    number_sections: true
-  html_document:
-    toc: true
-    toc_float: true
     toc_depth: 3
     number_sections: true
-    theme: united
+bibliography: bibliografia.bib
+link-citations: true
+nocite: '@*'
+urlcolor: blue
+csl: apa.csl
 ---
 
 ```{r setup, include=FALSE}
@@ -214,15 +213,58 @@ Como hemos mencionado anteriormente, estas características se han ido añadiend
 ## Modelo Final Temporal
 
 # Entrenamiento II: Clasificación Meteorológica 
+
+En esta segunda parte del proyecto nos detendremos en el problema de clasificación de imágenes de cielo entre aquellos que están nublados y aquellos que están despejados.
+
 ## Propuesta y Análisis de Características
+
+Para entrenar este nuevo clasificador, que tendrá que distinguir entre cielos nublados y despejados, hemos propuesto un total de 11 características: los valores de los tres canales RGB originales de la imagen, los valores de HSV; descomponiendo el matiz o _hue_ (H) en sus valores de seno y coseno (ya que al ser H un ángulo no es conveniente tratarlo igual que las variables S y V), el brillo, el contraste, el ratio de píxeles azules (`extraer_ratio_azul`) y la magnitud media del operador Sobel (para detectar los bordes de las nubes).
+
+Al representar los histogramas de los valores medianos del espacio RGB (izquierda, Figura \ref{fig:figura7}), vemos que en los 3 casos podríamos considerar que los datos siguen una distribución normal. Si bien es llamativa la alta concentración del valor 0 en el canal R, esto podría deberse simplemente a la ausencia de este color en imágenes del cielo despejado y nublado. También es destacable que, como era de esperar, el canal con valores medianos más altos es el B y también es este canal el que presenta una diferencia entre la distribución de los datos según las clases más apreciable. Una vez comprobada la distribución que siguen nuestros datos, al realizar un diagrama de cajas (derecha, Figura \ref{fig:figura7}) podemos observar que, efectivamente, el canal B es el que proporciona una distinción mayor entre clases, aunque esta diste de ser completa. 
+
+```{r figura7, echo=FALSE, fig.cap="Histogramas y diagramas de caja de los canales RGB", out.width="90%", fig.align="center", fig.height=2.75}
+
+knitr::include_graphics("RGB_despejado_nublado.png")
+```
+
+Al representar los histogramas de los 4 valores extraídos de la representación de las imágenes en el espacio HSV (izquierda, Figura \ref{fig:figura8}), podemos observar que todas, excepto $\cos H$ parecen presentar una distribución normal. En el diagrama de cajas (derecha, Figura \ref{fig:figura8}) podemos observar que la mayor distancia entre clases la presenta el canal S.
+
+```{r figura8, echo=FALSE, fig.cap="Histogramas y diagramas de caja de los canales HSV", out.width="90%", fig.align="center", fig.height=2.75}
+
+knitr::include_graphics("HSV_despejado_nublado.png")
+```
+
+Como podemos ver en los histogramas de la Figura \ref{fig:figura9}, la variable `Brillo` presenta una marcada distribución normal, mientras que las variables `Contraste`, `Ratio_Azul` y `Sobel_mean` distan mucho de hacerlo, sobre todo `Ratio_Azul`. Es por esto que solo hemos representado el brillo en un diagrama de cajas (derecha, Figura \ref{fig:figura8}), que nos demuestra que la variable brillo no es capaz de distinguir claramente entre clases, ya que las medianas de ambas poblaciones están muy próximas y el IQR es bastante similar, lo que denota que el brillo entre imágenes de cielos despejados y cielos nublados es bastante similar. De forma contraria, y aunque no siga una distribución gaussiana, podemos ver en su histograma como el porcentaje de píxeles azules en la imagen distingue claramente entre cielos despejados y nublados, teniendo la mayoría de imágenes de cielos despejados ratios muy altos (cerca del 100%), mientras que la mayoría de cielos nublados tiene ratios muy bajos (cerca del 0%).
+
+```{r figura9, echo=FALSE, fig.cap="Histogramas de brillo, contraste y Sobel, diagrama de caja de brillo", out.width="100%", fig.align="center", fig.height=2.75}
+
+knitr::include_graphics("bcr_despejado_nublado.png")
+```
+
+
 ## Aplicación de PCA y Selección de Modelo
+
+Después de proponer las variables descritas en el apartado anterior para la diferenciación entre cielos nublados y despejados, nos dimos cuenta de que, aunque algunas variables estarían fuertemente correlacionadas de forma natural (como los valores de `Brillo` y `V_mediana`), al representar las correlaciones entre todas las variables (izquierda, Figura \ref{fig:figura11}) pudimos observar que había muchas más variables altamente correlacionadas de las que pudiesemos haber esperado en un principio (como las variables `G_mediana` y `Brillo`, o las variables `R_mediana` y `S_mediana`).
+
+Es por esto que, para no proporcionar información redundante, e intentar describir la máxima información posible que proporcionan nuestras variables minimizando el número de las mismas a la hora de entrenar el modelo, decicidimos aplicas un Análisis de Componentes Principales (@amat_cienciadedatos; @prasar_rpubs_2017) a nuestras variables. Al realizar este análisis y representar gráficamente tanto la proporción de varianza explicada por cada componente principal (Figura \ref{fig:figura10}), como la proporción de varianza acumulada de las mismas, vimos que, a partir de la sexta componente principal, la proporción de varianza que explica cada una de las siguientes componentes es casi imperceptible. Consecuentemente escogimos solamente las 6 primeras componentes principales para entrenar nuestro modelo de Random Forest y tratar de evitar sobreajustarnos a los datos de entrenamiento. Como puede observarse en el mapa de correlaciones de las componentes principales (derecha, Figura \ref{fig:figura11})
+
+```{r figura11, echo=FALSE, fig.cap="Mapa de correlaciones entre las variables para la clasificación meteorológica", out.width="60%", fig.align="center", fig.height=2.75}
+
+knitr::include_graphics("corrplot.png")
+```
+
+```{r figura10, echo=FALSE, fig.cap="Proporciones y proporciones acumuladas de varianza explicada por el PCA", out.width="80%", fig.align="center", fig.height=2.75}
+
+knitr::include_graphics("pca_varianzas.png")
+```
+Después de entrenar nuestro modelo con las 6 primeras componentes resultado de la PCA, en la etapa de validación el modelo ha alcanzado un accuracy del 94,53%. Además, al analizar la importancia de las características mediante el índice \textit{MeanDecreaseGini}, se observa que las más influyentes a la hora de clasificar han sido `PC2` con un valor de 372,92.
 
 # Evaluación con Conjunto de Test 
 Tras haber desarrollado los modelos Random Forest pertinentes para la clasificación temporal y meteorológica de imágenes, procederemos a evaluar su desempeño en un conjunto de test, constituido por imágenes tomadas por los integrantes del grupo y preprocesadas como se indicó en el apartado 2.  
 Para ello crearemos un modelo definitivo Random Forest para cada problema de clasificación estudiado que utilice las características óptimas escogidas para cada caso y se entrene usando todo el conjunto de test disponible, es decir, se incorporará al entrenamiento de los modelos desarrollados el conjunto de datos utilizado previamente para validación.
 
 ## Resultados en Clasificación Temporal
-Para la clasificación temporal contamos con dos modelos diferentes desarrollados, un Random Forest más sencillo y con un menor número de características para la clasificación binaria de imágenes en día/noche y otro más complejo para la clasificiación de imágenes en día/noche/crepúsculo.  
+Para la clasificación temporal contamos con dos modelos diferentes desarrollados, un Random Forest más sencillo y con un menor número de características para la clasificación binaria de imágenes en día/noche y otro más complejo para la clasificación de imágenes en día/noche/crepúsculo.  
 
 
 ### Resultados en Clasificación Temporal Binaria
@@ -255,5 +297,13 @@ A continuación representamos a modo de ejemplo una imagen para cada tipo de err
 
 
 ## Resultados en Clasificación Meteorológica
+Hemos evaluado el modelo entrenado con las seis primeras componentes principales (discutido en el apartado 5.2) con un total de 100 imágenes de test, de las cuales 50 pertenecen a la clase Nublado y 50 pertenecen a la clase Despejado. Realizando las predicciones y comparando con las etiquetas reales obtenemos las siguientes métricas de evaluación:  
+
+| Exactitud | Sensibilidad | Especifidad | Precisión |   F1  |
+|:---------:|:------------:|:-----------:|:---------:|:-----:|
+|      |         |            |          |  |
+
 
 ## Conclusiones y Líneas Futuras
+
+# Bibliografía

@@ -7,6 +7,7 @@ output:
   pdf_document:
     toc: true
     toc_depth: '3'
+    number_sections: true
   html_document:
     toc: true
     toc_float: true
@@ -25,7 +26,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 El presente trabajo se enmarca dentro del ámbito del análisis digital de señales, aplicando técnicas de procesamiento de imágenes para la resolución de un problema de clasificación automática. El objetivo principal del proyecto es desarrollar un sistema capaz de etiquetar imágenes basándose exclusivamente en la información visual del cielo.
 
-Distinguimos dos problemas de clasificación distintos: 
+Distinguimos dos problemas de clasificación: 
 
 1. Clasificación temporal: se pretende determinar el momento del día en el que fue tomada la imagen, distinguiendo entre 3 clases: día, noche y crepúsculo.
 
@@ -44,7 +45,7 @@ En lo referente al conjunto de entrenamiento para la clasificación temporal, ut
 Para la clasificación meteorológica de entrenamiento, fue necesario realizar una fusión de distintas fuentes debido a la escasez de imágenes de cielos despejados en los datasets públicos 
 consultados. Partimos del dataset "Clouds Photos" de Kaggle, del cual obtuvimos las 826 imágenes que conforman la clase nublado y apenas 124 imágenes de cielo despejado. Realizamos una búsqueda exhaustiva de otros conjuntos de datos de cielos despejados tanto en Kaggle como en otros repositorios públicos, sin embargo, las imágenes que encontramos no mostraban realmente cielos despejados sino parcialmente nublados, por lo que consideramos que no eran adecuadas para nuestro propósito ya que podían inducir a errores en el entrenamiento del modelo. Tras varios intentos sin éxito, decidimos ampliar la cantidad de imágenes de cielo despejado recurriendo a la plataforma de imágenes de stock libre Unsplash. Mediante una búsqueda manual bajo el término "*clear blue sky*", integramos 578 imágenes adicionales a la clase despejado. Finalmente, el conjunto de entrenamiento meteorológico alcanzó un total de 1.528 imágenes, logrando un balance mucho más adecuado con 702 imágenes para la clase despejado y 826 para la clase nublado.
 
-Por otro lado, para la fase de evaluación final (o test), optamos por no reservar un porcentaje de los datasets de entrenamiento, sino generar un conjunto de datos totalmente nuevo a partir de las galerías de fotos de los miembros del grupo. Esta estrategia nos permite comprobar el comportamiento del modelo ante imágenes cotidianas y no vistas previamente, asegurando una evaluación más realista de su capacidad de generalización. Este conjunto de test fue diseñado para estar perfectamente balanceado: para el problema temporal se utilizaron 120 imágenes (40 de día, 40 de noche y 40 de crepúsculo), mientras que para el problema meteorológico se seleccionaron 100 imágenes (50 de despejado y 50 de nublado).
+Por otro lado, para la fase de test, optamos por no reservar un porcentaje de los datasets de entrenamiento, sino generar un conjunto de datos totalmente nuevo a partir de las galerías de fotos de los miembros del grupo. Esta estrategia nos permite comprobar el comportamiento del modelo ante imágenes cotidianas y no vistas previamente, asegurando una evaluación más realista de su capacidad de generalización. Este conjunto de test fue diseñado para estar perfectamente balanceado: para el problema temporal se utilizaron 120 imágenes (40 de día, 40 de noche y 40 de crepúsculo), mientras que para el problema meteorológico se seleccionaron 100 imágenes (50 de despejado y 50 de nublado).
 
 # Preprocesamiento de Imágenes
 
@@ -52,7 +53,7 @@ En esta fase del proyecto, el objetivo principal fue adaptar las imágenes origi
 
 ## Preprocesado para Clasificación Temporal 
 
-Para el problema de clasificación temporal, tomamos la decisión de no realizar recortes y trabajar con la imagen completa. Esto se debe a que la distinción entre el día y la noche no reside únicamente en el cielo, sino en el contexto global de la imagen el cual puede aportar información visual relevante que se perdería al aislar la región superior. Por ejemplo, en una imagen de crepúsculo, los tonos anaranjados característicos se concentran casi siempre en la línea del horizonte, por lo que recortar solo la parte superior del cielo, se podría perder esa franja de color quedando un cielo azul genérico que podría confundirse con una imagen diurna. Otro ejemplo lo ilustra la distinción entre día y noche, donde un cielo oscuro podría ser deberse a una gran tormenta, pero si se observan focos de luz como farolas o ventanas encendidas en la parte inferior de la imagen, se puede llegar a concluir que es de noche. 
+Para el problema de clasificación temporal, tomamos la decisión de no realizar recortes y trabajar con la imagen completa. Esto se debe a que la distinción entre el día y la noche no reside únicamente en el cielo, sino en el contexto global de la imagen el cual puede aportar información visual relevante que se perdería al aislar la región superior. Por ejemplo, en una imagen de crepúsculo, los tonos anaranjados característicos se concentran casi siempre en la línea del horizonte, por lo que al recortar solo la parte superior del cielo, se podría perder esa franja de color quedando un cielo azul genérico que podría confundirse con una imagen diurna. Otro ejemplo lo ilustra la distinción entre día y noche, donde un cielo oscuro podría deberse a una gran tormenta, pero si se observan focos de luz como farolas o ventanas encendidas en la parte inferior de la imagen, se puede llegar a concluir que es de noche. 
 
 No obstante, aunque se preservó la imagen completa, fue necesario asegurar la consistencia de las dimensiones entre los distintos conjuntos de datos. Al analizar el dataset de entrenamiento, observamos que este ya se encontraba preprocesado y estandarizado a una resolución uniforme de 224x224 píxeles. Por el contrario, las imágenes del conjunto de test (provenientes de galerías personales) presentaban resoluciones muy dispares, lo que podría introducir sesgos numéricos en la extracción de características debido a la variabilidad en la cantidad de píxeles y detalles presentes en cada imagen.
 
@@ -70,9 +71,8 @@ El algoritmo no se limita a realizar un recorte estático, sino que busca la mej
 
 3. Criterio de selección: Se elige el recorte óptimo minimizando la desviación típica (mayor homogeneidad), sujeto a superar un umbral mínimo de luminosidad media para descartar zonas oscuras o siluetas.
 
-4. Normalización: El recorte resultante se redimensiona a 224x224 píxeles, garantizadno que todas las muestras de entrada tengan exactamente las mismas dimensiones, independientemente del tamaño original de la imagen. Con ello, se evita que las diferencias de resolución introduzcan sesgos numéricos en el cálculo de las características.
-  
-El resultado de este proceso es una colección de imágenes que contienen la región de cada imagen con mayor porcentaje de cielo, estandarizadas en tamaño y optimizadas para la extracción de características relevantes para la clasificación meteorológica.
+4. Normalización: El recorte resultante se redimensiona a 224x224 píxeles, garantizando que todas las muestras de entrada tengan exactamente las mismas dimensiones, independientemente del tamaño original de la imagen. Con ello, se evita que las diferencias de resolución introduzcan sesgos numéricos en el cálculo de las características. 
+<!-- El resultado de este proceso es una colección de imágenes que contienen la región de cada imagen con mayor porcentaje de cielo, estandarizadas en tamaño y optimizadas para la extracción de características relevantes para la clasificación meteorológica. -->
 
 Gracias a este preprocesado, fue posible detectar y corregir inconsistencias significativas en los datasets originales. Se observó que un gran número de imágenes etiquetadas como "nublado" generaban, tras el proceso, recortes de cielo totalmente azul. Esto no se debió únicamente a la tendencia de nuestra función de recorte a priorizar zonas homogéneas, sino a que las imágenes originales presentaban una nubosidad muy escasa. Al aislar la región de interés, se hizo evidente que estas muestras carecían de la densidad de nubes necesaria para representar fielmente su clase, lo que habría introducido ruido y confusión en el modelo. En consecuencia, estas imágenes fueron identificadas y eliminadas del conjunto de entrenamiento. Concretamente,
 154 imágenes fueron descartadas por este motivo, ya que visualmente serían etiquetadas sin duda como "despejado". El conjunto de imágenes nubladas se redujo de 826 imágenes a 672. 

@@ -626,6 +626,95 @@ for (i in 1:dim(mal_clasificados)[1]){
   legend("top", legend = paste0("Etiqueta real:\n", aux), bg = "transparent", bty = "n", text.col = '#a44')
 }
 ```
+# ADRIANA:
+
+
+
+
+# 16 variables sin bloques --> accuracy 0.73
+
+```{r}
+library(dplyr)
+library(caret)
+library(randomForest)
+
+# --- 1. Preparar los datos eliminando los bloques ---
+
+# Partimos de tus datos completos ya cargados y con características extraídas:
+# datos_entrenamiento (train + validation unidos)
+# datos_test
+
+# Usamos dplyr::select con un signo menos y 'starts_with' para borrar
+# todo lo que empiece por "Bloque_" y también la columna "ruta" que no sirve para entrenar.
+
+datos_train_reducido <- datos_entrenamiento %>%
+  select(-starts_with("Bloque_"), -ruta)
+
+datos_test_reducido <- datos_test %>%
+  select(-starts_with("Bloque_"), -ruta)
+
+# Verificamos con qué variables nos quedamos
+cat("Variables restantes para el modelo:\n")
+print(names(datos_train_reducido))
+
+
+# --- 2. Entrenar Random Forest con el set reducido (SIN PCA) ---
+
+set.seed(42)
+# Aumentamos un poco los árboles (ntree=500) para que sea más estable
+modelo_reducido <- randomForest(
+  etiqueta ~ .,           # Usa todas las variables que quedan
+  data = datos_train_reducido,
+  ntree = 100,
+  importance = TRUE       # Para ver qué variable gana ahora
+)
+
+
+# --- 3. Evaluar con el set de Test ---
+
+# Hacemos las predicciones
+predicciones_reducido <- predict(modelo_reducido, newdata = datos_test_reducido)
+
+# Mostramos la matriz de confusión
+print("Matriz de Confusión (Modelo Reducido sin Bloques):")
+print(confusionMatrix(predicciones_reducido, datos_test_reducido$etiqueta))
+
+
+# --- 4. Ver la importancia de las variables ---
+# ¿Qué características son las reinas ahora que no están los bloques?
+varImpPlot(modelo_reducido,
+           main = "Importancia de Variables (Sin Bloques Espaciales)")
+```
+
+
+
+# 16 variables + 16 bloques --> accuracy 0.8
+```{r}
+# Entrenar con TODAS las variables originales, sin PCA
+set.seed(42)
+modelo_full <- randomForest(
+  etiqueta ~ ., 
+  data = select(datos_entrenamiento, -ruta), # Quitamos la ruta, usamos todo lo demás
+  ntree = 100,     
+  importance = TRUE
+)
+
+# Predicción directa
+predicciones_full <- predict(modelo_full, newdata = datos_test)
+confusionMatrix(predicciones_full, datos_test$etiqueta)
+
+# Y lo más importante: ¿Qué variable manda ahora?
+varImpPlot(modelo_full)
+```
+
+
+
+
+
+
+
+
+
 
 
 ## Probamos cositas nuevas:

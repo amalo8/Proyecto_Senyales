@@ -609,7 +609,7 @@ pca_resultado <- prcomp(datos_train_multi_extremos[, variables_pca],
                         scale. = TRUE)
 
 # Reducción de Dimensionalidad 
-# Según los datos, con 12 componentes capturamos aproximadamente el 93% de la varianza
+# Según los datos, con 14 componentes capturamos aproximadamente el 96% de la varianza
 n_comp <- 14
 train_pca_x <- as.data.frame(pca_resultado$x[, 1:n_comp])
 test_pca_x  <- as.data.frame(predict(pca_resultado, newdata = datos_test_multi_extremos[, variables_pca])[, 1:n_comp])

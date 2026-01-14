@@ -836,3 +836,117 @@ extraer_blur_V <- function(df, lista) {
   
   return(df_final)
 }
+
+
+#############################################################################
+# proporcion de pixeles extremos por bloque (3x1: arriba/medio/abajo)
+# Pixeles extremos por bloques 3x1 (arriba/medio/abajo) usando lista en memoria
+# Devuelve: Bloque_1_Proporcion_Oscuros, Bloque_1_Proporcion_Brillantes, ..., Bloque_3_...
+
+extraer_pixeles_extremos_bloques_3x1 <- function(df, lista, n_filas = 3) {
+  
+  features_list <- vector("list", nrow(df))
+  cat("Extrayendo píxeles extremos por bloques 3x1 de", nrow(df), "imágenes...\n")
+  
+  for (j in 1:nrow(df)) {
+    nombre <- df$ruta[j]
+    
+    tryCatch({
+      img <- lista[[nombre]]
+      if (is.null(img)) stop("Imagen no encontrada en lista")
+      
+      # Construimos V desde HSV
+      altura <- nrow(img[,,1])
+      ancho  <- ncol(img[,,1])
+      
+      hsv_vals <- rgb_a_hsv(
+        as.vector(img[,,1]),
+        as.vector(img[,,2]),
+        as.vector(img[,,3])
+      )
+      V_channel <- matrix(hsv_vals[,3], nrow = altura, ncol = ancho)
+      
+      bloque_altura <- floor(altura / n_filas)
+      caracteristicas_bloques <- numeric(n_filas * 2)
+      
+      for (i in 0:(n_filas - 1)) {
+        fila_inicio <- i * bloque_altura + 1
+        fila_fin    <- if (i == n_filas - 1) altura else (i + 1) * bloque_altura
+        
+        bloque_V <- V_channel[fila_inicio:fila_fin, , drop = FALSE]
+        
+        total_pixeles_bloque <- length(bloque_V)
+        pixeles_oscuros      <- sum(bloque_V < 0.1, na.rm = TRUE)
+        pixeles_brillantes   <- sum(bloque_V > 0.9, na.rm = TRUE)
+        
+        proporcion_oscuros    <- (pixeles_oscuros / total_pixeles_bloque) * 100
+        proporcion_brillantes <- (pixeles_brillantes / total_pixeles_bloque) * 100
+        
+        idx <- i * 2 + 1
+        caracteristicas_bloques[idx]     <- proporcion_oscuros
+        caracteristicas_bloques[idx + 1] <- proporcion_brillantes
+      }
+      
+      features_list[[j]] <- caracteristicas_bloques
+      
+    }, error = function(e) {
+      cat("Error procesando:", nombre, "\n")
+      features_list[[j]] <- rep(NA, n_filas * 2)
+    })
+  }
+  
+  features_matrix <- do.call(rbind, features_list)
+  colnames(features_matrix) <- paste0(
+    "Bloque_", rep(1:n_filas, each = 2),
+    c("_Proporcion_Oscuros", "_Proporcion_Brillantes")
+  )
+  
+  df_final <- cbind(df, features_matrix)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  return(df_final)
+}
+
+#################################################################################
+# Extracción de porcentaje de tonos cálidos (con máscara S y V)
+# - Mantiene la misma interfaz que el resto: (df, lista)
+# - Usa solo píxeles "fiables": S > s_th y V > v_th
+extraer_tonos_calidos_mask <- function(df, lista, s_th = 0.2, v_th = 0.2) {
+  features <- numeric(nrow(df))
+  
+  cat("Extrayendo porcentaje de tonos cálidos (con máscara S/V) de", nrow(df), "imágenes...\n")
+  
+  j <- 1
+  for (nombre in df$ruta) {
+    hsv_vals <- rgb_a_hsv(
+      as.vector(lista[[nombre]][,,1]),
+      as.vector(lista[[nombre]][,,2]),
+      as.vector(lista[[nombre]][,,3])
+    )
+    
+    H_grados <- hsv_vals[, 1] * 360
+    S <- hsv_vals[, 2]
+    V <- hsv_vals[, 3]
+    
+    mask <- (S > s_th) & (V > v_th)
+    
+    if (sum(mask) == 0) {
+      features[j] <- 0
+    } else {
+      Hm <- H_grados[mask]
+      tonos_calidos <- sum((Hm >= 0 & Hm <= 60) | (Hm >= 300 & Hm <= 360))
+      features[j] <- (tonos_calidos / length(Hm)) * 100
+    }
+    
+    j <- j + 1
+  }
+  
+  if ("Porcentaje_Calidos_mask" %in% colnames(df)) {
+    df$Porcentaje_Calidos_mask <- features
+    df_final <- df
+  } else {
+    df_final <- cbind(df, Porcentaje_Calidos_mask = features)
+  }
+  
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  return(df_final)
+}

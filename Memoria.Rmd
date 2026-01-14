@@ -208,9 +208,139 @@ par(mfrow = c(1, 1))
 Como hemos mencionado anteriormente, estas características se han ido añadiendo sucesivamente al modelo. Finalmente las características utilizadas en este modelo han sido 8: `R_mediana`, `G_mediana`, `B_mediana`, `H_cos_mediana`, `H_sin_mediana`, `S_mediana`, `V_mediana` y `sd_V`; alcanzando un accuracy del 90.15% para el conjunto de validación. Por otro lado, al analizar la importancia de las características mediante el índice \textit{MeanDecreaseGini}, se observa que las más influyentes a la hora de clasificar han sido `G_mediana` con un valor de 221.17, seguido de `V_mediana` con 117.04 y `B_mediana` con 98.48. 
 
 ## Clasificación Multiclase: Añadiendo "Crepúsculo"
+Una vez validado el enfoque para la clasificación binaria Día/Noche, el problema se amplía a una clasificación multiclase incorporando una tercera categoría: **Crepúsculo**. Esta clase representa un estado intermedio entre el día y la noche, caracterizado por una iluminación reducida, la presencia de tonos cálidos y una marcada estructura vertical del brillo en la imagen.
+
+Desde el punto de vista visual, el crepúsculo combina elementos propios de ambas clases: zonas del cielo todavía iluminadas junto con regiones oscuras o con iluminación artificial. En nuestro conjunto de datos es habitual observar un suelo ya oscuro mientras que el cielo sigue recibiendo luz residual del sol bajo en el horizonte, lo que genera un **gradiente vertical de luminosidad muy marcado**. Esta combinación convierte al crepúsculo en una clase especialmente compleja y exige la incorporación de características que capturen simultáneamente el **color** y la **estructura espacial** de la imagen.
+
 ### Nuevas Características para detectar Crepúsculo
+Para abordar la complejidad de la clase **Crepúsculo**, se siguió una estrategia incremental similar a la utilizada en la clasificación binaria: se parte de un modelo base y se van incorporando progresivamente nuevas características diseñadas específicamente para capturar los patrones visuales propios de esta franja horaria.
+
+#### Modelo base: Color y luminosidad global (RGB + HSV + sd(V))
+El primer modelo multiclase se construyó utilizando únicamente características globales de color y brillo:  
+`R_mediana`, `G_mediana`, `B_mediana`, `H_cos_mediana`, `H_sin_mediana`, `S_mediana`, `V_mediana` y `sd_V`.
+
+Este modelo alcanza un **accuracy del 76.7%** (Kappa = 0.65). La matriz de confusión muestra una buena separación entre **Día** y **Noche**, pero una mayor confusión con la clase **Crepúsculo**, lo que refleja su naturaleza intermedia.  
+
+Las variables más importantes según el índice *MeanDecreaseGini* son `G_mediana` y `V_mediana`, confirmando que la **luminosidad** y el **color dominante** del cielo son los factores principales para diferenciar los distintos momentos del día.
+
+```{r figura_c1, echo=FALSE, fig.cap="Diagrama de cajas (izquierda) e histogramas (derecha) de la desviación estándar de V", out.width="100%", fig.align="center", fig.height=2.75}
+library(png)
+par(mfrow = c(1, 2), mar = c(1, 1, 3, 1)) 
+img1 <- readPNG("figuras/temporal_multiclase/figuras/temporal_multiclase/boxplot_modelo_base_3clases.png")
+plot.new() 
+rasterImage(img1, 0, 0, 1, 1)
+
+img2 <- readPNG("figuras/temporal_multiclase/hist_modelo_base_3clases.png")
+plot.new()
+rasterImage(img2, 0, 0, 1, 1)
+
+par(mfrow = c(1, 1))
+```
+
+#### Añadiendo la proporción de tonos cálidos
+A continuación, se incorporó la variable **`Porcentaje_Calidos`**, diseñada para cuantificar la presencia de píxeles con tonos rojizos y anaranjados típicos del amanecer y el atardecer.
+
+Con esta característica, el modelo mejora ligeramente su rendimiento hasta un **accuracy del 76.9%** (Kappa = 0.65). La sensibilidad para la clase **Crepúsculo** aumenta, lo que indica que el modelo identifica mejor imágenes con colores cálidos característicos de esta franja horaria. Además, `Porcentaje_Calidos` aparece entre las variables con mayor importancia, lo que confirma su relevancia para detectar crepúsculos.
+```{r figura_c2, echo=FALSE, fig.cap="Diagrama de cajas (izquierda) e histogramas (derecha) de la desviación estándar de V", out.width="100%", fig.align="center", fig.height=2.75}
+library(png)
+par(mfrow = c(1, 1), mar = c(0.5, 0.5, 0.5, 0.5)) 
+img1 <- readPNG("figuras/temporal_multiclase/boxplot_modelo_con_tonos.png")
+plot.new() 
+rasterImage(img1, 0, 0, 1, 1)
+```
+
+#### Incorporando gradientes por bandas horizontales
+
+Como primer intento para capturar la estructura vertical del crepúsculo, se introdujo la variable **`Gradiente_V_Bandas`**, que mide la variación de luminosidad del canal V dividiendo la imagen en bandas horizontales. Esta característica pretende modelar el patrón típico del crepúsculo, donde el cielo es más brillante que el suelo.
+
+La inclusión de esta variable mejora el rendimiento del modelo hasta un **accuracy del 80.6%** (Kappa = 0.71), lo que confirma que la **estructura vertical del brillo** aporta información relevante para identificar el crepúsculo. No obstante, aunque se observa una mejora respecto al modelo base, el patrón capturado por bandas horizontales resulta todavía demasiado rígido para describir adecuadamente escenas reales, donde la transición entre cielo y suelo no siempre es perfectamente horizontal.
+```{r figura_c4, echo=FALSE, fig.cap="Diagrama de cajas (izquierda) e histogramas (derecha) de la desviación estándar de V", out.width="100%", fig.align="center", fig.height=2.75}
+library(png)
+par(mfrow = c(1, 2), mar = c(1, 1, 3, 1)) 
+img1 <- readPNG("figuras/temporal_multiclase/boxplot_gradiente_V_bandas.png")
+plot.new() 
+rasterImage(img1, 0, 0, 1, 1)
+
+img2 <- readPNG("figuras/temporal_multiclase/histograma_gradiente_V_bandas.png")
+plot.new()
+rasterImage(img2, 0, 0, 1, 1)
+
+par(mfrow = c(1, 1))
+```
+
+#### Incorporando características por bloques espaciales
+Para superar las limitaciones del enfoque por bandas, se optó por una representación más flexible basada en **bloques espaciales**. En este enfoque, la imagen se divide en regiones (superior, central e inferior) y se extraen estadísticas de color y luminosidad en cada bloque, lo que permite capturar la estructura espacial sin imponer una geometría estrictamente horizontal.
+
+Este modelo alcanza un **accuracy del 80.1%** (Kappa = 0.70), un rendimiento similar al obtenido con bandas, pero con una interpretación más rica: las variables más importantes corresponden a los bloques superiores y centrales, que contienen principalmente el cielo y el horizonte. Esto indica que el modelo está utilizando activamente la **distribución espacial del color y la luminosidad** para distinguir entre día, noche y crepúsculo.
+```{r figura_c5, echo=FALSE, fig.cap="Histogramas de bloques espaciales", fig.align='center', out.width="32%", fig.show='hold'}
+# Asegúrate de que los nombres de los archivos sean EXACTOS
+knitr::include_graphics(c(
+  "figuras/temporal_multiclase/boxplot_bloques_3x1.png", 
+  "figuras/temporal_multiclase/boxplot_H_bloques_3x1.png", 
+  "figuras/temporal_multiclase/boxplot_SDV_bloques_3x1.png"
+))
+```
+
+Por este motivo, el enfoque basado en bloques se selecciona como la representación espacial preferida para los siguientes experimentos, ya que ofrece una descripción más realista de las escenas que el uso de bandas horizontales.
+
+#### Incorporando proporción de píxeles extremos por bloque
+Finalmente, se añadieron variables que cuantifican la **proporción de píxeles muy oscuros y muy brillantes en cada bloque**, lo que permite capturar de forma explícita el fuerte contraste típico del crepúsculo entre cielo y suelo.
+
+Este modelo final alcanza el mejor rendimiento, con un **accuracy del 81.2%** y un **Kappa de 0.72**. La sensibilidad de la clase **Crepúsculo** supera el 84%, lo que indica una mejora sustancial en su detección. Las variables más importantes incluyen `G_mediana`, `V_mediana`, así como varias proporciones de píxeles extremos por bloques, confirmando que la combinación de **color, luminosidad y estructura espacial** es clave para identificar correctamente esta clase.
+
+En conclusión, la inclusión progresiva de características diseñadas específicamente para capturar los **colores cálidos**, la **estructura vertical del brillo** y los **contrastes espaciales** permite mejorar de forma sistemática la detección del crepúsculo, pasando de un modelo base razonable (76.7%) a un modelo final notablemente más preciso (81.2%).
+
+```{r figura_c6, echo=FALSE, fig.cap="Histogramas", fig.width=15, fig.height=4, out.width="100%", fig.align="center"}
+par(mfrow = c(1, 3), mar = c(0, 0.5, 2, 0.5)) 
+
+img1 <- readPNG("figuras/temporal_multiclase/boxplot_extremos_bloques_3x1.png")
+plot.new() 
+rasterImage(img1, 0, 0, 1, 1)
+
+img2 <- readPNG("figuras/temporal_multiclase/boxplot_pixeles_oscuros_zonas.png")
+plot.new()
+rasterImage(img2, 0, 0, 1, 1)
+
+img3 <- readPNG("figuras/temporal_multiclase/boxplot_pixeles_brillantes_zonas.png")
+plot.new()
+rasterImage(img2, 0, 0, 1, 1)
+
+par(mfrow = c(1, 1))
+```
+
 ### Análisis de Componentes Principales (PCA)
+
+Dado el elevado número de características extraídas para la clasificación multiclase, muchas de ellas altamente correlacionadas —especialmente las relacionadas con el color y la luminosidad en distintas regiones de la imagen— se aplicó un **Análisis de Componentes Principales (PCA)** como técnica de reducción de dimensionalidad.
+
+El PCA permite proyectar el espacio original de 24 variables en un conjunto reducido de componentes no correlacionadas que concentran la mayor parte de la variabilidad de los datos. En este trabajo se seleccionaron las **14 primeras componentes principales**, que explican aproximadamente el **93% de la varianza total**, lo que permite reducir de forma significativa la dimensionalidad sin perder información relevante.
+
+Estas componentes principales se utilizaron como entrada para entrenar un modelo Random Forest alternativo, que se comparó directamente con el modelo entrenado sobre las características originales.
+
+Al evaluar ambos enfoques sobre el conjunto de validación, el modelo con **características originales** alcanza una precisión global del **81.2%**, mientras que el modelo basado en **componentes principales** obtiene exactamente la misma precisión global. Esto indica que el PCA consigue **conservar toda la información discriminativa esencial** del conjunto original de variables.
+
+Además, al comparar los valores de F1 por clase, se observa que las diferencias entre ambos modelos son mínimas. En particular, la clase **Crepúsculo** mantiene e incluso mejora ligeramente su rendimiento al utilizar PCA, lo que confirma que los patrones que permiten distinguir esta clase se encuentran bien representados en el espacio reducido de componentes principales.
+
+Estos resultados ponen de manifiesto que gran parte de las variables originales son altamente redundantes y que el PCA es capaz de condensar dicha información sin degradar la capacidad predictiva del modelo. No obstante, dado que el modelo con características originales permite una interpretación física directa en términos de color, luminosidad y estructura espacial, este se mantiene como el modelo principal para el análisis final, utilizando el PCA como una validación adicional de la robustez del conjunto de características extraídas.
+
 ## Modelo Final Temporal
+
+Tras evaluar de forma sistemática los distintos conjuntos de características propuestos para la clasificación temporal multiclase, se seleccionó como solución principal el modelo que combina información de **color, luminosidad y estructura espacial** mediante:
+
+- Medianas RGB y HSV  
+- Desviación estándar del canal V  
+- Proporción de tonos cálidos  
+- Características espaciales por bloques  
+- Proporción de píxeles extremos (muy oscuros y muy brillantes) en cada bloque  
+
+Este conjunto de variables permite capturar simultáneamente la **cantidad de luz**, la **tonalidad del cielo** y la **distribución espacial del brillo**, que son los elementos físicos clave para distinguir entre **Día, Noche y Crepúsculo**.
+
+El modelo Random Forest entrenado con estas características alcanza una **precisión global del 81.2%** en el conjunto de validación, con un coeficiente **Kappa de 0.72**, lo que indica una concordancia elevada entre las predicciones y las etiquetas reales. La sensibilidad de la clase **Crepúsculo** supera el 84%, mostrando que el modelo es capaz de identificar de forma fiable las situaciones de transición entre día y noche.
+
+El análisis de importancia de variables confirma que las características más influyentes están relacionadas con la **luminosidad y el color** (`G_mediana`, `V_mediana`) y con la **estructura espacial del brillo**, en particular las proporciones de píxeles extremos y las estadísticas por bloques. Esto refuerza la interpretación física del modelo: el crepúsculo no se caracteriza únicamente por un nivel intermedio de luz, sino por una combinación específica de **contrastes verticales y tonos cálidos**.
+
+Adicionalmente, se entrenó una versión alternativa del modelo basada en **14 componentes principales** obtenidas mediante PCA, que alcanza la misma precisión global que el modelo original. Este resultado demuestra que la información relevante está altamente concentrada y que el sistema es **robusto frente a redundancias y correlaciones entre variables**.
+
+Por este motivo, se conservan **ambos modelos** para la fase de test: el modelo con variables originales, que ofrece una interpretación directa en términos visuales y físicos, y el modelo basado en PCA, que proporciona una representación compacta y potencialmente más estable frente a ruido o variaciones no observadas. Esta doble aproximación permite evaluar la robustez del sistema en condiciones reales y comparar su comportamiento sobre imágenes nuevas capturadas por los integrantes del grupo.
 
 # Entrenamiento II: Clasificación Meteorológica 
 
@@ -259,6 +389,7 @@ knitr::include_graphics("pca_varianzas.png")
 ```
 Después de entrenar nuestro modelo con las 6 primeras componentes resultado de la PCA, en la etapa de validación el modelo ha alcanzado un accuracy del 94,53%. Además, al analizar la importancia de las características mediante el índice \textit{MeanDecreaseGini}, se observa que las más influyentes a la hora de clasificar han sido `PC2` con un valor de 372,92.
 
+
 # Evaluación con Conjunto de Test 
 Tras haber desarrollado los modelos Random Forest pertinentes para la clasificación temporal y meteorológica de imágenes, procederemos a evaluar su desempeño en un conjunto de test, constituido por imágenes tomadas por los integrantes del grupo y preprocesadas como se indicó en el apartado 2.  
 Para ello crearemos un modelo definitivo Random Forest para cada problema de clasificación estudiado que utilice las características óptimas escogidas para cada caso y se entrene usando todo el conjunto de test disponible, es decir, se incorporará al entrenamiento de los modelos desarrollados el conjunto de datos utilizado previamente para validación.
@@ -275,9 +406,9 @@ Evaluaremos el modelo seleccionado en el apartado 4.1.2 en un total de 80 imáge
 |   0.988   |     0.975    |      1      |     1     | 0.987 |
 Table: Estadísticos de la matriz de confusión para el test de nuestro clasificador temporal binario.
 
-Encontramos que el modelo seleccionado para la clasificación binaria es robusto y clasifica bien nuestras imágenes de test ya que posee una exactitud balanceada de 0.988. A partir de los resultados obtenidos averiguamos que solamente se ha clasificado incorrectamente una imagen. Para analizar más detalladamente este error representaremos esta imagen y sus características en relación al resto de imágenes de test en la Figura 13:  
+Encontramos que el modelo seleccionado para la clasificación binaria es robusto y clasifica bien nuestras imágenes de test ya que posee una exactitud balanceada de 0.988. A partir de los resultados obtenidos averiguamos que solamente se ha clasificado incorrectamente una imagen. Para analizar más detalladamente este error representaremos esta imagen y sus características en relación al resto de imágenes de test en la siguiente figura:  
 
-![Imagen mal clasificada para el modelo binario día/noche](figuras/Mal_dn_combinado.png){width=80%}
+![Imagen mal clasificada para el modelo binario Día/Noche](figuras/test/Mal_dn_combinado.png){width=70%}
 
 Podemos comprobar que la mayoría de las características de la imagen mal clasificada se encuentran en un rango intermedio entre las características de las imágenes bien clasificadas de día y noche, teniendo valores de `V_mediana`, `R_mediana` y `G_mediana` altos para ser una imagen de noche. Esto es debido a que, aunque sea una imagen nocturna, está muy iluminada y presenta colores vivos, hecho que puede confundir al clasificador.
 
@@ -286,30 +417,30 @@ Evaluaremos el modelo seleccionado en el apartado 4.3 en un total de 120 imágen
 
 |    Clase   | Exactitud | Sensibilidad | Especifidad | Precisión |   F1  |
 |:----------:|:---------:|:------------:|:-----------:|:---------:|:-----:|
-|     Día    |   0.907   |     0.850    |    0.963    |   0.919   | 0.892 |
-|    Noche   |   0.907   |     0.825    |    0.988    |   0.970   | 0.883 |
-| Crepúsculo |   0.888   |     0.925    |    0.850    |   0.755   | 0.831 |
+|    Noche   |   0.894   |     0.800    |    0.988    |   0.970   | 0.877 |
+|     Día    |   0.918   |     0.950    |    0.888    |   0.801   | 0.874 |
+| Crepúsculo |   0.850   |     0.800    |    0.900    |   0.800   | 0.800 |
 
 Table: Estadísticos de la matriz de confusión para el test de nuestro clasificador temporal multiclase.
 
-Obtenemos también la exactitud conjunta (todas las predicciones correctas respecto del total) para las tres clases que será de **0.908**. Encontramos que se ha reducido la exactitud respecto del caso de clasificación binaria, lo cual es esperable ya que este es un problema más complejo. No obstante las características adicionales para este clasificador han permitido mantener un buen desempeño en nuestras imágenes de test.  
-A partir de nuestros resultados podemos comprobar que la nueva clase, Crepúsculo, es la que ha dado lugar a mayor confusión en el modelo: del las 16 imágenes mal clasificadas 15 de los errores vienen dados por imágenes de la categoría Crepúsculo siendo clasificadas como Día/Noche o imágenes de las categorías Día/Noche siendo clasificadas como Crepúsculo. Esto queda reflejado también en los estadísticos para la matriz de confusión para la categoría Crepúsculo, que presenta una menor exactitud, especifidad, precisión y estadístico F1 que el resto de categorías.  
+Obtenemos también la exactitud conjunta (todas las predicciones correctas respecto del total) para las tres clases que será de **0.850**. Encontramos que se ha reducido la exactitud respecto del caso de clasificación binaria, lo cual es esperable ya que este es un problema más complejo. No obstante las características adicionales para este clasificador han permitido mantener un buen desempeño en nuestras imágenes de test.  
+A partir de nuestros resultados podemos comprobar que la nueva clase, Crepúsculo, es la que ha dado lugar a mayor confusión en el modelo: del las 18 imágenes mal clasificadas 16 de los errores vienen dados por imágenes de la categoría Crepúsculo siendo clasificadas como Día/Noche o imágenes de las categorías Día/Noche siendo clasificadas como Crepúsculo. Se aprecia una clara tendencia a predecir la clase Día imágenes de tipo Crepúsculo y a predecir la clase Crepúsculo para imágenes de tipo Noche. La tendencia a confundir la categoría Crepúculo queda también reflejada en sus correspondientes estadísticos para la matriz de confusión, que presenta una clara disminución en la exactitud y el estadístico F1 respecto del resto de categorías.  
 Dado que temporalmente el crepúsculo es el momento que se encuentra entre el día y la noche es razonable que estas imágenes presenten una mayor similitud a Día o Noche, dando lugar a un mayor error de clasificación para esta clase.   
-A continuación representamos a modo de ejemplo una imagen para cada tipo de error de clasificación cometido por el modelo, así como sus características frente a las características de las imágenes test bien clasificadas:  
+En este caso una representación de las características de mas imágenes clasificadas erróneamente respecto a las bien clasificadas similar a la realizada en la Figura Y no permite realizar observaciones tan claras que expliquen esta mala clasificación (posiblemente debido a la mayor complejidad del modelo) por lo que nos limitaremos a una inspección visual de las imágenes erroneamente clasificadas de cada tipo, de las cuales mostramos ejemplos representativos en la Figura X: 
+\newpage  
 
+![Imágenes mal clasificadas para el modelo multiclase Día/Noche/Crepúsculo](figuras/test/mal_multiclase_plano.png){width=80%}  
+
+
+Como se ejemplifica en la Figura X, encontramos que las imágenes de Noche mal clasificadas como Crepúsculo presentan buena iluminación (para tratarse de una imagen nocturna) y tonos rojizos, similarmente las imágenes de Noche mal clasificadas como Día presentan también buena iluminación pero cn fuentes principalmente de luz blanca. En cuanto a Crepúsculo la mayoría de las imágenes mal clasificadas como Día presentan una importante proporción de tonos azules en el cielo, mientras que la única image predicha como Noche presenta tonos muy oscuros en gran parte de la imagen. Finalmente, para la categoría Día no se encuentra ninguna imagen erróneamente etiquetada como Noche, pero sí algunas para las que se ha predicho la categoría Crepúsculo, en nuestro conjunto de test las dos imágenes para las que se ha encontrado este error presentan una parte sombreada en la parte inferior, que quizá puede resultar similar al paisaje característico de una imagen durante el crepúsculo.  
 
 
 ## Resultados en Clasificación Meteorológica
-Hemos evaluado el modelo entrenado con las seis primeras componentes principales (discutido en el apartado 5.2) con un total de 100 imágenes de test, de las cuales 50 pertenecen a la clase Nublado y 50 pertenecen a la clase Despejado. Realizando las predicciones y comparando con las etiquetas reales obtenemos las siguientes métricas de evaluación:  
 
-| Exactitud | Sensibilidad | Especifidad | Precisión |   F1  |
-|:---------:|:------------:|:-----------:|:---------:|:-----:|
-|      |         |            |          |  |
-Table: Estadísticos de la matriz de confusión para el test de nuestro clasificador meteorológico.
-
-## Conclusiones y Líneas Futuras 
+## Conclusiones y Líneas Futuras  
 
 Tras realizar la extracción de características y desarrollo de los tres modelos clasificadores en los que se ha centrado este proyecto obtenemos los siguientes resultado para los tres problemas de clasificación abordados, expuestos en la Tabla 4:  
+
 ```{r, echo=FALSE, message=FALSE}
 library(dplyr)
 library(kableExtra)
@@ -318,19 +449,19 @@ modelo <- c("Temporal binario", "Temporal multiclase", "Meteorológico")
 
 # VARIABLES DE CADA MODELO
 variables_dia_noche <- "Mediana de los canales R, G, B, H_cos, H_sin, S y V; y desviación estándar de V"
-variables_dia_noche_crepusculo <- "Mediana de los canales R, G, B, H_cos, H_sin, S y V; desviación estándar de V, porcentaje de tonos cálidos + características de la imagen dividida en 3 bloques (medianas de RGB y HSV, desviación de V y proporción de tonos oscuros y brillantes) + PCA (8 componentes)"
+variables_dia_noche_crepusculo <- "Mediana de los canales R, G, B, H_cos, H_sin, S y V; desviación estándar de V, proporción de tonos cálidos, gradientes verticales y características por bloques 3×1 + PCA (14 componentes)"
 variables_despejado_nublado <- "Mediana de los canales R, G, B, H_sin, H_cos, S y V; ratio de azul en la imagen, brillo, contraste, media del gradiente Sobel + PCA (6 componentes)"
 variables <- c(variables_dia_noche, variables_dia_noche_crepusculo,variables_despejado_nublado)
 
 # ACCURACY DE VALIDATION DE CADA MODELO
 val_dia_noche <- "90.15 %"
-val_dia_noche_crepusculo <- "XX.XX %"
+val_dia_noche_crepusculo <- "79.89 %"
 val_despejado_nublado <- "XX.XX %"
 accuracy_validacion <- c(val_dia_noche, val_dia_noche_crepusculo, val_despejado_nublado)
 
 # ACCURACY DE TEST DE CADA MODELO
 test_dia_noche <- "98.75 %"
-test_dia_noche_crepusculo <- "XX.XX %"
+test_dia_noche_crepusculo <- "85.00 %"
 test_despejado_nublado <- "XX.XX %"
 accuracy_test <- c(test_dia_noche, test_dia_noche_crepusculo, test_despejado_nublado)
 
@@ -341,13 +472,11 @@ knitr::kable(
   format = "latex",
   booktabs = TRUE,
   col.names = c("Clasificador", "Variables", "Exactitud validacion", "Exactitud test"),
-  caption = "Resultados finales para cada clasificador"
+  caption = "Características utilizadas y exactitud para cada uno de los modelos finales"
 ) %>%
-  kableExtra::column_spec(2, width = "6.5cm")
+  kableExtra::column_spec(2, width = "6.5cm") %>%
+  kable_styling(latex_options = "HOLD_position")
 ```
-(cosas sobre los resultados)  
-
-
 
 # Bibliografía
 

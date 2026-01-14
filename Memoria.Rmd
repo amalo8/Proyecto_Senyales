@@ -8,11 +8,19 @@ output:
     toc: true
     toc_depth: 3
     number_sections: true
+    
 bibliography: bibliografia.bib
 link-citations: true
 nocite: '@*'
 urlcolor: blue
 csl: apa.csl
+
+header-includes:
+  - \usepackage{titling}
+  - \setlength{\droptitle}{-2cm} 
+  - \usepackage{float}
+  - \usepackage{etoolbox}
+  - \patchcmd{\thebibliography}{\itemsep\z@}{\itemsep=1\baselineskip}{}{}
 ---
 
 ```{r setup, include=FALSE}
@@ -89,7 +97,6 @@ knitr::include_graphics("figura2.png")
 ```
 
 
-
 # Preparación de Datos para Entrenamiento
  
 Para la construcción de los modelos predictivos, se procedió a la partición de los conjuntos de datos de ambos problemas siguiendo una estrategia de partición simple (*Hold-Out*). El objetivo de esta división es evaluar la capacidad de aprendizaje del algoritmo y evitar el sobreajuste, asegurando que el modelo sea capaz de generalizar patrones en lugar de memorizar imágenes específicas.
@@ -99,21 +106,24 @@ Se estableció una división del 80% de las imágenes destinado al conjunto de e
 En términos cuantitativos, esta distribución supuso el empleo de 2.129 imágenes de entrenamiento y 532 de validación para el problema temporal, mientras que para el problema meteorológico se destinaron 1.099 imágenes al entrenamiento y 275 a la validación.
 
 # Entrenamiento I: Clasificación Temporal
+
 La clasificación de imágenes requiere un proceso previo de extracción de características. En esta sección, nos centraremos en la determinación de estas características y en el entrenamiento y validación de nuestro algoritmo. Como hemos mencionado anteriormente, se han empleado un conjunto de imágenes extraídas de repositorios públicos que nos garantizan una gran variedad de imágenes en diferentes contextos geográficos.
 
 ## Clasificación Binaria: Día vs. Noche
+
 En primer lugar, abordaremos este problema como una clasificación binaria (día/noche) para tener una primera toma de contacto en la extracción de características y en el entrenamiento del modelo. En el siguiente apartado, añadiremos una nueva categoría (crepúsculo) para lograr un modelo más completo. El objetivo es construir un modelo de aprendizaje supervisado que permita diferenciar claramente entre las dos categorías y, posteriormente, tenga la capacidad de generalizar correctamente en la clasificación de las imágenes capturadas por nosotros. 
 
 El procedimiento que hemos seguido para construir el clasificador ha sido el siguiente: incorporar sucesivamente características al modelo (de una en una). Esta decisión se ha tomado para poder observar si al añadir una característica, mejora o no nuestro clasificador. Esto nos da un control completo, en el que podemos identificar claramente que características funcionan mejor para diferenciar entre imagen de día y de noche.
 
 ### Análisis de Características 
+
 Las primeras tres características son las medianas de la intensidad de los canales RGB (función `extraer_rgb`). Cada imagen se descompone en estas tres capas y se determina para cada píxel un valor de intensidad en cada una de ellas. Estos valores oscilan entre 0 (ausencia de color) y 1 (intensidad máxima). A continuación, se realiza la mediana de cada canal para cada imagen, obteniendo tres valores representativos. Se ha escogido la mediana en lugar de la media debido a su robustez frente a outliers. Por ejemplo, en imágenes nocturnas podemos encontrarnos con puntos de luz artificial intensos, como farolas, que podrían afectar. La mediana nos permitiría seguir conociendo un valor representativo de la intensidad de la imagen.
 
 Con estas características esperaríamos valores bajos en las medianas RGB para las imágenes nocturnas ya que la mayoría de los píxeles tenderán a tener intensidades bajas. Por el contrario, en las imágenes diurnas, las medianas RGB deberían ser más altas debido a la mayor presencia de luz natural. Si representamos en un diagrama de cajas los valores de la mediana (Figura \ref{fig:figura3}, izquierda) distinguiendo entre día y noche, se observa claramente esta diferencia. Además, la mediana del canal azul es ligeramente superior a la de los otros dos canales en ambas categorías, resultado esperado ya que el color predominante en el cielo es el azul. Por otro lado, podemos confirmar a partir de los histogramas (Figura \ref{fig:figura3}, derecha), que los histogramas de noche muestran una acumulación de frecuencias en los niveles bajos de RGB, mientras que los de día son más simétricos, ajustándose aproximadamente a una distribución gaussiana.
 
 ```{r figura3, echo=FALSE, fig.cap="Diagrama de cajas (izquierda) e histogramas (derecha) de medianas RGB", out.width="100%", fig.align="center", fig.height=2.75}
 library(png)
-par(mfrow = c(1, 2), mar = c(1, 1, 3, 1)) 
+par(mfrow = c(1, 2), mar = c(0, 0, 0, 0)) 
 img1 <- readPNG("boxplotRGB.png")
 plot.new() 
 rasterImage(img1, 0, 0, 1, 1)
@@ -128,11 +138,11 @@ par(mfrow = c(1, 1))
 
 Las siguientes características que hemos añadido son las medianas de los canales HSV (función `extraer_hsv`). La función permite extraer las medianas de las tres componentes: _Hue_ que define el tono (descomponiendo H en sus valores de seno y coseno ya que al ser un ángulo no es conveniente tratarlo igual que las variables S y V), _Saturation_ define la viveza del color y _Value_ es la cantidad de luz presente en el color. Previamente a este cálculo se ha de realizar una conversión de los vectores de cada píxel de RGB a HSV con la función `rgb_a_hsv`.
 
-Importante destacar que la mediana de V es la que más información nos puede aportar ya que representa la cantidad de luz que hay en la imagen. En imágenes diurnas tiende a ser un valor alto debido a la gran cantidad de luz natural, mientras que en imágenes nocturnas el valor es bajo. Con respecto a los canalas H y S podemos no encontrar diferencias significativas. Podemos ver en la Figura \ref{fig:figura4} estas observaciones, donde los histogramas de `V_mediana` para día y noche están menos solapados entre sí.
+Es importante destacar que la mediana de V es la que más información nos puede aportar ya que representa la cantidad de luz que hay en la imagen. En imágenes diurnas tiende a ser un valor alto debido a la gran cantidad de luz natural, mientras que en imágenes nocturnas el valor es bajo. Con respecto a los canalas H y S podemos no encontrar diferencias significativas. Podemos ver en la Figura \ref{fig:figura4} estas observaciones, donde los histogramas de `V_mediana` para día y noche están menos solapados entre sí.
 
-```{r figura4, echo=FALSE, fig.cap="Diagrama de cajas (izquierda) e histogramas (derecha) de medianas HSV", out.width="100%", fig.align="center", fig.height=2.75}
+```{r figura4, echo=FALSE, fig.cap="Diagrama de cajas (izquierda) e histogramas (derecha) de medianas HSV", out.width="100%", fig.align="center", fig.width=15, fig.height=4}
 library(png)
-par(mfrow = c(1, 2), mar = c(1, 1, 3, 1)) 
+par(mfrow = c(1, 2), mar = c(0, 0, 0, 0)) 
 img1 <- readPNG("boxplotHSV.png")
 plot.new() 
 rasterImage(img1, 0, 0, 1, 1)
@@ -143,6 +153,8 @@ rasterImage(img2, 0, 0, 1, 1)
 
 par(mfrow = c(1, 1))
 ```
+
+\mbox{}
 
 La séptima característica es la detección de bordes mediante el filtro Sobel (`extraer_sobel`) para detectar cambios bruscos en la intensidad lumínica (se utiliza el valor medio de la magnitud de los gradientes horizontal y vertical de la intensidad). En un principio podríamos encontrar un valor mayor para imágenes diurnas ya que se pueden encontrar edificios/vegetación que debido a la gran cantidad de luz que hay en estas imágenes, se puedan identificar como bordes.
 
@@ -173,7 +185,7 @@ La undécima característica (`extraer_rango_dinamico_V`) mide el rango del cana
 
 La duodécima característica (`extraer_blur_V`) consiste en calcular la media del canal V una vez aplicado un filtro de paso bajo gaussiano (blur) para suavizar la imagen y eliminar variaciones bruscas o ruido de alta frecuencia. Esto podría ayudar a separar mejor un día nublado (gris) de una noche iluminada. Para estas últimas tres características representamos de nuevo los histogramas mostrados en la Figura \ref{fig:figura_triple2}, donde observamos que el que más destaca es el tercero ya que se observa una gran diferencia entre clases. No obstante, finalmente no añadiremos esta característica ya que está altamente correlacionada con la variable `V_mediana` (0.97).
 
-```{r figura_triple2, echo=FALSE, fig.cap="Histogramas de las variables píxeles oscuros, rango de V y media de V con filtro blur", fig.width=15, fig.height=4, out.width="100%", fig.align="center"}
+```{r figura_triple2, echo=FALSE, fig.cap="Histogramas de las variables píxeles oscuros, rango de V y media de V con filtro blur", fig.width=15, fig.height=4, out.width="100%", fig.align="center", fig.pos="H"}
 par(mfrow = c(1, 3), mar = c(0, 0.5, 2, 0.5)) 
 
 img1 <- readPNG("histogramaPIXEL_OSC.png")
@@ -192,9 +204,9 @@ par(mfrow = c(1, 1))
 ```
 
 La última característica es el cálculo de la desviación estándar de las intensidades del canal V (`extraer_sd_V`). Nos permite determinar la dispersión del brillo de una imagen con respecto a su media. De día esperamos una desviación mayor debido a la gran variedad de objetos que nos podemos encontrar en las imágenes como sombras, edificios, árboles, etc. Podemos verlo gráficamente a través del diagrama de cajas mostrado en la Figura \ref{fig:figura6}. Respecto al histograma sí que observamos que no hay una gran diferencia entre día y noche aunque en este caso `sd_V` y `V_mediana` están muy poco correlacionadas (0.13).
-```{r figura6, echo=FALSE, fig.cap="Diagrama de cajas (izquierda) e histogramas (derecha) de la desviación estándar de V", out.width="100%", fig.align="center", fig.height=2.75}
+```{r figura6, echo=FALSE, fig.cap="Diagrama de cajas (izquierda) e histogramas (derecha) de la desviación estándar de V", out.width="70%", fig.align="center", fig.width=12, fig.height=4}
 library(png)
-par(mfrow = c(1, 2), mar = c(1, 1, 3, 1)) 
+par(mfrow = c(1, 2), mar = c(0, 0, 0, 0)) 
 img1 <- readPNG("boxplotSDV.png")
 plot.new() 
 rasterImage(img1, 0, 0, 1, 1)
@@ -210,25 +222,29 @@ par(mfrow = c(1, 1))
 
 Como hemos mencionado anteriormente, estas características se han ido añadiendo sucesivamente al modelo. Finalmente las características utilizadas en este modelo han sido 8: `R_mediana`, `G_mediana`, `B_mediana`, `H_cos_mediana`, `H_sin_mediana`, `S_mediana`, `V_mediana` y `sd_V`; alcanzando un accuracy del 90.15% para el conjunto de validación. Por otro lado, al analizar la importancia de las características mediante el índice \textit{MeanDecreaseGini}, se observa que las más influyentes a la hora de clasificar han sido `G_mediana` con un valor de 221.17, seguido de `V_mediana` con 117.04 y `B_mediana` con 98.48. 
 
-## Clasificación Multiclase: Añadiendo "Crepúsculo"
+## Clasificación Multiclase: Añadiendo Crepúsculo
 
 Una vez validado el enfoque para la clasificación binaria Día/Noche, el problema se amplía a una clasificación multiclase incorporando una tercera categoría: Crepúsculo. Esta clase representa un estado intermedio entre el día y la noche, caracterizado por una iluminación reducida, la presencia de tonos cálidos y una marcada estructura vertical del brillo en la imagen.
 
 Desde el punto de vista visual, el crepúsculo combina elementos propios de ambas clases: zonas del cielo todavía iluminadas junto con regiones oscuras o con iluminación artificial. En nuestro conjunto de datos es habitual observar un suelo ya oscuro mientras que el cielo sigue recibiendo luz residual del sol bajo en el horizonte, lo que genera un gradiente vertical de luminosidad muy marcado. Esta combinación convierte al crepúsculo en una clase especialmente compleja y exige la incorporación de características que capturen simultáneamente el color y la estructura espacial de la imagen.
 
-### Nuevas Características para detectar Crepúsculo
+### Nuevas Características para detectar la clase Crepúsculo
 
 Para abordar la complejidad de la clase Crepúsculo, se siguió una estrategia incremental similar a la utilizada en la clasificación binaria: se parte de un modelo base y se van incorporando progresivamente nuevas características diseñadas específicamente para capturar los patrones visuales propios de esta franja horaria.
 
 #### Modelo base: Color y luminosidad global (RGB + HSV + sd(V))
-El primer modelo multiclase se construyó utilizando las mejores variables obtenidas en la clasificación binaria: 
-`R_mediana`, `G_mediana`, `B_mediana`, `H_cos_mediana`, `H_sin_mediana`, `S_mediana`, `V_mediana` y `sd_V`. Realizando un entrenamiento con estas variables pero con los datos de las tres clases, este modelo alcanza un accuracy del 76.7% en validación. En general, el modelo presentaba una buena separación entre Día y Noche, pero una mayor confusión con la clase Crepúsculo, lo que refleja su naturaleza intermedia. Las variables más importantes según el índice MeanDecreaseGini son `G_mediana` y `V_mediana`, confirmando que la luminosidad y el color dominante del cielo son los factores principales para diferenciar los distintos momentos del día.
 
-#### Adición de la proporción de tonos cálidos
+\mbox{}
+
+El primer modelo multiclase se construyó utilizando las mejores variables obtenidas en la clasificación binaria: `R_mediana`, `G_mediana`, `B_mediana`, `H_cos_mediana`, `H_sin_mediana`, `S_mediana`, `V_mediana` y `sd_V`. Realizando un entrenamiento con estas variables pero con los datos de las tres clases, este modelo alcanza un accuracy del 76.7% en validación. En general, el modelo presentaba una buena separación entre Día y Noche, pero una mayor confusión con la clase Crepúsculo, lo que refleja su naturaleza intermedia. Las variables más importantes según el índice MeanDecreaseGini son `G_mediana` y `V_mediana`, confirmando que la luminosidad y el color dominante del cielo son los factores principales para diferenciar los distintos momentos del día.
+
+#### Agregación de la proporción de tonos cálidos
+
+\mbox{}
 
 A continuación, se incorporó la variable `Porcentaje_Calidos`, diseñada para cuantificar la presencia de píxeles con tonos rojizos y anaranjados típicos del amanecer y el atardecer. Con esta característica, el modelo mejora ligeramente su rendimiento hasta un accuracy del 76.9%. La sensibilidad para la clase Crepúsculo aumenta, lo que indica que el modelo identifica mejor imágenes con colores cálidos característicos de esta franja horaria. Además, `Porcentaje_Calidos` aparece entre las variables con mayor importancia, lo que confirma su relevancia para detectar crepúsculos.
 
-```{r figura_c2, echo=FALSE, fig.cap="Diagrama de cajas (izquierda) e histogramas (derecha) de la desviación estándar de V", out.width="80%", fig.align="center", fig.height=2.75}
+```{r figura_c2, echo=FALSE, fig.cap="Diagrama de cajas de la proporción de tonos cálidos", out.width="80%", fig.align="center", fig.width=15, fig.height=8}
 library(png)
 par(mfrow = c(1, 1), mar = c(0.5, 0.5, 0.5, 0.5)) 
 img1 <- readPNG("figuras/temporal_multiclase/boxplot_modelo_con_tonos.png")
@@ -236,7 +252,11 @@ plot.new()
 rasterImage(img1, 0, 0, 1, 1)
 ```
 
+\mbox{}
+
 #### Incorporación de gradientes por bandas horizontales
+
+\mbox{}
 
 Como primer intento para capturar la estructura vertical del crepúsculo, se introdujo la variable `Gradiente_V_Bandas`, que mide la variación de luminosidad del canal V dividiendo la imagen en bandas horizontales. Esta característica pretende modelar el patrón típico del crepúsculo, donde el cielo es más brillante que el suelo.
 
@@ -244,32 +264,17 @@ La inclusión de esta variable mejora el rendimiento del modelo hasta un accurac
 
 #### Incorporación de características por bloques espaciales
 
+\mbox{}
+
 Para superar las limitaciones del enfoque por bandas, se optó por una representación más flexible basada en bloques espaciales. En este enfoque, la imagen se divide en regiones (superior, central e inferior) y se extraen estadísticas de color y luminosidad en cada bloque, lo que permite capturar la estructura espacial sin imponer una geometría estrictamente horizontal. Este modelo alcanza un accuracy del 80.1%, un rendimiento similar al obtenido con bandas, pero con una interpretación más rica: las variables más importantes corresponden a los bloques superiores y centrales, que contienen principalmente el cielo y el horizonte. Esto indica que el modelo está utilizando activamente la distribución espacial del color y la luminosidad para distinguir entre día, noche y crepúsculo. Por este motivo, el enfoque basado en bloques se selecciona como la representación espacial preferida para los siguientes experimentos, ya que ofrece una descripción más realista de las escenas que el uso de bandas horizontales.
 
 #### Incorporación de la proporción de píxeles extremos por bloque
 
+\mbox{}
+
 Finalmente, se añadieron variables que cuantifican la proporción de píxeles muy oscuros y muy brillantes en cada bloque, lo que permite capturar de forma explícita el fuerte contraste típico del crepúsculo entre cielo y suelo. Este modelo final alcanza el mejor rendimiento, con un accuracy del 81.2%. La sensibilidad de la clase Crepúsculo supera el 84%, lo que indica una mejora sustancial en su detección. Las variables más importantes incluyen `G_mediana`, `V_mediana`, así como varias proporciones de píxeles extremos por bloques, confirmando que la combinación de color, luminosidad y estructura espacial es clave para identificar correctamente esta clase.
 
 En conclusión, la inclusión progresiva de características diseñadas específicamente para capturar los colores cálidos, la estructura vertical del brillo y los contrastes espaciales permite mejorar de forma sistemática la detección del crepúsculo, pasando de un modelo base razonable (76.7%) a un modelo final notablemente más preciso (81.2%).
-
-```{r figura_c6, echo=FALSE, fig.cap="Histogramas", fig.width=15, fig.height=4, out.width="100%", fig.align="center"}
-par(mfrow = c(1, 3), mar = c(0, 0.5, 2, 0.5)) 
-
-img1 <- readPNG("figuras/temporal_multiclase/boxplot_extremos_bloques_3x1.png")
-plot.new() 
-rasterImage(img1, 0, 0, 1, 1)
-
-img2 <- readPNG("figuras/temporal_multiclase/boxplot_pixeles_oscuros_zonas.png")
-plot.new()
-rasterImage(img2, 0, 0, 1, 1)
-
-img3 <- readPNG("figuras/temporal_multiclase/boxplot_pixeles_brillantes_zonas.png")
-plot.new()
-rasterImage(img2, 0, 0, 1, 1)
-
-par(mfrow = c(1, 1))
-```
-
 
 ## Modelo Final Temporal
 
@@ -309,7 +314,7 @@ knitr::include_graphics("bcr_despejado_nublado.png")
 
 Por esto último, para cada imagen, hemos calculado el valor medio de la saturación en cada bloque. Dichos bloques son el resultado de dividir la imagen en 16 rectángulos idénticos. Hemos decidido incorporar dichas variables porque, aunque en los histogramas los valores que aporta cada una sean similares (Figura \ref{fig:figura10}), la combinación única de valores medianos en los distintos bloques de cada imagen puede ayudar a describir los cambios de grises y la textura de las nubes de forma cuantitativa.
 
-```{r figura10, echo=FALSE, fig.cap="Histogramas de la saturación (S) media por bloque", out.width="100%", fig.align="center", fig.height=2.75}
+```{r figura10, echo=FALSE, fig.cap="Histogramas de la saturación (S) media por bloque", out.width="100%", fig.align="center", fig.pos="H"}
 
 knitr::include_graphics("bloques_despejado_nublado.png")
 ```
@@ -320,12 +325,12 @@ Después de proponer las variables descritas en el apartado anterior para la dif
 
 Es por esto que, para no proporcionar información redundante, e intentar describir la máxima información posible que proporcionan nuestras variables minimizando el número de las mismas a la hora de entrenar el modelo, decidimos aplicar un Análisis de Componentes Principales (@amat_cienciadedatos; @prasar_rpubs_2017) a nuestras variables. Al realizar este análisis y representar gráficamente tanto la proporción de varianza explicada por cada componente principal (Figura \ref{fig:figura12}), como la proporción de varianza acumulada de las mismas, vimos que, a partir de la decimoquinta componente principal, la proporción de varianza que explica cada una de las siguientes componentes es casi imperceptible. Consecuentemente escogimos solamente las 15 primeras componentes principales para entrenar nuestro modelo de Random Forest y tratar de evitar sobreajustarnos a los datos de entrenamiento. 
 
-```{r figura11, echo=FALSE, fig.cap="Mapa de correlaciones entre las variables para la clasificación meteorológica", out.width="60%", fig.align="center", fig.height=2.75}
+```{r figura11, echo=FALSE, fig.cap="Mapa de correlaciones entre las variables para la clasificación meteorológica", out.width="80%", fig.align="center", fig.height=2.75, fig.pos="H"}
 
 knitr::include_graphics("corrplot.png")
 ```
 
-```{r figura12, echo=FALSE, fig.cap="Proporciones y proporciones acumuladas de varianza explicada por el PCA", out.width="80%", fig.align="center", fig.height=2.75}
+```{r figura12, echo=FALSE, fig.cap="Proporciones y proporciones acumuladas de varianza explicada por el PCA", out.width="80%", fig.align="center", fig.height=2.75, fig.pos="H"}
 
 knitr::include_graphics("pca_varianzas.png")
 ```
@@ -334,35 +339,37 @@ Después de entrenar nuestro modelo con las 15 primeras componentes resultado de
 
 
 # Evaluación con Conjunto de Test 
+
 Tras haber desarrollado los modelos Random Forest pertinentes para la clasificación temporal y meteorológica de imágenes, procederemos a evaluar su desempeño en un conjunto de test, constituido por imágenes tomadas por los integrantes del grupo y preprocesadas como se indicó en el apartado 2.  
 Para ello crearemos un modelo definitivo Random Forest para cada problema de clasificación estudiado que utilice las características óptimas escogidas para cada caso y se entrene usando todo el conjunto de train disponible, es decir, se incorporará al entrenamiento de los modelos desarrollados el conjunto de datos utilizado previamente para validación.
 
 ## Resultados en Clasificación Temporal
+
 Para la clasificación temporal contamos con dos modelos diferentes desarrollados, un Random Forest más sencillo y con un menor número de características para la clasificación binaria de imágenes en día/noche y otro más complejo para la clasificación de imágenes en día/noche/crepúsculo.  
 
-
 ### Resultados en Clasificación Temporal Binaria
+
 Evaluaremos el modelo seleccionado en el apartado 4.1.2 en un total de 80 imágenes de test, de las cuales 40 pertenecen a la clase Día y 40 pertenecen a la clase Noche. Realizando las predicciones y comparando con las etiquetas reales obtenemos las siguientes métricas de evaluación:  
 
-| Exactitud | Sensibilidad | Especifidad | Precisión |   F1  |
+| Exactitud | Sensibilidad | Especificidad | Precisión |   F1  |
 |:---------:|:------------:|:-----------:|:---------:|:-----:|
 |   0.988   |     0.975    |      1      |     1     | 0.987 |
 Table: Estadísticos de la matriz de confusión para el test de nuestro clasificador temporal binario.
 
-Encontramos que el modelo seleccionado para la clasificación binaria es robusto y clasifica bien nuestras imágenes de test ya que posee una exactitud balanceada de 98,8%. A partir de los resultados obtenidos averiguamos que solamente se ha clasificado incorrectamente una imagen. Para analizar más detalladamente este error representaremos esta imagen y sus características en relación al resto de imágenes de test en la Figura \ref{fig:figura15}  
+Encontramos que el modelo seleccionado para la clasificación binaria es robusto y clasifica bien nuestras imágenes de test ya que posee una exactitud balanceada de 98.8%. A partir de los resultados obtenidos averiguamos que solamente se ha clasificado incorrectamente una imagen. Para analizar más detalladamente este error representaremos esta imagen y sus características en relación al resto de imágenes de test en la Figura \ref{fig:figura15}  
 
-```{r figura15, echo=FALSE, fig.cap="Imagen mal clasificada para el modelo binario Día/Noche", out.width="70%", fig.align="center", fig.height=2.75}
+```{r figura15, echo=FALSE, fig.cap="Imagen mal clasificada para el modelo binario Día/Noche", out.width="70%", fig.align="center", fig.height=2.75,fig.pos="H"}
 
 knitr::include_graphics("figuras/test/Mal_dn_combinado.png")
 ```
 
-
 Podemos comprobar que la mayoría de las características de la imagen mal clasificada se encuentran en un rango intermedio entre las características de las imágenes bien clasificadas de día y noche, teniendo valores de `V_mediana`, `R_mediana` y `G_mediana` altos para ser una imagen de noche. Esto es debido a que, aunque sea una imagen nocturna, está muy iluminada y presenta colores vivos, hecho que puede confundir al clasificador.
 
 ### Resultados en Clasificación Temporal Multiclase
+
 Evaluaremos el modelo seleccionado en el apartado 4.3 en un total de 120 imágenes de test, equitativamente distribuidas en las clases Día, Noche y Crepúsculo. Realizando las predicciones y comparando con las etiquetas reales obtenemos las siguientes métricas de evaluación:  
 
-|    Clase   | Exactitud | Sensibilidad | Especifidad | Precisión |   F1  |
+|    Clase   | Exactitud | Sensibilidad | Especificidad | Precisión |   F1  |
 |:----------:|:---------:|:------------:|:-----------:|:---------:|:-----:|
 |    Noche   |   0.925   |     0.875    |    0.975    |   0.946   | 0.909 |
 |     Día    |   0.931   |     0.925    |    0.938    |   0.881   | 0.902 |
@@ -370,7 +377,7 @@ Evaluaremos el modelo seleccionado en el apartado 4.3 en un total de 120 imágen
 
 Table: Estadísticos de la matriz de confusión para el test de nuestro clasificador temporal multiclase.
 
-Obtenemos también la exactitud conjunta (todas las predicciones correctas respecto del total) para las tres clases que será de 88,3%. Encontramos que se ha reducido la exactitud respecto del caso de clasificación binaria, lo cual es esperable ya que este es un problema más complejo. No obstante las características adicionales para este clasificador han permitido mantener un buen desempeño en nuestras imágenes de test.  
+Obtenemos también la exactitud conjunta (todas las predicciones correctas respecto del total) para las tres clases que será de 88.3%. Encontramos que se ha reducido la exactitud respecto del caso de clasificación binaria, lo cual es esperable ya que este es un problema más complejo. No obstante las características adicionales para este clasificador han permitido mantener un buen desempeño en nuestras imágenes de test.  
 A partir de nuestros resultados podemos comprobar que la nueva clase, Crepúsculo, es la que ha dado lugar a mayor confusión en el modelo: del las 14 imágenes mal clasificadas 13 de los errores vienen dados por imágenes de la categoría Crepúsculo siendo clasificadas como Día/Noche o imágenes de las categorías Día/Noche siendo clasificadas como Crepúsculo. La tendencia a confundir la categoría Crepúsculo queda también reflejada en sus correspondientes estadísticos de la matriz de confusión, que son menores con respecto a los de las otras clases.  
 Dado que temporalmente el crepúsculo es el momento que se encuentra entre el día y la noche es razonable que estas imágenes presenten una mayor similitud a Día o Noche, dando lugar a un mayor error de clasificación para esta clase.   
  
@@ -379,8 +386,6 @@ Dado que temporalmente el crepúsculo es el momento que se encuentra entre el d�
 knitr::include_graphics("figuras/test/mal_multiclase_plano.png")
 ```
   
-
-
 Realizando una inspección visual de las imágenes mal clasificadas, como se ejemplifica en la Figura \ref{fig:figura13}, encontramos que las imágenes de Noche mal clasificadas como Crepúsculo presentan buena iluminación (para tratarse de una imagen nocturna), fuentes de luz claras y cierta presencia de tonos rojizos, similarmente las única imagen de Noche mal clasificada como Día presenta también buena iluminación y tonos muy vivos. En cuanto a Crepúsculo la mayoría de las imágenes mal clasificadas como Día presentan una importante proporción de tonos azules en el cielo, mientras que la única imagen predicha como Noche presenta tonos muy oscuros en gran parte de la imagen. Finalmente, para la categoría Día no se encuentra ninguna imagen erróneamente etiquetada como Noche, pero sí algunas para las que se ha predicho la categoría Crepúsculo, en nuestro conjunto de test las imágenes para las que se ha encontrado este error presentan una parte sombreada en la parte inferior y horizontes claramente definidos, que quizá puede resultar similar al paisaje característico de una imagen durante el crepúsculo.  
 
 
@@ -393,55 +398,53 @@ Hemos evaluado el modelo del apartado 5.2 sobre un total de 100 imágenes de tes
 |   0.810   |     0.640    |      0.980  |   0.969   | 0.771 |
 Table: Estadísticos de la matriz de confusión para el test del clasificador meteorológico binario. 
 
-El modelo seleccionado para la distinción entre cielosnublados y despejados eclasifica nuestras imágenes de test con una exactitud balanceada del 81%. Fijándonos en la matriz de confusión comprobamos que solo clasifica erróneamente una imagen del cielo despejado, mientras que clasifica 18 imágenes de cielos nublados incorrectamente. La mayoría de las imágenes de cielos nublados mal clasificadas o bien son recortes muy homogéneos, o bien son trozos de cielo azul (recorte no adecuado), habiendo solo una imagen de nubes bien definidas que haya sido mal clasificada. Por otra parte la única imagen de cielo despejado mal clasificada presenta un cielo grisáceo y un tercio de la imagen es una arboleda, cuya presencia puede haber confundido al clasificador. Dicha imagen y otras tres mal clasificadas de la clase Nublado pueden encontrarse en la Figura \ref{fig:figuraDN}.
+El modelo seleccionado para la distinción entre cielos nublados y despejados clasifica nuestras imágenes de test con una exactitud balanceada del 81%. Fijándonos en la matriz de confusión comprobamos que solo clasifica erróneamente una imagen del cielo despejado, mientras que clasifica 18 imágenes de cielos nublados incorrectamente. La mayoría de las imágenes de cielos nublados mal clasificadas o bien son recortes muy homogéneos, o bien son trozos de cielo azul (recorte no adecuado), habiendo solo una imagen de nubes bien definidas que haya sido mal clasificada. Por otra parte la única imagen de cielo despejado mal clasificada presenta un cielo grisáceo y un tercio de la imagen es una arboleda, cuya presencia puede haber confundido al clasificador. Dicha imagen y otras tres mal clasificadas de la clase Nublado pueden encontrarse en la Figura \ref{fig:figuraDN}.
 
-```{r figuraDN, echo=FALSE, fig.cap="Imágenes mal clasificadas para el modelo meteorológico", out.width="80%", fig.align="center", fig.height=2.75}
+```{r figuraDN, echo=FALSE, fig.cap="Imágenes mal clasificadas para el modelo meteorológico", out.width="80%", fig.align="center", fig.height=2.75,fig.pos="H"}
 
 knitr::include_graphics("mal_clasificadas_despejado_nublado.png")
 ```
 
 
-
 ## Conclusiones y Líneas Futuras  
 
-Tras realizar la extracción de características y desarrollo de los tres modelos clasificadores en los que se ha centrado este proyecto obtenemos los siguientes resultado para los tres problemas de clasificación abordados, expuestos en la Tabla 4:  
+```{r tabla_resumen, echo=FALSE, results='asis', message=FALSE, warning=FALSE}
 
-```{r, echo=FALSE, message=FALSE}
-library(dplyr)
 library(kableExtra)
 
-modelo <- c("Temporal binario", "Temporal multiclase", "Meteorológico")
-
-# VARIABLES DE CADA MODELO
-variables_dia_noche <- "Mediana de los canales R, G, B, H_cos, H_sin, S y V; y desviación estándar de V"
-variables_dia_noche_crepusculo <- "Mediana de los canales R, G, B, H_cos, H_sin, S y V; desviación estándar de V, proporción de tonos cálidos, gradientes verticales y características por bloques 3×1 + PCA (14 componentes)"
-variables_despejado_nublado <- "Mediana de los canales R, G, B, H_sin, H_cos, S y V; ratio de azul en la imagen, brillo, contraste, media del gradiente Sobel + PCA (6 componentes)"
-variables <- c(variables_dia_noche, variables_dia_noche_crepusculo,variables_despejado_nublado)
-
-# ACCURACY DE VALIDATION DE CADA MODELO
-val_dia_noche <- "90.15 %"
-val_dia_noche_crepusculo <- "79.89 %"
-val_despejado_nublado <- "XX.XX %"
-accuracy_validacion <- c(val_dia_noche, val_dia_noche_crepusculo, val_despejado_nublado)
-
-# ACCURACY DE TEST DE CADA MODELO
-test_dia_noche <- "98.75 %"
-test_dia_noche_crepusculo <- "85.00 %"
-test_despejado_nublado <- "XX.XX %"
-accuracy_test <- c(test_dia_noche, test_dia_noche_crepusculo, test_despejado_nublado)
-
-datos_tabla <- data.frame(modelo, variables, accuracy_validacion, accuracy_test)
+datos_tabla <- data.frame(
+  Clasificador = c("Temporal binario", "Temporal multiclase", "Meteorológico"),
+  Variables = c(
+    "Mediana RGB y HSV (R, G, B, H_cos, H_sin, S, V); desviación estándar de V.",
+    "Mediana RGB/HSV + sd(V) + % Tonos Cálidos + % Píxeles Extremos + Estadísticas por bloques espaciales (3x1).",
+    "Mediana RGB/HSV + Ratios (Azul/Blancos/Grises) + Brillo/Contraste + Sobel + Saturación por bloques → PCA (15 componentes)."
+  ),
+  `Exactitud Validación` = c("90.15 %", "81.20 %", "95.62 %"),
+  `Exactitud Test` = c("98.80 %", "88.30 %", "81.00 %")
+)
 
 knitr::kable(
   datos_tabla,
   format = "latex",
   booktabs = TRUE,
-  col.names = c("Clasificador", "Variables", "Exactitud validacion", "Exactitud test"),
-  caption = "Características utilizadas y exactitud para cada uno de los modelos finales"
+  caption = "Resumen de características y métricas de rendimiento de los modelos finales",
+  align = "llcc"   # ← SOLO l c r
 ) %>%
-  kableExtra::column_spec(2, width = "6.5cm") %>%
-  kable_styling(latex_options = "HOLD_position")
+  kable_styling(
+    latex_options = "HOLD_position",
+    position = "center"
+  ) %>%
+  column_spec(1, bold = TRUE) %>%
+  column_spec(2, width = "7cm")
 ```
+
+El desarrollo de este proyecto ha permitido demostrar que la extracción manual de características, combinada con algoritmos de aprendizaje clásico como Random Forest, es una estrategia viable y efectiva para la clasificación de imágenes del cielo, ofreciendo una alternativa interpretable a los modelos de caja negra del aprendizaje profundo.
+
+En cuanto a la clasificación temporal, se ha demostrado que la distinción binaria entre día y noche es un problema robusto, resoluble casi exclusivamente mediante el análisis de histogramas de color y luminosidad. Sin embargo, la inclusión de la clase Crepúsculo reveló la necesidad de incorporar información espacial. La segmentación por bloques y el análisis de gradientes verticales resultaron determinantes para capturar la transición de luz característica de esta franja horaria, logrando una exactitud del 88.3% en un conjunto de test independiente, lo que valida la capacidad de generalización del modelo ante imágenes no vistas.
+
+Por otro lado, la clasificación meteorológica presentó desafíos únicos relacionados con el ruido visual (edificios, vegetación). La implementación de un algoritmo de recorte inteligente fue la clave del éxito en esta etapa, permitiendo limpiar el dataset de entrenamiento y eliminar falsos nublados. Además, el análisis de correlaciones evidenció una alta redundancia entre las variables cromáticas y de textura, lo cual justificó el uso del Análisis de Componentes Principales (PCA). Seleccionando las 15 primeras componentes, se logró reducir la dimensionalidad y evitar el sobreajuste, alcanzando un 81% de exactitud en el test final con imágenes reales propias.
+
+Finalmente, como líneas futuras de investigación, se plantea ampliar el problema meteorológico añadiendo clases más complejas como lluvia, nieve o niebla, lo cual requeriría la exploración de nuevas características de textura. Asimismo, sería conveniente mejorar el algoritmo de segmentación de cielo mediante técnicas de detección de bordes más avanzadas para capturar contornos irregulares con mayor precisión. Por último, resultaría de gran interés comparar el rendimiento de estos modelos frente a arquitecturas de aprendizaje profundo (CNN), que, aunque suelen ofrecer una capacidad predictiva superior, su naturaleza sacrifica la interpretabilidad directa de las propiedades visuales (como el color o el contraste) que sí permite analizar nuestro enfoque de extracción manual.
 
 # Bibliografía
 

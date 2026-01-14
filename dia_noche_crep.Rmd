@@ -143,7 +143,7 @@ p_box <- ggplot(df_long, aes(x = clase, y = Valor, fill = clase)) +
        x = "Clase", y = "Valor", fill = "Clase")
 
 p_box
-ggsave("figuras/temporal_multiclase/figuras/temporal_multiclase/boxplot_modelo_base_3clases.png", p_box, width = 10, height = 6)
+ggsave("figuras/temporal_multiclase/boxplot_modelo_base_3clases.png", p_box, width = 10, height = 6)
 ```
 La figura muestra que las variables RGB y V separan claramente día y noche, mientras que el crepúsculo aparece en valores intermedios. El brillo (V_mediana) y su variabilidad (sd_V) son especialmente discriminantes, y las componentes de H reflejan los tonos cálidos característicos del crepúsculo. Esto justifica el uso de RGB + HSV + sd(V) como modelo base.
 

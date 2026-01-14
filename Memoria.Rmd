@@ -35,6 +35,8 @@ A diferencia de los enfoques modernos basados en aprendizaje profundo (*Deep Lea
 
 Para la etapa de clasificación, se emplearán técnicas de Aprendizaje Automático (*Machine Learning*), utilizando concretamente el algoritmo Random Forest. Este modelo se basa en el ensamblaje de múltiples árboles de decisión que operan en conjunto, agregando sus predicciones individuales para obtener un resultado más robusto y menos propenso al sobreajuste que un único árbol.
 
+Todos los materiales utilizados en el proceso de desarrollo de este proyecto se encuentran en el repositorio público de Github https://github.com/amalo8/Proyecto_Senyales.git.
+
 ## Origen de los Datos, Distribución y Balance de Clases
 
 Las imágenes utilizadas en este proyecto se han recopilado a partir de diversas fuentes, con el objetivo de construir un dataset representativo y equilibrado para ambos problemas de clasificación. En primer lugar, se recopiló un conjunto masivo de entrenamiento proveniente de fuentes públicas y, en segundo lugar, se generó un conjunto de test independiente compuesto exclusivamente por fotografías propias de los miembros del grupo. 

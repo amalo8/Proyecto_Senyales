@@ -81,7 +81,7 @@ datos_validation <- datos_imagenes[-indices_entrenamiento, ]
 
 ## Extracción y análisis de características
 
-Para entrenar este nuevo clasificador, que tendrá que distinguir entre cielos nublados y despejados, hemos propuesto un total de 11 características: los valores de los tres canales RGB originales de la imagen, los valores de HSV; descomponiendo el matiz o _hue_ (H) en sus valores de seno y coseno (ya que al ser H un ángulo no es conveniente tratarlo igual que las variables S y V), el brillo, el contraste, el ratio de píxeles azules y la magnitud mediana del operador Sobel (para detectar los bordes de las nubes).
+Para entrenar este nuevo clasificador, que tendrá que distinguir entre cielos nublados y despejados, hemos propuesto un total de 31 características: los valores de los tres canales RGB originales de la imagen, los valores de HSV; descomponiendo el matiz o _hue_ (H) en sus valores de seno y coseno (ya que al ser H un ángulo no es conveniente tratarlo igual que las variables S y V), el brillo, el contraste, la magnitud mediana del operador Sobel (para detectar los bordes de las nubes con mayor precisión hemos aplicado un filtro de paso alto a las imágenes antes de extraer esta característica), los ratios de píxeles azules, blancos, grises, el ratio de sombras, la desviación estándar de V y los valores medios de S por bloques.
 
 ```{r}
 # leemos las imágenes
@@ -96,17 +96,36 @@ datos_validation <- extraer_rgb(datos_validation, lista_validation)
 datos_train <- extraer_hsv(datos_train, lista_train)
 datos_validation <- extraer_hsv(datos_validation, lista_validation)
 
-# extraemos las ratios de azul 
-datos_train <- extraer_ratio_azul(datos_train, lista_train)
-datos_validation <- extraer_ratio_azul(datos_validation, lista_validation)
-
 # extraemos las medianas de brillo y contraste 
 datos_train <- extraer_brillo_contraste(datos_train, lista_train)
 datos_validation <- extraer_brillo_contraste(datos_validation, lista_validation)
 
+# aplicamos filtro de paso alto a las imágenes
+lista_procesada_train <- mejorar_texturas(datos_train, lista_train)
+lista_procesada_validation <- mejorar_texturas(datos_validation, lista_validation)
 # extraemos los bordes
-datos_train <- extraer_sobel(datos_train, lista_train)
-datos_validation <- extraer_sobel(datos_validation, lista_validation)
+datos_train <- extraer_sobel(datos_train, lista_procesada_train)
+datos_validation <- extraer_sobel(datos_validation, lista_procesada_validation)
+
+# extraemos las ratios de azul, grises, blancos y sombras 
+datos_train <- datos_train %>% 
+  extraer_ratio_azul(lista_train) %>% 
+  extraer_ratio_blanco(lista_train) %>% 
+  extraer_ratio_gris(lista_train) %>% 
+  extraer_ratio_sombras(lista_train)
+datos_validation <- datos_validation %>% 
+  extraer_ratio_azul(lista_validation) %>% 
+  extraer_ratio_blanco(lista_validation) %>% 
+  extraer_ratio_gris(lista_validation) %>% 
+  extraer_ratio_sombras(lista_validation)
+
+# extraemos la desviación estándar de sd_V
+datos_train <- extraer_sd_V(datos_train, lista_train)
+datos_validation <- extraer_sd_V(datos_validation, lista_validation)
+
+# extraemos S por bloques
+datos_train <- extraer_saturacion_bloques(datos_train, lista_train) 
+datos_validation <- extraer_saturacion_bloques(datos_validation, lista_validation) 
 ```
 
 ```{r, fig.width=15, fig.height=7}
@@ -322,33 +341,6 @@ dev.off()
 ```
 
 
-
-
-```{r, fig.width=15, fig.height=15, fig.align='center', dev='png', dpi=300}
-# Mostramos las relaciones entre todas las variables originales
-p <- ggpairs(datos_train, 
-        columns = 3:13, 
-        mapping = aes(color = etiqueta, alpha = 0.5),
-        upper = list(continuous = wrap("cor", size = 3)), 
-        lower = list(continuous = wrap("points", size = 0.5))) +
-  scale_color_manual(values = c("gray", "skyblue"), labels = c("Nublado", "Despejado")) +
-  scale_fill_manual(values = c("gray",  "skyblue"), labels = c("Nublado", "Despejado")) +
-  theme_minimal() +
-  theme(axis.text = element_text(size = 7), 
-        strip.text = element_text(size = 8)) 
-
-# Mostrar el gráfico
-p
-
-# guardamos la imagen
-ggsave("mi_grafica_ggpairs.png", 
-       plot = p, 
-       width = 15, 
-       height = 15, 
-       units = "in", 
-       dpi = 300)
-```
-
 ## Aplicación de PCA y selección del modelo
 
 
@@ -469,11 +461,12 @@ f+g
 En la curva de proporción de varianza acumulada vemos que, a partir de la sexta componente principal, la proporción de varianza que explica cada una de las siguientes componentes es casi imperceptible. Es por esto por lo que escogeremos solamente las 7 primeras componentes principales para entrenar otro modelo de Random Forest, con la intención de simplificar el modelo para evitar sobreajustarnos a los datos de entrenamiento.
 
 ```{r}
+
 # Creamos el conjunto de entrenamiento formado por las 7 primeras componentes principales
 datos_pca_train <- data.frame(
   etiqueta = datos_train$etiqueta, 
   pca$x
-  ) %>% select("etiqueta", paste0("PC",1:7))
+  ) %>% dplyr::select("etiqueta", paste0("PC",1:7))
 
 # Calculamos el modelo
 set.seed(42)
@@ -489,7 +482,7 @@ datos_pca_validacion <- data.frame(
   etiqueta = datos_validation$etiqueta,
   ruta = datos_validation$ruta,
   datos_pca_validacion
-) %>% select("etiqueta", "ruta", paste0("PC",1:7))
+) %>% dplyr::select("etiqueta", "ruta", paste0("PC",1:7))
 
 # Evaluar el modelo en el conjunto de prueba
 predicciones_pca <- predict(modelo_pca, newdata = datos_pca_validacion)
@@ -509,29 +502,7 @@ for (i in 1:dim(mal_clasificados)[1]){
   legend("top", legend = paste0("Etiqueta real:\n", aux), bg = "transparent", bty = "n", text.col = '#a44')
 }
 ```
-```{r}
-# # Correlaciones entre las 6 primeras componentes principales
-# p <- ggpairs(datos_pca_train, 
-#         columns = 2:7, 
-#         mapping = aes(color = etiqueta, alpha = 0.5),
-#         upper = list(continuous = wrap("cor", size = 3)), 
-#         lower = list(continuous = wrap("points", size = 0.5))) + 
-#   scale_color_manual(values = c("gray", "skyblue"), labels = c("Nublado", "Despejado")) +
-#   scale_fill_manual(values = c("gray",  "skyblue"), labels = c("Nublado", "Despejado")) +
-#   theme_minimal() +
-#   theme(axis.text = element_text(size = 7), 
-#         strip.text = element_text(size = 8)) 
-# 
-# # Mostrar el gráfico
-# p
-# 
-# ggsave("mi_grafica_ggpairs_pca.png", 
-#        plot = p, 
-#        width = 15, 
-#        height = 15, 
-#        units = "in", 
-#        dpi = 300)
-```
+
 
 
 # Probamos con filtro paso alto antes de aplicar Sobel para detectar mejor bordes
@@ -548,6 +519,7 @@ mejorar_texturas <- function(df, lista, sigma = 1, potencia = 0.8) {
   cat("Aplicando filtro de realce de bordes a", nrow(df), "imágenes...\n")
   
   for (nombre in df$ruta) {
+    img_array <- lista[[nombre]]
     # 1. Convertimos el array de la lista a objeto de imagen (cimg)
     # Asumimos que la imagen está en formato [filas, columnas, canales]
     img <- suppressWarnings(as.cimg(img_array))
@@ -582,6 +554,7 @@ extraer_sobel2 <- function(df, lista) {
   
   j <- 1
   for (nombre in df$ruta) {
+    
     img_array <- lista[[nombre]]
     
     # conversión a formato cimg
@@ -601,230 +574,28 @@ extraer_sobel2 <- function(df, lista) {
   return(df_final)
 }
 
+# Calculamos Sobel después de haberles pasado a las imágenes un filtro paso alto
 lista_procesada_train <- mejorar_texturas(datos_train, lista_train)
 lista_procesada_validation <- mejorar_texturas(datos_validation, lista_validation)
-lista_procesada_test <- mejorar_texturas(datos_test, lista_test)
 
 datos_train <- extraer_sobel2(datos_train, lista_procesada_train)
 datos_validation <- extraer_sobel2(datos_validation, lista_procesada_validation)
-datos_test <- extraer_sobel2(datos_test, lista_procesada_test)
 ```
 
 
-
-### Test con nuestras fotos
-
-Cargamos, leemos y etiquetamos los datos: 
-
-```{r}
-# Definir la ruta base
-ruta_base_imagenes <- "imagenes_recortadas/test/Meteorológico"
-
-# lectura de las imágenes de Nublado
-ruta_nublado <- file.path(ruta_base_imagenes, "Nublado")
-archivos_nublado <- list.files(
-  path = ruta_nublado,
-  pattern = "\\.jpe?g$",
-  full.names = TRUE,
-  recursive = FALSE
-)
-
-df_nublado <- data.frame(
-  ruta = archivos_nublado,
-  etiqueta = 0 # nublado
-)
-
-
-# Leer y etiquetar imágenes del subdirectorio Despejado
-
-ruta_despejado <- file.path(ruta_base_imagenes, "Despejado")
-archivos_despejado <- list.files(
-  path = ruta_despejado,
-  pattern = "\\.jpe?g$",
-  full.names = TRUE,
-  recursive = FALSE
-)
-
-df_despejado <- data.frame(
-  ruta = archivos_despejado,
-  etiqueta = 1 # despejado
-)
-
-# lectura de las imágenes 
-datos_test <- rbind(df_nublado, df_despejado)
-lista_test <- leer_imagenes(datos_test)
-
-# extracción de características
-datos_test <- datos_test %>% 
-  extraer_rgb(lista_test) %>% 
-  extraer_hsv(lista_test) %>% 
-  extraer_brillo_contraste(lista_test) %>% 
-  extraer_ratio_azul(lista_test) %>% 
-  extraer_sobel(lista_test)
-```
-Cogemos las columnas de esas 11 variables (ahora tenemos mas porque hemos ejecutado cosas posteriores, de ahi filtrar)
-```{r}
-datos_test_11 <- datos_test %>% select(
-  ruta, 
-  etiqueta, 
-  R_mediana, 
-  G_mediana, 
-  B_mediana, 
-  H_cos_mediana, 
-  H_sin_mediana, 
-  S_mediana, 
-  V_mediana, 
-  Ratio_Azul, 
-  Brillo, 
-  Contraste, 
-  Sobel_mean
-  )
-
-datos_entrenamiento_11 <- datos_entrenamiento %>% select(
-  ruta, 
-  etiqueta, 
-  R_mediana, 
-  G_mediana, 
-  B_mediana, 
-  H_cos_mediana, 
-  H_sin_mediana, 
-  S_mediana, 
-  V_mediana, 
-  Ratio_Azul, 
-  Brillo, 
-  Contraste, 
-  Sobel_mean
-  )
-
-
-
-```
-
-
-Aplicamos el modelo:
+Ahora probamos a construir el modelo con el Sobel calculado después de haber pasado el filtro:
 
 ```{r}
 modelo <- randomForest(
-  etiqueta ~  R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_mean,
+  etiqueta ~  R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_2,
   data = datos_train,
   ntree = 100
 )
-
-# Evaluar el modelo en el conjunto de validacion
+# Evaluar el modelo en el conjunto de prueba
 predicciones <- predict(modelo, newdata = datos_validation)
 confusionMatrix(predicciones, datos_validation$etiqueta)
 modelo$importance
-mal_clasificados <- datos_validation[predicciones!= datos_validation$etiqueta, ]
-par(mfrow=c(2,3), mar=c(0.1, 0.1, 0.1, 0.1))
-for (i in 1:dim(mal_clasificados)[1]){
-  plot(image_read(mal_clasificados[i, "ruta"]))
-  if (mal_clasificados[i, "etiqueta"] == 0){aux <- "Nublado"} else{aux <- "Despejado"}
-  legend("top", legend = paste0("Etiqueta real:\n", aux), bg = "transparent", bty = "n", text.col = '#a44')
-}
 ```
-Probamos a hacer pca con esas 11 variables: 
-```{r}
-
-pca2 <- prcomp(
-  ~ R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_mean,
-  data=datos_entrenamiento, 
-  center=TRUE, 
-  scale=TRUE
-  )
-
-```
-
-Probamos a hacer pca y coger todas las componentes:
-
-```{r}
-# Creamos el conjunto de entrenamiento con todas las componentes principales
-datos_pca2_train <- data.frame(
-  etiqueta = datos_entrenamiento$etiqueta, 
-  pca2$x
-  ) 
-
-```
-
-```{r}
-# Calculamos la proporción de varianza explicada y las proporciones acumuladas
-prop_varianza <- pca2$sdev^2 / sum(pca2$sdev^2)
-prop_varianza_acum <- cumsum(prop_varianza)
-
-# Representamos la proporción de varianza explicada acumulada
-ggplot(data = data.frame(prop_varianza_acum, pc = 1:11),
-       aes(x = pc, y = prop_varianza_acum, group = 1)) +
-  geom_point(color='skyblue') +
-  geom_line(color = 'skyblue') +
-  theme_bw() +
-  labs(x = "Número de componentes principales",
-       y = "Proporción de varianza explicada acumulada")
-```
-
-
-
-```{r}
-
-# Calculamos el modelo
-set.seed(42)
-modelo_pca2 <- randomForest(
-  etiqueta ~  PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PC11,
-  data = datos_pca2_train,
-  ntree = 100
-)
-
-# Calculamos el conjunto de test
-datos_pca_test <- predict(pca2, newdata = datos_test) 
-datos_pca_test <- data.frame(
-  etiqueta = datos_test$etiqueta,
-  ruta = datos_test$ruta,
-  datos_pca_test
-) 
-
-# Evaluar el modelo en el conjunto de prueba
-predicciones_pca2 <- predict(modelo_pca2, newdata = datos_pca_test)
-confusionMatrix(predicciones_pca2, datos_pca_test$etiqueta)
-modelo_pca2$importance
-```
-```{r}
-
-# Creamos el conjunto de entrenamiento formado por las 7 primeras componentes principales
-datos_pca2_train_7 <- data.frame(
-  etiqueta = datos_entrenamiento$etiqueta, 
-  pca2$x
-  ) %>% select("etiqueta", paste0("PC",1:7))
-
-# Calculamos el modelo
-set.seed(42)
-modelo_pca2 <- randomForest(
-  etiqueta ~  PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7,
-  data = datos_pca2_train_6,
-  ntree = 100
-)
-
-# Calculamos el conjunto de test
-datos_pca_test <- predict(pca2, newdata = datos_test) 
-datos_pca_test_6 <- data.frame(
-  etiqueta = datos_test$etiqueta,
-  ruta = datos_test$ruta,
-  datos_pca_test
-) %>% select("etiqueta", "ruta", paste0("PC",1:7))
-
-# Evaluar el modelo en el conjunto de prueba
-predicciones_pca2 <- predict(modelo_pca2, newdata = datos_pca_test_6)
-confusionMatrix(predicciones_pca2, datos_pca_test_6$etiqueta)
-modelo_pca2$importance
-```
-
-```{r}
-mal_clasificados <- datos_pca_test[predicciones_pca2!= datos_pca_test$etiqueta, ]
-par(mfrow=c(2,3), mar=c(0.1, 0.1, 0.1, 0.1))
-for (i in 1:dim(mal_clasificados)[1]){
-  plot(image_read(mal_clasificados[i, "ruta"]))
-  if (mal_clasificados[i, "etiqueta"] == 0){aux <- "Nublado"} else{aux <- "Despejado"}
-  legend("top", legend = paste0("Etiqueta real:\n", aux), bg = "transparent", bty = "n", text.col = '#a44')
-}
-```
-
 
 ## Probamos cositas nuevas:
 
@@ -901,34 +672,6 @@ extraer_saturacion_bloques <- function(df, lista, num_bloques = 4) {
   return(df_final)
 }
 
-extraer_entropia <- function(df, lista) {
-  
-  # Inicializamos el vector para la entropía
-  features <- matrix(0, nrow = nrow(df), ncol = 1)
-  
-  cat("Extrayendo características de Entropía de", nrow(df), "imágenes...\n")
-  
-  j <- 1
-  for (nombre in df$ruta) {
-    img_array <- lista[[nombre]]
-    
-    # conversión a grises
-    gris_matrix <- 0.299 * img_array[,,1] + 0.587 * img_array[,,2] + 0.114 * img_array[,,3]
-    tabla_frecuencias <- table(as.vector(round(gris_matrix, 3))) 
-    # cálculo de la entropía
-    features[j] <- entropy(tabla_frecuencias)
-    
-    j <- j + 1
-  }
-  
-  df_final <- cbind(df, Entropia = features)
-  
-  if("etiqueta" %in% names(df_final)) {
-    df_final$etiqueta <- as.factor(df_final$etiqueta)
-  }
-  return(df_final)
-}
-
 extraer_ratio_blanco <- function(df, lista) {
   features <- numeric(nrow(df))
   cat("Extrayendo ratios de blanco de", nrow(df), "imágenes...\n")
@@ -989,7 +732,6 @@ extraer_ratio_gris <- function(df, lista) {
   return(df_final)
 }
 
-
 extraer_ratio_sombras <- function(df, lista) {
   # vector vacío para guardar los ratios
   features <- numeric(nrow(df))
@@ -1033,167 +775,203 @@ extraer_ratio_sombras <- function(df, lista) {
 
 ```{r}
 datos_train <- extraer_saturacion_bloques(datos_train, lista_train) 
-datos_train <- extraer_entropia(datos_train, lista_train)
+#datos_train <- extraer_entropia(datos_train, lista_train)
 datos_train <- extraer_ratio_blanco(datos_train, lista_train)
 datos_train <- extraer_ratio_gris(datos_train, lista_train)
 datos_train <- extraer_sd_V(datos_train, lista_train)
 datos_train <- extraer_ratio_sombras(datos_train, lista_train)
 
 datos_validation <- extraer_saturacion_bloques(datos_validation, lista_validation) 
-datos_validation <- extraer_entropia(datos_validation, lista_validation)
+# datos_validation <- extraer_entropia(datos_validation, lista_validation)
 datos_validation <- extraer_ratio_blanco(datos_validation, lista_validation)
 datos_validation <- extraer_ratio_gris(datos_validation, lista_validation)
 datos_validation <- extraer_sd_V(datos_validation, lista_validation)
 datos_validation <- extraer_ratio_sombras(datos_validation, lista_validation)
 
 datos_entrenamiento <- rbind(datos_train,datos_validation)
+```
 
-datos_test <- extraer_saturacion_bloques(datos_test, lista_test) 
-datos_test <- extraer_entropia(datos_test, lista_test)
-datos_test <- extraer_ratio_blanco(datos_test, lista_test)
-datos_test <- extraer_ratio_gris(datos_test, lista_test)
-datos_test <- extraer_sd_V(datos_test, lista_test)
-datos_test <- extraer_ratio_sombras(datos_test, lista_test)
+### Test con nuestras fotos
+
+Cargamos, leemos y etiquetamos los datos: 
+
+```{r}
+# Definir la ruta base
+ruta_base_imagenes <- "imagenes_recortadas/test/Meteorológico"
+
+# lectura de las imágenes de Nublado
+ruta_nublado <- file.path(ruta_base_imagenes, "Nublado")
+archivos_nublado <- list.files(
+  path = ruta_nublado,
+  pattern = "\\.jpe?g$",
+  full.names = TRUE,
+  recursive = FALSE
+)
+
+df_nublado <- data.frame(
+  ruta = archivos_nublado,
+  etiqueta = 0 # nublado
+)
+
+
+# Leer y etiquetar imágenes del subdirectorio Despejado
+
+ruta_despejado <- file.path(ruta_base_imagenes, "Despejado")
+archivos_despejado <- list.files(
+  path = ruta_despejado,
+  pattern = "\\.jpe?g$",
+  full.names = TRUE,
+  recursive = FALSE
+)
+
+df_despejado <- data.frame(
+  ruta = archivos_despejado,
+  etiqueta = 1 # despejado
+)
+
+# lectura de las imágenes 
+datos_test <- rbind(df_nublado, df_despejado)
+lista_test <- leer_imagenes(datos_test)
+
+# extracción de características
+datos_test <- datos_test %>% 
+  extraer_rgb(lista_test) %>% 
+  extraer_hsv(lista_test) %>% 
+  extraer_brillo_contraste(lista_test) %>% 
+  extraer_ratio_azul(lista_test) %>% 
+  extraer_sobel(lista_test) %>% 
+  extraer_saturacion_bloques(lista_test) %>% 
+  extraer_sd_V(lista_test) %>% 
+  extraer_ratio_blanco(lista_test) %>% 
+  extraer_ratio_gris(lista_test) %>% 
+  extraer_ratio_sombras(lista_test)
+
+lista_procesada_test <- mejorar_texturas(datos_test, lista_test)
+datos_test <- extraer_sobel2(datos_test, lista_procesada_test)
 ```
 
 
+Aplicamos el modelo:
+
 ```{r}
-# MODELO CON VALIDACION
-set.seed(42)
+set.seed(45)
 modelo <- randomForest(
-  etiqueta ~  R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_mean + Entropia + Ratio_Blanco + Ratio_Gris + sd_V + Ratio_Sombras,
-  data = datos_train,
+  etiqueta ~  R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_2 + Bloque_1_media_S + Bloque_2_media_S + Bloque_3_media_S + Bloque_4_media_S + Bloque_5_media_S + Bloque_6_media_S +Bloque_7_media_S +Bloque_8_media_S + Bloque_9_media_S +Bloque_10_media_S + Bloque_11_media_S + Bloque_12_media_S + Bloque_13_media_S + Bloque_14_media_S + Bloque_15_media_S + Bloque_16_media_S + Ratio_Blanco + Ratio_Gris + sd_V + Ratio_Sombras,
+  data = datos_entrenamiento,
   ntree = 100
 )
-# Evaluar el modelo en el conjunto de prueba
-predicciones <- predict(modelo, newdata = datos_validation)
-confusionMatrix(predicciones, datos_validation$etiqueta)
+
+# Evaluar el modelo en el conjunto de validacion
+predicciones <- predict(modelo, newdata = datos_test)
+confusionMatrix(predicciones, datos_test$etiqueta)
 modelo$importance
+mal_clasificados <- datos_test[predicciones!= datos_test$etiqueta, ]
+par(mfrow=c(2,3), mar=c(0.1, 0.1, 0.1, 0.1))
+for (i in 1:dim(mal_clasificados)[1]){
+  plot(image_read(mal_clasificados[i, "ruta"]))
+  if (mal_clasificados[i, "etiqueta"] == 0){aux <- "Nublado"} else{aux <- "Despejado"}
+  legend("top", legend = paste0("Etiqueta real:\n", aux), bg = "transparent", bty = "n", text.col = '#a44')
+}
+```
+Probamos a hacer pca con esas variables: 
+```{r}
 
-
-# MODELO CON TEST
-datos_entrenamiento <- rbind(datos_train, datos_validation)
 pca2 <- prcomp(
-  ~ R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_mean + Entropia + Ratio_Blanco + Ratio_Gris + sd_V+ Ratio_Sombras,
+  ~ R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_2 + Bloque_1_media_S + Bloque_2_media_S + Bloque_3_media_S + Bloque_4_media_S + Bloque_5_media_S + Bloque_6_media_S +Bloque_7_media_S +Bloque_8_media_S + Bloque_9_media_S +Bloque_10_media_S + Bloque_11_media_S + Bloque_12_media_S + Bloque_13_media_S + Bloque_14_media_S + Bloque_15_media_S + Bloque_16_media_S + Ratio_Blanco + Ratio_Gris + sd_V + Ratio_Sombras,
   data=datos_entrenamiento, 
   center=TRUE, 
   scale=TRUE
   )
 
-modelo <- randomForest(
-  etiqueta ~  R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_mean + Entropia + Ratio_Blanco + Ratio_Gris + sd_V+ Ratio_Sombras,
-  data = datos_entrenamiento,
-  ntree = 100
-)
-
-# Evaluar el modelo en el conjunto de prueba
-predicciones <- predict(modelo, newdata = datos_test)
-confusionMatrix(predicciones, datos_test$etiqueta)
-modelo$importance
 ```
 
+Probamos a hacer pca y coger todas las componentes:
 
 ```{r}
+# Creamos el conjunto de entrenamiento con todas las componentes principales
+datos_pca2_train <- data.frame(
+  etiqueta = datos_entrenamiento$etiqueta, 
+  pca2$x
+  ) 
+
+```
+
+```{r}
+# Calculamos la proporción de varianza explicada y las proporciones acumuladas
 prop_varianza <- pca2$sdev^2 / sum(pca2$sdev^2)
 prop_varianza_acum <- cumsum(prop_varianza)
 
-# Representamos la proporción de la varianza explicada
-f<-ggplot(data = data.frame(prop_varianza, pc = 1:15),
-aes(x = pc, y = prop_varianza)) +
-  geom_col(width = 0.3, color='skyblue', fill = 'skyblue') +
-  scale_y_continuous(limits = c(0,1)) +
-  theme_bw()+
-  labs(x = "Componentes principales",
-       y = "Proporción de varianza explicada")
-
 # Representamos la proporción de varianza explicada acumulada
-g<-ggplot(data = data.frame(prop_varianza_acum, pc = 1:15),
+ggplot(data = data.frame(prop_varianza_acum, pc = 1:31),
        aes(x = pc, y = prop_varianza_acum, group = 1)) +
   geom_point(color='skyblue') +
   geom_line(color = 'skyblue') +
   theme_bw() +
   labs(x = "Número de componentes principales",
        y = "Proporción de varianza explicada acumulada")
-g
 ```
 
-# ADRIANA:
 
-
-
-
-# 16 variables sin bloques --> accuracy 0.73
 
 ```{r}
-library(dplyr)
-library(caret) #
-library(randomForest)
-
-# --- 1. Preparar los datos eliminando los bloques ---
-
-# Partimos de tus datos completos ya cargados y con características extraídas:
-# datos_entrenamiento (train + validation unidos)
-# datos_test
-
-# Usamos dplyr::select con un signo menos y 'starts_with' para borrar
-# todo lo que empiece por "Bloque_" y también la columna "ruta" que no sirve para entrenar.
-
-datos_train_reducido <- datos_entrenamiento %>%
-  select(-starts_with("Bloque_"), -ruta)
-
-datos_test_reducido <- datos_test %>%
-  select(-starts_with("Bloque_"), -ruta)
-
-# Verificamos con qué variables nos quedamos
-cat("Variables restantes para el modelo:\n")
-print(names(datos_train_reducido))
-
-
-# --- 2. Entrenar Random Forest con el set reducido (SIN PCA) ---
-
-set.seed(42)
-# Aumentamos un poco los árboles (ntree=500) para que sea más estable
-modelo_reducido <- randomForest(
-  etiqueta ~ .,           # Usa todas las variables que quedan
-  data = datos_train_reducido,
-  ntree = 100,
-  importance = TRUE       # Para ver qué variable gana ahora
+set.seed(45)
+# Calculamos el modelo
+modelo_pca2 <- randomForest(
+  etiqueta ~  PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PC11 + PC12 + PC13 + PC14 + PC15,
+  data = datos_pca2_train,
+  ntree = 100
 )
 
+# Calculamos el conjunto de test
+datos_pca_test <- predict(pca2, newdata = datos_test) 
+datos_pca_test <- data.frame(
+  etiqueta = datos_test$etiqueta,
+  ruta = datos_test$ruta,
+  datos_pca_test
+) 
 
-# --- 3. Evaluar con el set de Test ---
-
-# Hacemos las predicciones
-predicciones_reducido <- predict(modelo_reducido, newdata = datos_test_reducido)
-
-# Mostramos la matriz de confusión
-print("Matriz de Confusión (Modelo Reducido sin Bloques):")
-print(confusionMatrix(predicciones_reducido, datos_test_reducido$etiqueta))
-
-
-# --- 4. Ver la importancia de las variables ---
-# ¿Qué características son las reinas ahora que no están los bloques?
-varImpPlot(modelo_reducido,
-           main = "Importancia de Variables (Sin Bloques Espaciales)")
+# Evaluar el modelo en el conjunto de prueba
+predicciones_pca2 <- predict(modelo_pca2, newdata = datos_pca_test)
+confusionMatrix(predicciones_pca2, datos_pca_test$etiqueta)
+modelo_pca2$importance
 ```
-
-
-
-# 16 variables + 16 bloques --> accuracy 0.8
 ```{r}
-# Entrenar con TODAS las variables originales, sin PCA
+
+# Creamos el conjunto de entrenamiento formado por las 7 primeras componentes principales
+datos_pca2_train_7 <- data.frame(
+  etiqueta = datos_entrenamiento$etiqueta, 
+  pca2$x
+  ) %>% select("etiqueta", paste0("PC",1:7))
+
+# Calculamos el modelo
 set.seed(42)
-modelo_full <- randomForest(
-  etiqueta ~ ., 
-  data = select(datos_entrenamiento, -ruta), # Quitamos la ruta, usamos todo lo demás
-  ntree = 100,     
-  importance = TRUE
+modelo_pca2 <- randomForest(
+  etiqueta ~  PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7,
+  data = datos_pca2_train_6,
+  ntree = 100
 )
 
-# Predicción directa
-predicciones_full <- predict(modelo_full, newdata = datos_test)
-confusionMatrix(predicciones_full, datos_test$etiqueta)
+# Calculamos el conjunto de test
+datos_pca_test <- predict(pca2, newdata = datos_test) 
+datos_pca_test_6 <- data.frame(
+  etiqueta = datos_test$etiqueta,
+  ruta = datos_test$ruta,
+  datos_pca_test
+) %>% select("etiqueta", "ruta", paste0("PC",1:7))
 
-# Y lo más importante: ¿Qué variable manda ahora?
-varImpPlot(modelo_full)
+# Evaluar el modelo en el conjunto de prueba
+predicciones_pca2 <- predict(modelo_pca2, newdata = datos_pca_test_6)
+confusionMatrix(predicciones_pca2, datos_pca_test_6$etiqueta)
+modelo_pca2$importance
 ```
+
+```{r}
+mal_clasificados <- datos_pca_test[predicciones_pca2!= datos_pca_test$etiqueta, ]
+par(mfrow=c(2,3), mar=c(0.1, 0.1, 0.1, 0.1))
+for (i in 1:dim(mal_clasificados)[1]){
+  plot(image_read(mal_clasificados[i, "ruta"]))
+  if (mal_clasificados[i, "etiqueta"] == 0){aux <- "Nublado"} else{aux <- "Despejado"}
+  legend("top", legend = paste0("Etiqueta real:\n", aux), bg = "transparent", bty = "n", text.col = '#a44')
+}
+```
+

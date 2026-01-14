@@ -141,6 +141,214 @@ extraer_hsv <- function(df, lista) {
   return(df_final)
 }
 
+# Extracción de la saturación de S por bloques
+
+# parámetros de entrada: 
+#   - dataframe con las rutas locales a las imágenes en la columna "ruta"
+#   - lista con la info de los 3 canales de cada imagen obtenida con la función 
+#     read_images
+#   - número de lados que quieres que la partición cuadrada de bloques tenga
+# parámetros de salida:
+#   - dataframe original con la adición de num_bloques^2 columnas con la media de S 
+
+extraer_saturacion_bloques <- function(df, lista, num_bloques = 4) {
+  
+  # lista para guardar los vectores de características de cada imagen
+  features_list <- list()
+  
+  cat("Extrayendo saturación por bloques de", nrow(df), "imágenes...\n")
+  
+  for (j in 1:nrow(df)) {
+    nombre <- df$ruta[j]
+    
+    # dimensiones originales
+    altura <- nrow(lista[[nombre]][,,1])
+    ancho <- ncol(lista[[nombre]][,,1])
+    
+    # extraer canales HSV
+    hsv_vals <- rgb_a_hsv(
+      as.vector(lista[[nombre]][,,1]), 
+      as.vector(lista[[nombre]][,,2]), 
+      as.vector(lista[[nombre]][,,3])
+    )
+    
+    # reconstruimos solo la matriz de Saturación (canal 2)
+    # cada valor corresponde a un píxel y la estructura es como la imagen
+    S_matrix <- matrix(hsv_vals[, 2], nrow = altura, ncol = ancho)
+    
+    # calculamos el tamaño de cada bloque
+    bloque_altura <- floor(altura / num_bloques)
+    bloque_ancho <- floor(ancho / num_bloques)
+    
+    # vector para las características de la imagen actual
+    caracteristicas_imagen <- c()
+    
+    # doble bucle para recorrer la cuadrícula
+    for (i in 0:(num_bloques - 1)) {
+      for (k in 0:(num_bloques - 1)) {
+        
+        # índices de inicio y fin del bloque
+        fila_inicio <- i * bloque_altura + 1
+        fila_fin <- ifelse(i == num_bloques - 1, altura, (i + 1) * bloque_altura)
+        col_inicio <- k * bloque_ancho + 1
+        col_fin <- ifelse(k == num_bloques - 1, ancho, (k + 1) * bloque_ancho)
+        
+        # extraemos el bloque de la matriz de saturación
+        bloque_S <- S_matrix[fila_inicio:fila_fin, col_inicio:col_fin]
+        
+        # cálculo de la saturación media del bloque
+        # Un cielo despejado tendrá valores altos (>0.3), uno nublado valores bajos (<0.15)
+        media_S <- mean(bloque_S, na.rm = TRUE)
+        
+        # acumulamos en el vector de la imagen
+        caracteristicas_imagen <- c(caracteristicas_imagen, media_S)
+      }
+    }
+    features_list[[j]] <- caracteristicas_imagen
+  }
+  
+  # convertimos la lista a matriz
+  features_matrix <- do.call(rbind, features_list)
+  
+  # asignamos nombres a las columnas 
+  colnames(features_matrix) <- paste0("Bloque_", rep(1:(num_bloques^2)), "_media_S")
+  
+  # unimos la nueva info al dataframe y nos aseguramos de que la etiqueta es 
+  # de tipo factor
+  df_final <- cbind(df, features_matrix)
+  # devolvemos el dataframe original con los nuevos datos añadidos
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  
+  return(df_final)
+}
+
+# Extracción del ratio de blanco
+
+# parámetros de entrada: 
+#   - dataframe con las rutas locales a las imágenes en la columna "ruta"
+#   - lista con la info de los 3 canales de cada imagen obtenida con la función 
+#     read_images
+# parámetros de salida:
+#   - dataframe original con la adición de la columna Ratio_Blanco
+
+extraer_ratio_blanco <- function(df, lista) {
+  features <- numeric(nrow(df))
+  cat("Extrayendo ratios de blanco de", nrow(df), "imágenes...\n")
+  
+  j <- 1
+  for (nombre in df$ruta) {
+    # Convertimos a HSV
+    hsv_vals <- rgb_a_hsv(
+      as.vector(lista[[nombre]][,,1]), 
+      as.vector(lista[[nombre]][,,2]), 
+      as.vector(lista[[nombre]][,,3])
+    )
+    
+    S <- hsv_vals[, 2] # Saturación
+    V <- hsv_vals[, 3] # Valor (Brillo)
+    
+    total_pixeles <- length(S)
+    
+    # Filtro: Poca saturación y mucho brillo
+    pixeles_blancos <- sum(S <= 0.15 & V >= 0.85)
+    
+    features[j] <- (pixeles_blancos / total_pixeles)
+    j <- j + 1
+  }
+  
+  df_final <- cbind(df, Ratio_Blanco = features)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  return(df_final)
+}
+
+# Extracción del ratio de gris
+
+# parámetros de entrada: 
+#   - dataframe con las rutas locales a las imágenes en la columna "ruta"
+#   - lista con la info de los 3 canales de cada imagen obtenida con la función 
+#     read_images
+# parámetros de salida:
+#   - dataframe original con la adición de la columna Ratio_Gris
+
+extraer_ratio_gris <- function(df, lista) {
+  features <- numeric(nrow(df))
+  cat("Extrayendo ratios de gris de", nrow(df), "imágenes...\n")
+  
+  j <- 1
+  for (nombre in df$ruta) {
+    hsv_vals <- rgb_a_hsv(
+      as.vector(lista[[nombre]][,,1]), 
+      as.vector(lista[[nombre]][,,2]), 
+      as.vector(lista[[nombre]][,,3])
+    )
+    
+    S <- hsv_vals[, 2]
+    V <- hsv_vals[, 3]
+    
+    total_pixeles <- length(S)
+    
+    # Filtro: Saturación casi nula y brillo intermedio
+    # Ajustamos V entre 0.2 y 0.85 para evitar negros y blancos puros
+    pixeles_grises <- sum(S <= 0.15 & V > 0.15 & V < 0.85)
+    
+    features[j] <- (pixeles_grises / total_pixeles)
+    j <- j + 1
+  }
+  
+  df_final <- cbind(df, Ratio_Gris = features)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  return(df_final)
+}
+
+# Extracción del ratio de sombras
+
+# parámetros de entrada: 
+#   - dataframe con las rutas locales a las imágenes en la columna "ruta"
+#   - lista con la info de los 3 canales de cada imagen obtenida con la función 
+#     read_images
+# parámetros de salida:
+#   - dataframe original con la adición de la columna Ratio_Sombras
+
+extraer_ratio_sombras <- function(df, lista) {
+  # vector vacío para guardar los ratios
+  features <- numeric(nrow(df))
+  
+  cat("Extrayendo ratios de sombras de", nrow(df), "imágenes...\n")
+  
+  j <- 1
+  for (nombre in df$ruta) {
+    
+    # Calculamos los valores HSV 
+    # (Asumiendo que rgb_a_hsv devuelve una matriz con H, S, V)
+    hsv_vals <- rgb_a_hsv(
+      as.vector(lista[[nombre]][,,1]), # R
+      as.vector(lista[[nombre]][,,2]), # G
+      as.vector(lista[[nombre]][,,3])  # B
+    )
+    
+    # El canal V (Value/Brightness) es el 3º
+    V <- hsv_vals[, 3]
+    
+    # número total de píxeles
+    total_pixeles <- length(V)
+    
+    # Filtramos por píxeles muy oscuros (sombras)
+    # Umbral sugerido: V < 0.2 (20% de brillo)
+    pixeles_sombras <- sum(V < 0.2)
+    
+    # Porcentaje de sombras
+    features[j] <- (pixeles_sombras / total_pixeles)
+    
+    j <- j + 1
+  }
+  
+  # Unimos la info al dataframe
+  df_final <- cbind(df, Ratio_Sombras = features)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  
+  return(df_final)
+}
+
 # Extracción de la ratio de pixeles azules en la imagen
 
 # parámetros de entrada: 
@@ -570,6 +778,54 @@ extraer_pixeles_extremos_bloques <- function(df, lista, num_bloques = 4) {
   df_final$etiqueta <- as.factor(df_final$etiqueta)
   
   return(df_final)
+}
+
+# Filtro de paso alto para mejorar la detección de bordes en las imágenes
+
+# parámetros de entrada: 
+#   - dataframe con las rutas locales a las imágenes en la columna "ruta"
+#   - lista con la info de los 3 canales de cada imagen obtenida con la función 
+#     leer_imagenes
+#   - sigma: radio del filtro
+#   - potencia: factor para realzar los bordes
+# parámetros de salida:
+#   - lista con la info de los 3 canales de cada imagen una vez aplicado el filtro 
+#     de paso alto y haber realzado los bordes
+
+mejorar_texturas <- function(df, lista, sigma = 1, potencia = 0.8) {
+  # Creamos una lista vacía para las nuevas imágenes
+  lista_procesada <- list()
+  
+  cat("Aplicando filtro de realce de bordes a", nrow(df), "imágenes...\n")
+  
+  for (nombre in df$ruta) {
+    img_array <- lista[[nombre]]
+    # 1. Convertimos el array de la lista a objeto de imagen (cimg)
+    # Asumimos que la imagen está en formato [filas, columnas, canales]
+    img <- suppressWarnings(as.cimg(img_array))
+    
+    # 2. Creamos una versión de Paso Bajo (suavizada/blur)
+    # sigma controla el radio del filtro (1 o 2 es lo ideal)
+    img_low_pass <- isoblur(img, sigma = sigma)
+    
+    # 3. Obtenemos el Paso Alto (Original - Paso Bajo)
+    # Esto contiene solo bordes, texturas y ruido
+    img_high_pass <- img - img_low_pass
+    
+    # 4. Sumamos el Paso Alto a la Original para realzar (Sharpen)
+    # potencia controla cuánto se marcan los bordes
+    img_final <- img + (potencia * img_high_pass)
+    
+    # 5. Aseguramos que los valores sigan entre 0 y 1 (clipping)
+    img_final[img_final < 0] <- 0
+    img_final[img_final > 1] <- 1
+    
+    # Guardamos en la nueva lista volviendo a convertir a array si es necesario
+    lista_procesada[[nombre]] <- as.array(img_final)
+  }
+  
+  cat("Proceso completado.\n")
+  return(lista_procesada)
 }
 
 # Extracción de la detección de bordes

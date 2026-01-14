@@ -701,13 +701,20 @@ print(tabla_comparativa)
 ```
 
 ```{r}
-# Ver los primeros componentes
-cargas <- as.data.frame(pca_resultado$rotation[, 1:12])
+# Extraer las cargas de PC1 a PC14
+cargas <- as.data.frame(pca_resultado$rotation[, 1:14])
 
-# Ver qué variables influyen más en el PC1
-PC1_top <- cargas[order(-abs(cargas$PC1)), ]
-print("Variables que más pesan en el PC1:")
-head(PC1_top[, 1, drop = FALSE], 10)
+# Imprimir las variables más influyentes de cada PC
+for (i in 1:14) {
+  pc_name <- paste0("PC", i)
+  
+  cat("\n====================================\n")
+  cat("Variables que más pesan en", pc_name, "\n")
+  cat("====================================\n")
+  
+  PC_top <- cargas[order(-abs(cargas[[pc_name]])), pc_name, drop = FALSE]
+  print(head(PC_top, 10))   # top 10 variables de ese PC
+}
 ```
 
 

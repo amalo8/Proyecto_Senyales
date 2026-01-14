@@ -81,7 +81,7 @@ datos_validation <- datos_imagenes[-indices_entrenamiento, ]
 
 ## Extracción y análisis de características
 
-Para entrenar este nuevo clasificador, que tendrá que distinguir entre cielos nublados y despejados, hemos propuesto un total de 31 características: los valores de los tres canales RGB originales de la imagen, los valores de HSV; descomponiendo el matiz o _hue_ (H) en sus valores de seno y coseno (ya que al ser H un ángulo no es conveniente tratarlo igual que las variables S y V), el brillo, el contraste, la magnitud mediana del operador Sobel (para detectar los bordes de las nubes con mayor precisión hemos aplicado un filtro de paso alto a las imágenes antes de extraer esta característica), los ratios de píxeles azules, blancos, grises, el ratio de sombras, la desviación estándar de V y los valores medios de S por bloques.
+Para entrenar este nuevo clasificador, que tendrá que distinguir entre cielos nublados y despejados, hemos propuesto un total de 30 características: los valores de los tres canales RGB originales de la imagen, los valores de HSV; descomponiendo el matiz o _hue_ (H) en sus valores de seno y coseno (ya que al ser H un ángulo no es conveniente tratarlo igual que las variables S y V), el brillo, el contraste, la magnitud mediana del operador Sobel (para detectar los bordes de las nubes con mayor precisión hemos aplicado un filtro de paso alto a las imágenes antes de extraer esta característica), los ratios de píxeles azules, blancos, grises, el ratio de sombras, la desviación estándar de V y los valores medios de S por bloques (bloques resultado de dividir la imagen en 16 rectángulos iguales).
 
 ```{r}
 # leemos las imágenes
@@ -222,6 +222,7 @@ ggsave("HSV_despejado_nublado.png",
        height = 5, 
        units = "in", 
        dpi = 300)
+f+g
 ```
 Al representar los histogramas de los 4 valores extraídos de la representación de las imágenes en el espacio HSV, podemos observar que todas, excepto $\cos H$ parecen presentar una distribución normal.
 En el diagrama de cajas podemos observar que la mayor distancia entre clases la presenta el canal S.
@@ -289,47 +290,41 @@ ggplot(datos_train, aes(x = H_cos_mediana, y = H_sin_mediana, color = etiqueta))
 ```
 Por último, hemos representado la relación entre las medianas del coseno y seno de los valores del canal H, donde vemos que, la mayoría de valores se agrupan en torno a valores de H entre $\pi$ y $\frac{3}{2}\pi$, sobre todo los puntos de la clase del cielo despejado. Esto es bastante coherente, ya que, sobre todo las imágenes de cielos despejados, contendrán en su mayoría colores azules, los cuales se representan con valores de hue dentro del intervalo 
 
-```{r}
+```{r, fig.width=15, fig.height=5}
 # Transformar datos a formato largo para representarlos 
 datos_long_bcr <- pivot_longer(
   datos_train, 
-  cols = c( "Ratio_Azul", "Brillo", "Contraste", "Sobel_mean"), 
+  cols = c( "Ratio_Azul", "Brillo", "Contraste", "Sobel_mean","Ratio_Blanco", "Ratio_Gris", "Ratio_Sombras", "sd_V"), 
   names_to = "Feature", values_to = "Valor"
   )
 
 # Representamos los histogramas de las variables
-f<-ggplot(datos_long_bcr, aes(x = Valor, fill = etiqueta)) +
+f <- ggplot(datos_long_bcr, aes(x = Valor, fill = etiqueta)) +
   geom_histogram(position = "identity", alpha = 0.6, bins = 30) +
   scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Despejado")) +
-  facet_wrap(~ Feature, scales = "free") +
+  facet_wrap(~ Feature, scales = "free", nrow = 2, ncol = 4) +
   theme_minimal() +
   labs(title = "Histogramas por canal y clase",
        x = "Valor",
        y = "Frecuencia",
        fill = "Clase")
 
-# Representamos el diagrama de cajas
-g<-ggplot(datos_train, aes(x = Brillo, fill = etiqueta)) +
-  geom_boxplot() +
-  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Despejado")) +
-  labs(title = "Separación de clases usando el brillo",
-       y = "Intensidad Mediana (0-1)") +
-  theme_minimal() 
-
 ggsave("bcr_despejado_nublado.png", 
-       plot = f+g, 
+       plot = f, 
        width = 15, 
        height = 5, 
        units = "in", 
        dpi = 300)
+
+f
 ```
-Como podemos ver en los histogramas, la variable brillo presenta una marcada distribución normal, mientras que las variables contraste y ratio de azul distan mucho de hacerlo, sobre todo el ratio de azul. Es por esto que solo hemos representado el brillo en un diagrama de cajas, que nos demuestra que la variable brillo no es capaz de distinguir claramente entre clases, ya que las medianas de ambas poblaciones están muy próximas y el IQR es bastante similar, lo que denota que el brillo entre imágenes de cielos despejados y cielos nublados es bastante similar. De forma contraria, y aunque no siga una distribución gaussiana, podemos ver en su histograma como el porcentaje de píxeles azules en la imagen distingue claramente entre cielos despejados y nublados, teniendo la mayoría de imágenes de cielos despejados ratios muy altos (cerca del 100%), mientras que la mayoría de cielos nublados tiene ratios muy bajos (cerca del 0%).
+Como podemos ver en los histogramas, la variable brillo presenta una marcada distribución normal, mientras que las variables contraste y ratio de azul distan mucho de hacerlo, sobre todo el ratio de azul. si nos fijamos en el histograma del brillo, este nos muestra que la variable brillo no es capaz de distinguir claramente entre clases, ya que las medianas de ambas poblaciones están muy próximas, lo que denota que el brillo entre imágenes de cielos despejados y cielos nublados es bastante similar. De forma contraria, y aunque no siga una distribución gaussiana, podemos ver en su histograma como los porcentajes de píxeles azules y los de píxeles grises distinguen claramente entre cielos despejados y nublados, teniendo la mayoría de imágenes de cielos despejados ratios muy altos (cerca de 1), mientras que la mayoría de cielos nublados tiene ratios muy bajos (cerca de 0). Por el contrario, los ratios de píxeles blancos y sombras se solapan casi completamente, lo cual podría estar indicándonos que, independientemente de la clase de procendencia, todas las imágenes tienen valores de saturación y brillo en rangos prácticamente idénticos.
 
 Aunque la distinción no sea clara, en el histograma de la media de la magnitud del operador de Sobel podemos ver que las imágenes de cielos despejados tienden a presentar valores más bajos que aquellos que presentan las imágenes de cielos nublados. 
 
 ```{r}
 # representamos las correlaciones
-cor_matrix<-abs(cor(datos_train[, 3:13]))
+cor_matrix<-abs(cor(datos_train[, 3:17]))
 #diag(cor_matrix)<-0
 png("corrplot.png", 
        width = 15, 
@@ -338,6 +333,7 @@ png("corrplot.png",
        res = 300)
 corrplot(cor_matrix, method="circle", type="upper", tl.col = "black")
 dev.off()
+corrplot(cor_matrix, method="circle", type="upper", tl.col = "black")
 ```
 
 
@@ -345,70 +341,14 @@ dev.off()
 
 
 ```{r}
-set.seed(42)
-modelo <- randomForest(
-  etiqueta ~  R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_mean,
-  data = datos_train,
-  ntree = 100
-)
-# Evaluar el modelo en el conjunto de prueba
-predicciones <- predict(modelo, newdata = datos_validation)
-confusionMatrix(predicciones, datos_validation$etiqueta)
-modelo$importance
-```
-
-
-```{r}
-mal_clasificados <- datos_validation[predicciones != datos_validation$etiqueta, ]
-par(mfrow=c(2,3), mar=c(0.1, 0.1, 0.1, 0.1))
-for (i in 1:dim(mal_clasificados)[1]){
-  plot(image_read(mal_clasificados[i, "ruta"]))
-  if (mal_clasificados[i, "etiqueta"] == 0){aux <- "Nublado"} else{aux <- "Despejado"}
-  legend("top", legend = paste0("Etiqueta real:\n", aux), bg = "transparent", bty = "n", text.col = 'white')
-}
-```
-
-
-
-```{r}
 # Calculamos el PCA centrando y escalando los datos
 pca <- prcomp(
-  ~ R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_mean,
+  ~ R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_mean + Bloque_1_media_S + Bloque_2_media_S + Bloque_3_media_S + Bloque_4_media_S + Bloque_5_media_S + Bloque_6_media_S +Bloque_7_media_S +Bloque_8_media_S + Bloque_9_media_S +Bloque_10_media_S + Bloque_11_media_S + Bloque_12_media_S + Bloque_13_media_S + Bloque_14_media_S + Bloque_15_media_S + Bloque_16_media_S + Ratio_Blanco + Ratio_Gris + sd_V + Ratio_Sombras,
   data=datos_train, 
   center=TRUE, 
   scale=TRUE
   )
 ```
-
-```{r}
-# Creamos el conjunto de entrenamiento formado por TODAS las componentes principales
-datos_pca_train <- data.frame(
-  etiqueta = datos_train$etiqueta, 
-  pca$x
-  ) 
-
-# Calculamos el modelo
-set.seed(42)
-modelo_pca <- randomForest(
-  etiqueta ~  PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PC11,
-  data = datos_pca_train,
-  ntree = 100
-)
-
-# Calculamos el conjunto de validación
-datos_pca_validacion <- predict(pca, newdata = datos_validation) 
-datos_pca_validacion <- data.frame(
-  etiqueta = datos_validation$etiqueta,
-  ruta = datos_validation$ruta,
-  datos_pca_validacion
-) 
-
-# Evaluar el modelo en el conjunto de prueba
-predicciones_pca <- predict(modelo_pca, newdata = datos_pca_validacion)
-confusionMatrix(predicciones_pca, datos_pca_validacion$etiqueta)
-modelo_pca$importance
-```
-
 
 ```{r}
 
@@ -417,7 +357,7 @@ prop_varianza <- pca$sdev^2 / sum(pca$sdev^2)
 prop_varianza_acum <- cumsum(prop_varianza)
 
 # Representamos la proporción de la varianza explicada
-f<-ggplot(data = data.frame(prop_varianza, pc = 1:11),
+f<-ggplot(data = data.frame(prop_varianza, pc = 1:31),
 aes(x = pc, y = prop_varianza)) +
   geom_col(width = 0.3, color='skyblue', fill = 'skyblue') +
   scale_y_continuous(limits = c(0,1)) +
@@ -426,7 +366,7 @@ aes(x = pc, y = prop_varianza)) +
        y = "Proporción de varianza explicada")
 
 # Representamos la proporción de varianza explicada acumulada
-g<-ggplot(data = data.frame(prop_varianza_acum, pc = 1:11),
+g<-ggplot(data = data.frame(prop_varianza_acum, pc = 1:31),
        aes(x = pc, y = prop_varianza_acum, group = 1)) +
   geom_point(color='skyblue') +
   geom_line(color = 'skyblue') +
@@ -458,20 +398,19 @@ ggsave("pca_varianzas.png",
 f+g
 ```
 
-En la curva de proporción de varianza acumulada vemos que, a partir de la sexta componente principal, la proporción de varianza que explica cada una de las siguientes componentes es casi imperceptible. Es por esto por lo que escogeremos solamente las 7 primeras componentes principales para entrenar otro modelo de Random Forest, con la intención de simplificar el modelo para evitar sobreajustarnos a los datos de entrenamiento.
+En la curva de proporción de varianza acumulada vemos que, a partir de la decimoquinta componente principal, la proporción de varianza que explica cada una de las siguientes componentes es casi imperceptible. Es por esto por lo que escogeremos solamente las 15 primeras componentes principales para entrenar otro modelo de Random Forest, con la intención de simplificar el modelo para evitar sobreajustarnos a los datos de entrenamiento.
 
 ```{r}
-
-# Creamos el conjunto de entrenamiento formado por las 7 primeras componentes principales
+# Creamos el conjunto de entrenamiento formado por TODAS las componentes principales
 datos_pca_train <- data.frame(
   etiqueta = datos_train$etiqueta, 
   pca$x
-  ) %>% dplyr::select("etiqueta", paste0("PC",1:7))
+  ) 
 
 # Calculamos el modelo
 set.seed(42)
 modelo_pca <- randomForest(
-  etiqueta ~  PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7,
+  etiqueta ~  PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PC11 + PC12 + PC13 + PC14 + PC15,
   data = datos_pca_train,
   ntree = 100
 )
@@ -482,14 +421,13 @@ datos_pca_validacion <- data.frame(
   etiqueta = datos_validation$etiqueta,
   ruta = datos_validation$ruta,
   datos_pca_validacion
-) %>% dplyr::select("etiqueta", "ruta", paste0("PC",1:7))
+) 
 
 # Evaluar el modelo en el conjunto de prueba
 predicciones_pca <- predict(modelo_pca, newdata = datos_pca_validacion)
 confusionMatrix(predicciones_pca, datos_pca_validacion$etiqueta)
 modelo_pca$importance
 ```
-
 
 Mostramos las imágenes mal clasificadas:
 
@@ -503,293 +441,6 @@ for (i in 1:dim(mal_clasificados)[1]){
 }
 ```
 
-
-
-# Probamos con filtro paso alto antes de aplicar Sobel para detectar mejor bordes
-
-En las imagenes mal clasificadas, hemos visto que es posible que no este identificando bien los bordes, al tratarse de cielo muy cubiertos con nubes muy homogéneas. Probamos a añadir un filtro paso alto antes de aplicar Sobel para ver si mejora la clasificación.
-
-```{r}
-library(imager)
-
-mejorar_texturas <- function(df, lista, sigma = 1, potencia = 0.8) {
-  # Creamos una lista vacía para las nuevas imágenes
-  lista_procesada <- list()
-  
-  cat("Aplicando filtro de realce de bordes a", nrow(df), "imágenes...\n")
-  
-  for (nombre in df$ruta) {
-    img_array <- lista[[nombre]]
-    # 1. Convertimos el array de la lista a objeto de imagen (cimg)
-    # Asumimos que la imagen está en formato [filas, columnas, canales]
-    img <- suppressWarnings(as.cimg(img_array))
-    
-    # 2. Creamos una versión de Paso Bajo (suavizada/blur)
-    # sigma controla el radio del filtro (1 o 2 es lo ideal)
-    img_low_pass <- isoblur(img, sigma = sigma)
-    
-    # 3. Obtenemos el Paso Alto (Original - Paso Bajo)
-    # Esto contiene solo bordes, texturas y ruido
-    img_high_pass <- img - img_low_pass
-    
-    # 4. Sumamos el Paso Alto a la Original para realzar (Sharpen)
-    # potencia controla cuánto se marcan los bordes
-    img_final <- img + (potencia * img_high_pass)
-    
-    # 5. Aseguramos que los valores sigan entre 0 y 1 (clipping)
-    img_final[img_final < 0] <- 0
-    img_final[img_final > 1] <- 1
-    
-    # Guardamos en la nueva lista volviendo a convertir a array si es necesario
-    lista_procesada[[nombre]] <- as.array(img_final)
-  }
-  
-  cat("Proceso completado.\n")
-  return(lista_procesada)
-}
-
-extraer_sobel2 <- function(df, lista) {
-  features <- numeric(nrow(df))
-  cat("Extrayendo Sobel de", nrow(df), "imágenes...\n")
-  
-  j <- 1
-  for (nombre in df$ruta) {
-    
-    img_array <- lista[[nombre]]
-    
-    # conversión a formato cimg
-    img_cimg <- suppressWarnings(as.cimg(img_array))
-    # escala de grises
-    img_gray <- grayscale(img_array)
-    # cálculo de gradientes
-    gradientes <- imgradient(img_gray, "xy")
-    # combinamos ambos gradientes
-    magnitud <- sqrt(gradientes$x^2 + gradientes$y^2)
-    
-    features[j] <- mean(magnitud, na.rm = TRUE)
-    j <- j + 1
-  }
-  
-  df_final <- cbind(df, Sobel_2 = features)
-  return(df_final)
-}
-
-# Calculamos Sobel después de haberles pasado a las imágenes un filtro paso alto
-lista_procesada_train <- mejorar_texturas(datos_train, lista_train)
-lista_procesada_validation <- mejorar_texturas(datos_validation, lista_validation)
-
-datos_train <- extraer_sobel2(datos_train, lista_procesada_train)
-datos_validation <- extraer_sobel2(datos_validation, lista_procesada_validation)
-```
-
-
-Ahora probamos a construir el modelo con el Sobel calculado después de haber pasado el filtro:
-
-```{r}
-modelo <- randomForest(
-  etiqueta ~  R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_2,
-  data = datos_train,
-  ntree = 100
-)
-# Evaluar el modelo en el conjunto de prueba
-predicciones <- predict(modelo, newdata = datos_validation)
-confusionMatrix(predicciones, datos_validation$etiqueta)
-modelo$importance
-```
-
-## Probamos cositas nuevas:
-
-
-```{r}
-extraer_saturacion_bloques <- function(df, lista, num_bloques = 4) {
-  
-  # lista para guardar los vectores de características de cada imagen
-  features_list <- list()
-  
-  cat("Extrayendo saturación por bloques de", nrow(df), "imágenes...\n")
-  
-  for (j in 1:nrow(df)) {
-    nombre <- df$ruta[j]
-    
-    # dimensiones originales
-    altura <- nrow(lista[[nombre]][,,1])
-    ancho <- ncol(lista[[nombre]][,,1])
-    
-    # extraer canales HSV
-    hsv_vals <- rgb_a_hsv(
-      as.vector(lista[[nombre]][,,1]), 
-      as.vector(lista[[nombre]][,,2]), 
-      as.vector(lista[[nombre]][,,3])
-    )
-    
-    # reconstruimos solo la matriz de Saturación (canal 2)
-    # cada valor corresponde a un píxel y la estructura es como la imagen
-    S_matrix <- matrix(hsv_vals[, 2], nrow = altura, ncol = ancho)
-    
-    # calculamos el tamaño de cada bloque
-    bloque_altura <- floor(altura / num_bloques)
-    bloque_ancho <- floor(ancho / num_bloques)
-    
-    # vector para las características de la imagen actual
-    caracteristicas_imagen <- c()
-    
-    # doble bucle para recorrer la cuadrícula
-    for (i in 0:(num_bloques - 1)) {
-      for (k in 0:(num_bloques - 1)) {
-        
-        # índices de inicio y fin del bloque
-        fila_inicio <- i * bloque_altura + 1
-        fila_fin <- ifelse(i == num_bloques - 1, altura, (i + 1) * bloque_altura)
-        col_inicio <- k * bloque_ancho + 1
-        col_fin <- ifelse(k == num_bloques - 1, ancho, (k + 1) * bloque_ancho)
-        
-        # extraemos el bloque de la matriz de saturación
-        bloque_S <- S_matrix[fila_inicio:fila_fin, col_inicio:col_fin]
-        
-        # cálculo de la saturación media del bloque
-        # Un cielo despejado tendrá valores altos (>0.3), uno nublado valores bajos (<0.15)
-        media_S <- mean(bloque_S, na.rm = TRUE)
-        
-        # acumulamos en el vector de la imagen
-        caracteristicas_imagen <- c(caracteristicas_imagen, media_S)
-      }
-    }
-    features_list[[j]] <- caracteristicas_imagen
-  }
-  
-# convertimos la lista a matriz
-  features_matrix <- do.call(rbind, features_list)
-  
-  # asignamos nombres a las columnas 
-  colnames(features_matrix) <- paste0("Bloque_", rep(1:(num_bloques^2)), "_media_S")
-  
-  # unimos la nueva info al dataframe y nos aseguramos de que la etiqueta es 
-  # de tipo factor
-  df_final <- cbind(df, features_matrix)
-  # devolvemos el dataframe original con los nuevos datos añadidos
-  df_final$etiqueta <- as.factor(df_final$etiqueta)
-  
-  return(df_final)
-}
-
-extraer_ratio_blanco <- function(df, lista) {
-  features <- numeric(nrow(df))
-  cat("Extrayendo ratios de blanco de", nrow(df), "imágenes...\n")
-  
-  j <- 1
-  for (nombre in df$ruta) {
-    # Convertimos a HSV
-    hsv_vals <- rgb_a_hsv(
-      as.vector(lista[[nombre]][,,1]), 
-      as.vector(lista[[nombre]][,,2]), 
-      as.vector(lista[[nombre]][,,3])
-    )
-    
-    S <- hsv_vals[, 2] # Saturación
-    V <- hsv_vals[, 3] # Valor (Brillo)
-    
-    total_pixeles <- length(S)
-    
-    # Filtro: Poca saturación y mucho brillo
-    pixeles_blancos <- sum(S <= 0.15 & V >= 0.85)
-    
-    features[j] <- (pixeles_blancos / total_pixeles)
-    j <- j + 1
-  }
-  
-  df_final <- cbind(df, Ratio_Blanco = features)
-  df_final$etiqueta <- as.factor(df_final$etiqueta)
-  return(df_final)
-}
-
-extraer_ratio_gris <- function(df, lista) {
-  features <- numeric(nrow(df))
-  cat("Extrayendo ratios de gris de", nrow(df), "imágenes...\n")
-  
-  j <- 1
-  for (nombre in df$ruta) {
-    hsv_vals <- rgb_a_hsv(
-      as.vector(lista[[nombre]][,,1]), 
-      as.vector(lista[[nombre]][,,2]), 
-      as.vector(lista[[nombre]][,,3])
-    )
-    
-    S <- hsv_vals[, 2]
-    V <- hsv_vals[, 3]
-    
-    total_pixeles <- length(S)
-    
-    # Filtro: Saturación casi nula y brillo intermedio
-    # Ajustamos V entre 0.2 y 0.85 para evitar negros y blancos puros
-    pixeles_grises <- sum(S <= 0.15 & V > 0.15 & V < 0.85)
-    
-    features[j] <- (pixeles_grises / total_pixeles)
-    j <- j + 1
-  }
-  
-  df_final <- cbind(df, Ratio_Gris = features)
-  df_final$etiqueta <- as.factor(df_final$etiqueta)
-  return(df_final)
-}
-
-extraer_ratio_sombras <- function(df, lista) {
-  # vector vacío para guardar los ratios
-  features <- numeric(nrow(df))
-  
-  cat("Extrayendo ratios de sombras de", nrow(df), "imágenes...\n")
-  
-  j <- 1
-  for (nombre in df$ruta) {
-    
-    # Calculamos los valores HSV 
-    # (Asumiendo que rgb_a_hsv devuelve una matriz con H, S, V)
-    hsv_vals <- rgb_a_hsv(
-      as.vector(lista[[nombre]][,,1]), # R
-      as.vector(lista[[nombre]][,,2]), # G
-      as.vector(lista[[nombre]][,,3])  # B
-    )
-    
-    # El canal V (Value/Brightness) es el 3º
-    V <- hsv_vals[, 3]
-    
-    # número total de píxeles
-    total_pixeles <- length(V)
-    
-    # Filtramos por píxeles muy oscuros (sombras)
-    # Umbral sugerido: V < 0.2 (20% de brillo)
-    pixeles_sombras <- sum(V < 0.2)
-    
-    # Porcentaje de sombras
-    features[j] <- (pixeles_sombras / total_pixeles)
-    
-    j <- j + 1
-  }
-  
-  # Unimos la info al dataframe
-  df_final <- cbind(df, Ratio_Sombras = features)
-  df_final$etiqueta <- as.factor(df_final$etiqueta)
-  
-  return(df_final)
-}
-```
-
-```{r}
-datos_train <- extraer_saturacion_bloques(datos_train, lista_train) 
-#datos_train <- extraer_entropia(datos_train, lista_train)
-datos_train <- extraer_ratio_blanco(datos_train, lista_train)
-datos_train <- extraer_ratio_gris(datos_train, lista_train)
-datos_train <- extraer_sd_V(datos_train, lista_train)
-datos_train <- extraer_ratio_sombras(datos_train, lista_train)
-
-datos_validation <- extraer_saturacion_bloques(datos_validation, lista_validation) 
-# datos_validation <- extraer_entropia(datos_validation, lista_validation)
-datos_validation <- extraer_ratio_blanco(datos_validation, lista_validation)
-datos_validation <- extraer_ratio_gris(datos_validation, lista_validation)
-datos_validation <- extraer_sd_V(datos_validation, lista_validation)
-datos_validation <- extraer_ratio_sombras(datos_validation, lista_validation)
-
-datos_entrenamiento <- rbind(datos_train,datos_validation)
-```
 
 ### Test con nuestras fotos
 
@@ -847,45 +498,21 @@ datos_test <- datos_test %>%
   extraer_ratio_sombras(lista_test)
 
 lista_procesada_test <- mejorar_texturas(datos_test, lista_test)
-datos_test <- extraer_sobel2(datos_test, lista_procesada_test)
+datos_test <- extraer_sobel(datos_test, lista_procesada_test)
+
+# Fusionamos los datos de train y validation para entrenar el modelo final con todos ellos
+datos_entrenamiento <- rbind(datos_train, datos_validation)
 ```
 
-
-Aplicamos el modelo:
-
+Hacemos PCA:
 ```{r}
-set.seed(45)
-modelo <- randomForest(
-  etiqueta ~  R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_2 + Bloque_1_media_S + Bloque_2_media_S + Bloque_3_media_S + Bloque_4_media_S + Bloque_5_media_S + Bloque_6_media_S +Bloque_7_media_S +Bloque_8_media_S + Bloque_9_media_S +Bloque_10_media_S + Bloque_11_media_S + Bloque_12_media_S + Bloque_13_media_S + Bloque_14_media_S + Bloque_15_media_S + Bloque_16_media_S + Ratio_Blanco + Ratio_Gris + sd_V + Ratio_Sombras,
-  data = datos_entrenamiento,
-  ntree = 100
-)
-
-# Evaluar el modelo en el conjunto de validacion
-predicciones <- predict(modelo, newdata = datos_test)
-confusionMatrix(predicciones, datos_test$etiqueta)
-modelo$importance
-mal_clasificados <- datos_test[predicciones!= datos_test$etiqueta, ]
-par(mfrow=c(2,3), mar=c(0.1, 0.1, 0.1, 0.1))
-for (i in 1:dim(mal_clasificados)[1]){
-  plot(image_read(mal_clasificados[i, "ruta"]))
-  if (mal_clasificados[i, "etiqueta"] == 0){aux <- "Nublado"} else{aux <- "Despejado"}
-  legend("top", legend = paste0("Etiqueta real:\n", aux), bg = "transparent", bty = "n", text.col = '#a44')
-}
-```
-Probamos a hacer pca con esas variables: 
-```{r}
-
 pca2 <- prcomp(
-  ~ R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_2 + Bloque_1_media_S + Bloque_2_media_S + Bloque_3_media_S + Bloque_4_media_S + Bloque_5_media_S + Bloque_6_media_S +Bloque_7_media_S +Bloque_8_media_S + Bloque_9_media_S +Bloque_10_media_S + Bloque_11_media_S + Bloque_12_media_S + Bloque_13_media_S + Bloque_14_media_S + Bloque_15_media_S + Bloque_16_media_S + Ratio_Blanco + Ratio_Gris + sd_V + Ratio_Sombras,
+  ~ R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_mean + Bloque_1_media_S + Bloque_2_media_S + Bloque_3_media_S + Bloque_4_media_S + Bloque_5_media_S + Bloque_6_media_S +Bloque_7_media_S +Bloque_8_media_S + Bloque_9_media_S +Bloque_10_media_S + Bloque_11_media_S + Bloque_12_media_S + Bloque_13_media_S + Bloque_14_media_S + Bloque_15_media_S + Bloque_16_media_S + Ratio_Blanco + Ratio_Gris + sd_V + Ratio_Sombras,
   data=datos_entrenamiento, 
   center=TRUE, 
   scale=TRUE
   )
-
 ```
-
-Probamos a hacer pca y coger todas las componentes:
 
 ```{r}
 # Creamos el conjunto de entrenamiento con todas las componentes principales
@@ -893,7 +520,6 @@ datos_pca2_train <- data.frame(
   etiqueta = datos_entrenamiento$etiqueta, 
   pca2$x
   ) 
-
 ```
 
 ```{r}
@@ -914,7 +540,6 @@ ggplot(data = data.frame(prop_varianza_acum, pc = 1:31),
 
 
 ```{r}
-set.seed(45)
 # Calculamos el modelo
 modelo_pca2 <- randomForest(
   etiqueta ~  PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PC11 + PC12 + PC13 + PC14 + PC15,
@@ -935,37 +560,9 @@ predicciones_pca2 <- predict(modelo_pca2, newdata = datos_pca_test)
 confusionMatrix(predicciones_pca2, datos_pca_test$etiqueta)
 modelo_pca2$importance
 ```
-```{r}
-
-# Creamos el conjunto de entrenamiento formado por las 7 primeras componentes principales
-datos_pca2_train_7 <- data.frame(
-  etiqueta = datos_entrenamiento$etiqueta, 
-  pca2$x
-  ) %>% select("etiqueta", paste0("PC",1:7))
-
-# Calculamos el modelo
-set.seed(42)
-modelo_pca2 <- randomForest(
-  etiqueta ~  PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7,
-  data = datos_pca2_train_6,
-  ntree = 100
-)
-
-# Calculamos el conjunto de test
-datos_pca_test <- predict(pca2, newdata = datos_test) 
-datos_pca_test_6 <- data.frame(
-  etiqueta = datos_test$etiqueta,
-  ruta = datos_test$ruta,
-  datos_pca_test
-) %>% select("etiqueta", "ruta", paste0("PC",1:7))
-
-# Evaluar el modelo en el conjunto de prueba
-predicciones_pca2 <- predict(modelo_pca2, newdata = datos_pca_test_6)
-confusionMatrix(predicciones_pca2, datos_pca_test_6$etiqueta)
-modelo_pca2$importance
-```
 
 ```{r}
+# Visualizamos los errores
 mal_clasificados <- datos_pca_test[predicciones_pca2!= datos_pca_test$etiqueta, ]
 par(mfrow=c(2,3), mar=c(0.1, 0.1, 0.1, 0.1))
 for (i in 1:dim(mal_clasificados)[1]){

@@ -950,3 +950,75 @@ extraer_tonos_calidos_mask <- function(df, lista, s_th = 0.2, v_th = 0.2) {
   df_final$etiqueta <- as.factor(df_final$etiqueta)
   return(df_final)
 }
+
+
+
+# Extracción de características mediana_sin_H, mediana_cos_H y sd_V por bloques en la imagen 3x1
+
+# parámetros de entrada: 
+#   - df: dataframe con las rutas locales a las imágenes en la columna "ruta"
+#   - lista: lista con la info de los 3 canales de cada imagen (procedente de leer_imagenes)
+# parámetros de salida:
+#   - dataframe original con las columnas Bloque_X_mediana_sin_H, Bloque_X_mediana_cos_H y Bloque_X_sd_V
+
+extraer_caracteristicas_bloques_3x1 <- function(df, lista, n_filas = 3, n_cols = 1) {
+  features_list <- vector("list", nrow(df))
+  cat("Extrayendo características por bloques 3x1 de", nrow(df), "imágenes...\n")
+  
+  for (j in 1:nrow(df)) {
+    nombre <- df$ruta[j]
+    
+    tryCatch({
+      img <- lista[[nombre]]
+      if (is.null(img)) stop("Imagen no encontrada en lista")
+      
+      # Construimos V desde HSV
+      altura <- nrow(img[,,1])
+      ancho  <- ncol(img[,,1])
+      
+      hsv_vals <- rgb_a_hsv(
+        as.vector(img[,,1]),
+        as.vector(img[,,2]),
+        as.vector(img[,,3])
+      )
+      H_channel <- matrix(hsv_vals[,1], nrow = altura, ncol = ancho)
+      V_channel <- matrix(hsv_vals[,3], nrow = altura, ncol = ancho)
+      
+      bloque_altura <- floor(altura / n_filas)
+      caracteristicas_bloques <- numeric(n_filas * 2)
+      
+      for (i in 0:(n_filas - 1)) {
+        fila_inicio <- i * bloque_altura + 1
+        fila_fin    <- if (i == n_filas - 1) altura else (i + 1) * bloque_altura
+        
+        bloque_V <- V_channel[fila_inicio:fila_fin, , drop = FALSE]
+        bloque_H <- H_channel[fila_inicio:fila_fin, , drop = FALSE]
+        
+        mediana_cos_H <- median(cos(2*pi*bloque_H), na.rm = TRUE)
+        mediana_sin_H <- median(sin(2*pi*bloque_H), na.rm = TRUE)
+        sd_V <- sd(as.vector(bloque_V), na.rm = TRUE)
+        
+        idx <- i * 3 + 1
+        caracteristicas_bloques[idx]     <- mediana_cos_H
+        caracteristicas_bloques[idx + 1] <- mediana_sin_H
+        caracteristicas_bloques[idx + 2] <- sd_V
+      }
+      
+      features_list[[j]] <- caracteristicas_bloques
+      
+    }, error = function(e) {
+      cat("Error procesando:", nombre, "\n")
+      features_list[[j]] <- rep(NA, n_filas * 3)
+    })
+  }
+  
+  features_matrix <- do.call(rbind, features_list)
+  colnames(features_matrix) <- paste0(
+    "Bloque_", rep(1:n_filas, each = 3),
+    c("_mediana_cos_H", "_mediana_sin_H", "_sd_V")
+  )
+  
+  df_final <- cbind(df, features_matrix)
+  df_final$etiqueta <- as.factor(df_final$etiqueta)
+  return(df_final)
+}

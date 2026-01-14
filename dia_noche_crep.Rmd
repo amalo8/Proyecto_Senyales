@@ -143,7 +143,7 @@ p_box <- ggplot(df_long, aes(x = clase, y = Valor, fill = clase)) +
        x = "Clase", y = "Valor", fill = "Clase")
 
 p_box
-ggsave("boxplot_modelo_base_3clases.png", p_box, width = 10, height = 6)
+ggsave("figuras/temporal_multiclase/figuras/temporal_multiclase/boxplot_modelo_base_3clases.png", p_box, width = 10, height = 6)
 ```
 La figura muestra que las variables RGB y V separan claramente día y noche, mientras que el crepúsculo aparece en valores intermedios. El brillo (V_mediana) y su variabilidad (sd_V) son especialmente discriminantes, y las componentes de H reflejan los tonos cálidos característicos del crepúsculo. Esto justifica el uso de RGB + HSV + sd(V) como modelo base.
 
@@ -156,7 +156,7 @@ p_hist <- ggplot(df_long, aes(x = Valor, fill = clase)) +
        x = "Valor", y = "Frecuencia", fill = "Clase")
 
 p_hist
-ggsave("hist_modelo_base_3clases.png", p_hist, width = 10, height = 6)
+ggsave("figuras/temporal_multiclase/hist_modelo_base_3clases.png", p_hist, width = 10, height = 6)
 ```
 
 
@@ -172,7 +172,7 @@ p_cm <- ggplot(cm_tab, aes(x = Real, y = Prediccion, fill = Freq)) +
        x = "Real", y = "Predicción")
 
 p_cm
-ggsave("confusion_matrix_rf_3clases.png", p_cm, width = 6, height = 5)
+ggsave("figuras/temporal_multiclase/confusion_matrix_rf_3clases.png", p_cm, width = 6, height = 5)
 ```
 
 La matriz de confusión muestra que las clases Noche y Día son clasificadas con alta precisión, mientras que la mayoría de los errores se concentran en la clase Crepúsculo. Esto es coherente con su naturaleza visual intermedia, ya que combina regiones iluminadas del cielo con zonas oscuras del suelo. Por tanto, este resultado justifica la necesidad de incorporar características espaciales, como gradientes verticales y descomposición por bloques, para capturar la estructura de iluminación en la imagen.
@@ -196,7 +196,7 @@ p_imp <- ggplot(imp_df, aes(x = reorder(Variable, MeanDecreaseGini),
        x = "", y = "MeanDecreaseGini", fill = "Importancia")
 
 p_imp
-ggsave("importancia_rf_3clases.png", p_imp, width = 7, height = 5)
+ggsave("figuras/temporal_multiclase/importancia_rf_3clases.png", p_imp, width = 7, height = 5)
 ```
 
 ### Nuevas Características para detectar el Crepúsculo
@@ -262,7 +262,7 @@ p_box <- ggplot(df_long, aes(x=clase, y=Valor, fill=clase)) +
        x="Clase", y="Valor")
 
 p_box
-ggsave("boxplot_modelo_con_tonos.png", p_box, width=12, height=7)
+ggsave("figuras/temporal_multiclase/boxplot_modelo_con_tonos.png", p_box, width=12, height=7)
 ```
 Los boxplots muestran que el crepúsculo se caracteriza por un valor intermedio de brillo (V), una mayor variabilidad de la luminosidad (sd(V)) y una proporción significativamente más alta de tonos cálidos. Estas diferencias, junto con los canales RGB y HSV, explican por qué el modelo RGB+HSV+sd(V)+tonos cálidos es capaz de separar de forma efectiva las tres clases.
 
@@ -319,7 +319,7 @@ p_grad <- ggplot(datos_train_multi_bandas,
   theme_minimal(base_size = 13)
 
 p_grad
-ggsave("boxplot_gradiente_V_bandas.png", p_grad, width = 6, height = 4)
+ggsave("figuras/temporal_multiclase/boxplot_gradiente_V_bandas.png", p_grad, width = 6, height = 4)
 ```
 El gradiente vertical del canal V por bandas captura cómo cambia el brillo entre la parte superior e inferior de la imagen.
 En las imágenes diurnas este gradiente es mayor debido al contraste entre cielo brillante y suelo oscuro, mientras que en el crepúsculo la transición es más suave.
@@ -339,13 +339,14 @@ p_hist_grad <- ggplot(datos_train_multi_bandas,
   )
 
 p_hist_grad
-ggsave("histograma_gradiente_V_bandas.png", p_hist_grad, width = 6, height = 4)
+ggsave("figuras/temporal_multiclase/histograma_gradiente_V_bandas.png", p_hist_grad, width = 6, height = 4)
 ```
 
 Además de los gradientes por bandas, se ha probado un enfoque alternativo basado en dividir la imagen en tres bloques horizontales (superior, medio e inferior), con el objetivo de capturar de forma más explícita la estructura espacial típica del crepúsculo.
 Esta división se motiva por la estructura visual típica del crepúsculo: el cielo suele ocupar la parte superior de la imagen, con tonos más fríos u oscuros; la zona del horizonte presenta colores cálidos debido al sol bajo; y la parte inferior corresponde al suelo o a zonas más oscuras. Al analizar estas regiones por separado, el modelo puede capturar mejor cómo varían el color (H) y la luminosidad (V) a lo largo de la vertical de la imagen, lo que resulta especialmente útil para distinguir entre día, noche y crepúsculo.
 
 Modelo original RGB + HSV + SD_V + Tonos cálidos + Bloque (3 x 1) * （Mediana_H) *（SD_V) 
+
 ```{r}
 # extraemos las medianas del gradiente por bloque 
 datos_train_multi_bloques <- extraer_caracteristicas_bloques_3x1(datos_train_multi_tonos, lista_train)
@@ -416,7 +417,7 @@ p_bloques
 ```
 
 ```{r}
-vars_H <- grep("mediana_cosH|mediana_sinH", colnames(datos_train_multi_bloques), value = TRUE)
+vars_H <- grep("H_cos_mediana|H_sin_mediana", colnames(datos_train_multi_bloques), value = TRUE)
 
 df_H <- datos_train_multi_bloques %>%
   select(clase, all_of(vars_H)) %>%
@@ -524,7 +525,7 @@ p_extremos <- ggplot(df_extremos_long, aes(x = clase, y = Valor, fill = clase)) 
         plot.title = element_text(face = "bold"))
 
 p_extremos
-ggsave("boxplot_extremos_bloques_3x1.png", p_extremos, width = 14, height = 8, dpi = 300)
+ggsave("figuras/temporal_multiclase/boxplot_extremos_bloques_3x1.png", p_extremos, width = 14, height = 8, dpi = 300)
 
 ```
 La distribución de píxeles extremadamente oscuros y brillantes por bloques 3×1 revela un patrón vertical característico del crepúsculo: mayor luminosidad en la banda central (horizonte), valores intermedios en la superior y presencia moderada de luces en la inferior. Este patrón lo diferencia tanto del día como de la noche y explica la mejora del modelo al incorporar estas variables.
@@ -588,7 +589,7 @@ ggplot(df_brill, aes(x = Zona, y = Porc_Brillantes, fill = clase)) +
 ### Análisis de Componentes Principales (PCA)
 Dado el elevado número de características extraídas, muchas de ellas altamente correlacionadas (por ejemplo, variables de color y de brillo en diferentes zonas de la imagen), se aplica un Análisis de Componentes Principales (PCA) como técnica de reducción de dimensionalidad.
 
-El PCA permite proyectar el espacio original de características en un conjunto reducido de componentes no correlacionados que concentran la mayor parte de la variabilidad de los datos. En este trabajo se seleccionan los primeros componentes que explican aproximadamente el 80% de la varianza total, lo que permite reducir el ruido y mejorar la estabilidad del modelo sin perder información relevante.
+El PCA permite proyectar el espacio original de características en un conjunto reducido de componentes no correlacionados que concentran la mayor parte de la variabilidad de los datos. En este trabajo se seleccionan los primeros componentes que explican aproximadamente el 95% de la varianza total, lo que permite reducir el ruido y mejorar la estabilidad del modelo sin perder información relevante.
 
 Estas componentes principales se utilizan posteriormente como entrada para el clasificador, permitiendo comparar el rendimiento del modelo original con el modelo basado en PCA.
 ```{r}
@@ -788,7 +789,7 @@ rf_dia_noche_crep <- randomForest(
 ```
 
 ```{r}
-save(rf_dia_noche_crep,vars_finales,file = "rf_dia_noche_crep_full.RData")
+save(rf_dia_noche_crep,vars_finales,file = "datosR/rf_dia_noche_crep_full.RData")
 ```
 
 Modelo con PCA
@@ -805,7 +806,7 @@ rf_pca <- randomForest(etiqueta ~ ., data=train_pca, ntree=100)
 ```
 
 ```{r}
-save(pca_resultado,rf_pca,vars_finales,n_comp,file = "rf_dia_noche_crep_pca.RData")
+save(pca_resultado,rf_pca,vars_finales,n_comp,file = "datosR/rf_dia_noche_crep_pca.RData")
 ```
 
 

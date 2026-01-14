@@ -414,6 +414,13 @@ p_bloques <- ggplot(df_bloques_long,
   )
 
 p_bloques
+ggsave(
+  filename = "figuras/temporal_multiclase/boxplot_bloques_3x1.png",
+  plot = p_bloques,
+  width = 14, 
+  height = 8,
+  dpi = 150
+)
 ```
 
 ```{r}
@@ -430,6 +437,14 @@ ggplot(df_H, aes(clase, Valor, fill=clase)) +
   theme_minimal(base_size=14) +
   labs(title="Distribución del tono (H) por bloques 3×1",
        subtitle="cos(H) y sin(H) en bandas superior, media e inferior")
+p_H_bloques
+ggsave(
+  filename = "figuras/temporal_multiclase/boxplot_H_bloques_3x1.png",
+  plot = p_H_bloques,
+  width = 14,
+  height = 7,
+  dpi = 150
+)
 ```
 En esta figura se muestra la distribución del tono (H), representado mediante sus componentes cos(H) y sin(H), calculados de forma separada en tres bandas horizontales de la imagen: superior, media e inferior.
 
@@ -452,6 +467,14 @@ ggplot(df_V, aes(clase, SD_V, fill=clase)) +
   theme_minimal(base_size=14) +
   labs(title="Variabilidad de brillo por bloques (SD de V)",
        subtitle="Bloques superior, medio e inferior")
+p_SD_V_bloques
+ggsave(
+  filename = "figuras/temporal_multiclase/boxplot_SDV_bloques_3x1.png",
+  plot = p_SD_V_bloques,
+  width = 12,
+  height = 6,
+  dpi = 150
+)
 ```
 Esta figura muestra la desviación estándar del canal de luminosidad (V) calculada en tres bandas horizontales de la imagen (superior, media e inferior). Esta medida cuantifica cuánta variación de brillo existe dentro de cada zona.
 
@@ -557,6 +580,14 @@ ggplot(df_osc, aes(x = Zona, y = Porc_Oscuros, fill = clase)) +
     y = "% Oscuros",
     fill = "Clase"
   )
+p_osc_zonas
+ggsave(
+  filename = "figuras/temporal_multiclase/boxplot_pixeles_oscuros_zonas.png",
+  plot = p_osc_zonas,
+  width = 10,
+  height = 6,
+  dpi = 150
+)
 ```
 
 ```{r}
@@ -584,6 +615,13 @@ ggplot(df_brill, aes(x = Zona, y = Porc_Brillantes, fill = clase)) +
     y = "% Brillantes",
     fill = "Clase"
   )
+ggsave(
+  filename = "figuras/temporal_multiclase/boxplot_pixeles_brillantes_zonas.png",
+  plot = p_brill_zonas,
+  width = 10,
+  height = 6,
+  dpi = 150
+)
 ```
 
 ### Análisis de Componentes Principales (PCA)

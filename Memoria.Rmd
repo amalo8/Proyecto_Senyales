@@ -226,7 +226,7 @@ Las variables más importantes según el índice *MeanDecreaseGini* son `G_media
 ```{r figura_c1, echo=FALSE, fig.cap="Diagrama de cajas (izquierda) e histogramas (derecha) de la desviación estándar de V", out.width="100%", fig.align="center", fig.height=2.75}
 library(png)
 par(mfrow = c(1, 2), mar = c(1, 1, 3, 1)) 
-img1 <- readPNG("figuras/temporal_multiclase/figuras/temporal_multiclase/boxplot_modelo_base_3clases.png")
+img1 <- readPNG("figuras/temporal_multiclase/boxplot_modelo_base_3clases.png")
 plot.new() 
 rasterImage(img1, 0, 0, 1, 1)
 
@@ -364,30 +364,37 @@ Al representar los histogramas de los 4 valores extraídos de la representación
 knitr::include_graphics("HSV_despejado_nublado.png")
 ```
 
-Como podemos ver en los histogramas de la Figura \ref{fig:figura9}, la variable `Brillo` presenta una marcada distribución normal, mientras que las variables `Contraste`, `Ratio_Azul` y `Sobel_mean` distan mucho de hacerlo, sobre todo `Ratio_Azul`. Es por esto que solo hemos representado el brillo en un diagrama de cajas (derecha, Figura \ref{fig:figura8}), que nos demuestra que la variable brillo no es capaz de distinguir claramente entre clases, ya que las medianas de ambas poblaciones están muy próximas y el IQR es bastante similar, lo que denota que el brillo entre imágenes de cielos despejados y cielos nublados es bastante similar. De forma contraria, y aunque no siga una distribución gaussiana, podemos ver en su histograma como el porcentaje de píxeles azules en la imagen distingue claramente entre cielos despejados y nublados, teniendo la mayoría de imágenes de cielos despejados ratios muy altos (cerca del 100%), mientras que la mayoría de cielos nublados tiene ratios muy bajos (cerca del 0%).
+Como podemos ver en los histogramas de la Figura \ref{fig:figura9}, la variable Brillo presenta una marcada distribución normal, mientras que las demás variables distan mucho de hacerlo, sobre todo Ratio_Azul. El histograma de la variable Brillo nos muestra que no es capaz de distinguir claramente entre clases, ya que las medianas de ambas poblaciones están muy próximas, lo que denota que el brillo entre imágenes de cielos despejados y cielos nublados es bastante similar. De forma contraria, y aunque no siga una distribución gaussiana, podemos ver en los histogramas de los porcentajes de píxeles azules y grises una diferenciación entre cielos despejados y nublados clara, teniendo la mayoría de imágenes de cielos despejados ratios muy altos (cerca de 1), mientras que la mayoría de cielos nublados tiene ratios muy bajos (cerca de 0). Contrariamente a lo que cabría esperar, los histogramas de los ratios de sombras y blancos se superponen, lo cual podría indicar que todas las imágenes, independientemente de su clase, presentan rangos de saturación y valor muy similares.
 
 ```{r figura9, echo=FALSE, fig.cap="Histogramas de brillo, contraste y Sobel, diagrama de caja de brillo", out.width="100%", fig.align="center", fig.height=2.75}
 
 knitr::include_graphics("bcr_despejado_nublado.png")
 ```
 
+Por último comentar que, para cada imagen, hemos calculado el valor medio de la saturación en cada bloque. Dichos bloques son el resultado de dividir la imagen en 16 rectángulos idénticos. Hemos decidido incorporar dichas variables porque, aunque en los histogramas los valores que aporta cada una sean similares (Figura \ref{fig:figura10}), la combinación única de valores medianos en los distintos bloques de cada imagen puede ayudar a describir los cambios de grises y la textura de las nubes de forma cuantitativa.
+
+```{r figura10, echo=FALSE, fig.cap="Histogramas de la saturación (S) media por bloque", out.width="100%", fig.align="center", fig.height=2.75}
+
+knitr::include_graphics("bcr_despejado_nublado.png")
+```
 
 ## Aplicación de PCA y Selección de Modelo
 
-Después de proponer las variables descritas en el apartado anterior para la diferenciación entre cielos nublados y despejados, nos dimos cuenta de que, aunque algunas variables estarían fuertemente correlacionadas de forma natural (como los valores de `Brillo` y `V_mediana`), al representar las correlaciones entre todas las variables (izquierda, Figura \ref{fig:figura11}) pudimos observar que había muchas más variables altamente correlacionadas de las que pudiesemos haber esperado en un principio (como las variables `G_mediana` y `Brillo`, o las variables `R_mediana` y `S_mediana`).
+Después de proponer las variables descritas en el apartado anterior para la diferenciación entre cielos nublados y despejados, nos dimos cuenta de que, aunque algunas variables estarían fuertemente correlacionadas de forma natural (como los valores de Brillo y V_mediana, o todas las variables que miden la saturación cada una en su bloque), al representar las correlaciones entre todas las variables (izquierda, Figura \ref{fig:figura11}) pudimos observar que había muchas más variables altamente correlacionadas de las que pudiesemos haber esperado en un principio (como las variables G_mediana y Brillo, o las variables R_mediana y S_mediana).
 
-Es por esto que, para no proporcionar información redundante, e intentar describir la máxima información posible que proporcionan nuestras variables minimizando el número de las mismas a la hora de entrenar el modelo, decicidimos aplicas un Análisis de Componentes Principales (@amat_cienciadedatos; @prasar_rpubs_2017) a nuestras variables. Al realizar este análisis y representar gráficamente tanto la proporción de varianza explicada por cada componente principal (Figura \ref{fig:figura10}), como la proporción de varianza acumulada de las mismas, vimos que, a partir de la sexta componente principal, la proporción de varianza que explica cada una de las siguientes componentes es casi imperceptible. Consecuentemente escogimos solamente las 6 primeras componentes principales para entrenar nuestro modelo de Random Forest y tratar de evitar sobreajustarnos a los datos de entrenamiento. Como puede observarse en el mapa de correlaciones de las componentes principales (derecha, Figura \ref{fig:figura11})
+Es por esto que, para no proporcionar información redundante, e intentar describir la máxima información posible que proporcionan nuestras variables minimizando el número de las mismas a la hora de entrenar el modelo, decidimos aplicar un Análisis de Componentes Principales (@amat_cienciadedatos; @prasar_rpubs_2017) a nuestras variables. Al realizar este análisis y representar gráficamente tanto la proporción de varianza explicada por cada componente principal (Figura \ref{fig:figura12}), como la proporción de varianza acumulada de las mismas, vimos que, a partir de la decimoquinta componente principal, la proporción de varianza que explica cada una de las siguientes componentes es casi imperceptible. Consecuentemente escogimos solamente las 15 primeras componentes principales para entrenar nuestro modelo de Random Forest y tratar de evitar sobreajustarnos a los datos de entrenamiento. Como puede observarse en el mapa de correlaciones de las componentes principales (derecha, Figura \ref{fig:figura11})
 
 ```{r figura11, echo=FALSE, fig.cap="Mapa de correlaciones entre las variables para la clasificación meteorológica", out.width="60%", fig.align="center", fig.height=2.75}
 
 knitr::include_graphics("corrplot.png")
 ```
 
-```{r figura10, echo=FALSE, fig.cap="Proporciones y proporciones acumuladas de varianza explicada por el PCA", out.width="80%", fig.align="center", fig.height=2.75}
+```{r figura12, echo=FALSE, fig.cap="Proporciones y proporciones acumuladas de varianza explicada por el PCA", out.width="80%", fig.align="center", fig.height=2.75}
 
 knitr::include_graphics("pca_varianzas.png")
 ```
-Después de entrenar nuestro modelo con las 6 primeras componentes resultado de la PCA, en la etapa de validación el modelo ha alcanzado un accuracy del 94,53%. Además, al analizar la importancia de las características mediante el índice \textit{MeanDecreaseGini}, se observa que las más influyentes a la hora de clasificar han sido `PC2` con un valor de 372,92.
+
+Después de entrenar nuestro modelo con las 6 primeras componentes resultado de la PCA, en la etapa de validación el modelo ha alcanzado un accuracy del 94,53%. Además, al analizar la importancia de las características mediante el índice \textit{MeanDecreaseGini}, se observa que las más influyentes a la hora de clasificar han sido PC2 con un valor de 372,92.
 
 
 # Evaluación con Conjunto de Test 

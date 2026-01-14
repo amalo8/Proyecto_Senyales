@@ -430,7 +430,7 @@ df_H <- datos_train_multi_bloques %>%
   select(clase, all_of(vars_H)) %>%
   pivot_longer(-clase, names_to="Variable", values_to="Valor")
 
-ggplot(df_H, aes(clase, Valor, fill=clase)) +
+p_H_bloques<- ggplot(df_H, aes(clase, Valor, fill=clase)) +
   geom_boxplot(outlier.alpha=0.2) +
   facet_wrap(~Variable, scales="free_y", ncol=3) +
   scale_fill_manual(values=c("#104E8B","#C7D9F5","#FFB347")) +
@@ -460,7 +460,7 @@ df_V <- datos_train_multi_bloques %>%
   select(clase, all_of(vars_V)) %>%
   pivot_longer(-clase, names_to="Bloque", values_to="SD_V")
 
-ggplot(df_V, aes(clase, SD_V, fill=clase)) +
+p_SD_V_bloques<- ggplot(df_V, aes(clase, SD_V, fill=clase)) +
   geom_boxplot(outlier.alpha=0.25) +
   facet_wrap(~Bloque, ncol=3) +
   scale_fill_manual(values=c("#104E8B","#C7D9F5","#FFB347")) +
@@ -569,7 +569,7 @@ df_osc <- datos_train_multi_extremos %>%
     )
   )
 
-ggplot(df_osc, aes(x = Zona, y = Porc_Oscuros, fill = clase)) +
+p_osc_zonas<- ggplot(df_osc, aes(x = Zona, y = Porc_Oscuros, fill = clase)) +
   geom_boxplot(alpha = 0.8, outlier.alpha = 0.25) +
   scale_fill_manual(values = c("#104E8B", "#C7D9F5", "#FFB347")) +
   theme_minimal(base_size = 13) +
@@ -604,7 +604,7 @@ df_brill <- datos_train_multi_extremos %>%
     )
   )
 
-ggplot(df_brill, aes(x = Zona, y = Porc_Brillantes, fill = clase)) +
+p_brill_zonas <- ggplot(df_brill, aes(x = Zona, y = Porc_Brillantes, fill = clase)) +
   geom_boxplot(alpha = 0.8, outlier.alpha = 0.25) +
   scale_fill_manual(values = c("#104E8B", "#C7D9F5", "#FFB347")) +
   theme_minimal(base_size = 13) +
@@ -615,6 +615,8 @@ ggplot(df_brill, aes(x = Zona, y = Porc_Brillantes, fill = clase)) +
     y = "% Brillantes",
     fill = "Clase"
   )
+
+p_brill_zonas
 ggsave(
   filename = "figuras/temporal_multiclase/boxplot_pixeles_brillantes_zonas.png",
   plot = p_brill_zonas,

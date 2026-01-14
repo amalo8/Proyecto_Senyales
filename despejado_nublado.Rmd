@@ -386,6 +386,39 @@ pca <- prcomp(
   center=TRUE, 
   scale=TRUE
   )
+```
+
+```{r}
+# Creamos el conjunto de entrenamiento formado por TODAS las componentes principales
+datos_pca_train <- data.frame(
+  etiqueta = datos_train$etiqueta, 
+  pca$x
+  ) 
+
+# Calculamos el modelo
+set.seed(42)
+modelo_pca <- randomForest(
+  etiqueta ~  PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PC11,
+  data = datos_pca_train,
+  ntree = 100
+)
+
+# Calculamos el conjunto de validación
+datos_pca_validacion <- predict(pca, newdata = datos_validation) 
+datos_pca_validacion <- data.frame(
+  etiqueta = datos_validation$etiqueta,
+  ruta = datos_validation$ruta,
+  datos_pca_validacion
+) 
+
+# Evaluar el modelo en el conjunto de prueba
+predicciones_pca <- predict(modelo_pca, newdata = datos_pca_validacion)
+confusionMatrix(predicciones_pca, datos_pca_validacion$etiqueta)
+modelo_pca$importance
+```
+
+
+```{r}
 
 # Calculamos la proporción de varianza explicada y las proporciones acumuladas
 prop_varianza <- pca$sdev^2 / sum(pca$sdev^2)
@@ -433,19 +466,19 @@ ggsave("pca_varianzas.png",
 f+g
 ```
 
-En la curva de proporción de varianza acumulada vemos que, a partir de la sexta componente principal, la proporción de varianza que explica cada una de las siguientes componentes es casi imperceptible. Es por esto por lo que escogeremos solamente las 6 primeras componentes principales para entrenar otro modelo de Random Forest, con la intención de simplificar el modelo para evitar sobreajustarnos a los datos de entrenamiento.
+En la curva de proporción de varianza acumulada vemos que, a partir de la sexta componente principal, la proporción de varianza que explica cada una de las siguientes componentes es casi imperceptible. Es por esto por lo que escogeremos solamente las 7 primeras componentes principales para entrenar otro modelo de Random Forest, con la intención de simplificar el modelo para evitar sobreajustarnos a los datos de entrenamiento.
 
 ```{r}
-# Creamos el conjunto de entrenamiento formado por las 6 primeras componentes principales
+# Creamos el conjunto de entrenamiento formado por las 7 primeras componentes principales
 datos_pca_train <- data.frame(
   etiqueta = datos_train$etiqueta, 
   pca$x
-  ) %>% select("etiqueta", paste0("PC",1:6))
+  ) %>% select("etiqueta", paste0("PC",1:7))
 
 # Calculamos el modelo
 set.seed(42)
 modelo_pca <- randomForest(
-  etiqueta ~  PC1 + PC2 + PC3 + PC4 + PC5 + PC6,
+  etiqueta ~  PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7,
   data = datos_pca_train,
   ntree = 100
 )
@@ -456,7 +489,7 @@ datos_pca_validacion <- data.frame(
   etiqueta = datos_validation$etiqueta,
   ruta = datos_validation$ruta,
   datos_pca_validacion
-) %>% select("etiqueta", "ruta", paste0("PC",1:6))
+) %>% select("etiqueta", "ruta", paste0("PC",1:7))
 
 # Evaluar el modelo en el conjunto de prueba
 predicciones_pca <- predict(modelo_pca, newdata = datos_pca_validacion)
@@ -477,31 +510,104 @@ for (i in 1:dim(mal_clasificados)[1]){
 }
 ```
 ```{r}
-# Correlaciones entre las 6 primeras componentes principales
-p <- ggpairs(datos_pca_train, 
-        columns = 2:7, 
-        mapping = aes(color = etiqueta, alpha = 0.5),
-        upper = list(continuous = wrap("cor", size = 3)), 
-        lower = list(continuous = wrap("points", size = 0.5))) + 
-  scale_color_manual(values = c("gray", "skyblue"), labels = c("Nublado", "Despejado")) +
-  scale_fill_manual(values = c("gray",  "skyblue"), labels = c("Nublado", "Despejado")) +
-  theme_minimal() +
-  theme(axis.text = element_text(size = 7), 
-        strip.text = element_text(size = 8)) 
-
-# Mostrar el gráfico
-p
-
-ggsave("mi_grafica_ggpairs_pca.png", 
-       plot = p, 
-       width = 15, 
-       height = 15, 
-       units = "in", 
-       dpi = 300)
+# # Correlaciones entre las 6 primeras componentes principales
+# p <- ggpairs(datos_pca_train, 
+#         columns = 2:7, 
+#         mapping = aes(color = etiqueta, alpha = 0.5),
+#         upper = list(continuous = wrap("cor", size = 3)), 
+#         lower = list(continuous = wrap("points", size = 0.5))) + 
+#   scale_color_manual(values = c("gray", "skyblue"), labels = c("Nublado", "Despejado")) +
+#   scale_fill_manual(values = c("gray",  "skyblue"), labels = c("Nublado", "Despejado")) +
+#   theme_minimal() +
+#   theme(axis.text = element_text(size = 7), 
+#         strip.text = element_text(size = 8)) 
+# 
+# # Mostrar el gráfico
+# p
+# 
+# ggsave("mi_grafica_ggpairs_pca.png", 
+#        plot = p, 
+#        width = 15, 
+#        height = 15, 
+#        units = "in", 
+#        dpi = 300)
 ```
 
-```{r}
 
+# Probamos con filtro paso alto antes de aplicar Sobel para detectar mejor bordes
+
+En las imagenes mal clasificadas, hemos visto que es posible que no este identificando bien los bordes, al tratarse de cielo muy cubiertos con nubes muy homogéneas. Probamos a añadir un filtro paso alto antes de aplicar Sobel para ver si mejora la clasificación.
+
+```{r}
+library(imager)
+
+mejorar_texturas <- function(df, lista, sigma = 1, potencia = 0.8) {
+  # Creamos una lista vacía para las nuevas imágenes
+  lista_procesada <- list()
+  
+  cat("Aplicando filtro de realce de bordes a", nrow(df), "imágenes...\n")
+  
+  for (nombre in df$ruta) {
+    # 1. Convertimos el array de la lista a objeto de imagen (cimg)
+    # Asumimos que la imagen está en formato [filas, columnas, canales]
+    img <- suppressWarnings(as.cimg(img_array))
+    
+    # 2. Creamos una versión de Paso Bajo (suavizada/blur)
+    # sigma controla el radio del filtro (1 o 2 es lo ideal)
+    img_low_pass <- isoblur(img, sigma = sigma)
+    
+    # 3. Obtenemos el Paso Alto (Original - Paso Bajo)
+    # Esto contiene solo bordes, texturas y ruido
+    img_high_pass <- img - img_low_pass
+    
+    # 4. Sumamos el Paso Alto a la Original para realzar (Sharpen)
+    # potencia controla cuánto se marcan los bordes
+    img_final <- img + (potencia * img_high_pass)
+    
+    # 5. Aseguramos que los valores sigan entre 0 y 1 (clipping)
+    img_final[img_final < 0] <- 0
+    img_final[img_final > 1] <- 1
+    
+    # Guardamos en la nueva lista volviendo a convertir a array si es necesario
+    lista_procesada[[nombre]] <- as.array(img_final)
+  }
+  
+  cat("Proceso completado.\n")
+  return(lista_procesada)
+}
+
+extraer_sobel2 <- function(df, lista) {
+  features <- numeric(nrow(df))
+  cat("Extrayendo Sobel de", nrow(df), "imágenes...\n")
+  
+  j <- 1
+  for (nombre in df$ruta) {
+    img_array <- lista[[nombre]]
+    
+    # conversión a formato cimg
+    img_cimg <- suppressWarnings(as.cimg(img_array))
+    # escala de grises
+    img_gray <- grayscale(img_array)
+    # cálculo de gradientes
+    gradientes <- imgradient(img_gray, "xy")
+    # combinamos ambos gradientes
+    magnitud <- sqrt(gradientes$x^2 + gradientes$y^2)
+    
+    features[j] <- mean(magnitud, na.rm = TRUE)
+    j <- j + 1
+  }
+  
+  df_final <- cbind(df, Sobel_2 = features)
+  return(df_final)
+}
+
+lista_procesada_train <- mejorar_texturas(datos_train, lista_train)
+lista_procesada_validation <- mejorar_texturas(datos_validation, lista_validation)
+lista_procesada_test <- mejorar_texturas(datos_test, lista_test)
+
+datos_train <- extraer_sobel2(datos_train, lista_procesada_train)
+datos_validation <- extraer_sobel2(datos_validation, lista_procesada_validation)
+datos_test <- extraer_sobel2(datos_test, lista_procesada_test)
 ```
 
 
@@ -556,30 +662,59 @@ datos_test <- datos_test %>%
   extraer_ratio_azul(lista_test) %>% 
   extraer_sobel(lista_test)
 ```
+Cogemos las columnas de esas 11 variables (ahora tenemos mas porque hemos ejecutado cosas posteriores, de ahi filtrar)
+```{r}
+datos_test_11 <- datos_test %>% select(
+  ruta, 
+  etiqueta, 
+  R_mediana, 
+  G_mediana, 
+  B_mediana, 
+  H_cos_mediana, 
+  H_sin_mediana, 
+  S_mediana, 
+  V_mediana, 
+  Ratio_Azul, 
+  Brillo, 
+  Contraste, 
+  Sobel_mean
+  )
+
+datos_entrenamiento_11 <- datos_entrenamiento %>% select(
+  ruta, 
+  etiqueta, 
+  R_mediana, 
+  G_mediana, 
+  B_mediana, 
+  H_cos_mediana, 
+  H_sin_mediana, 
+  S_mediana, 
+  V_mediana, 
+  Ratio_Azul, 
+  Brillo, 
+  Contraste, 
+  Sobel_mean
+  )
+
+
+
+```
+
 
 Aplicamos el modelo:
 
 ```{r}
-# Calculamos el PCA centrando y escalando los datos
-datos_entrenamiento <- rbind(datos_train, datos_validation)
-pca2 <- prcomp(
-  ~ R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_mean,
-  data=datos_entrenamiento, 
-  center=TRUE, 
-  scale=TRUE
-  )
-
 modelo <- randomForest(
   etiqueta ~  R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_mean,
-  data = datos_entrenamiento,
+  data = datos_train,
   ntree = 100
 )
 
-# Evaluar el modelo en el conjunto de prueba
-predicciones <- predict(modelo, newdata = datos_test)
-confusionMatrix(predicciones, datos_test$etiqueta)
+# Evaluar el modelo en el conjunto de validacion
+predicciones <- predict(modelo, newdata = datos_validation)
+confusionMatrix(predicciones, datos_validation$etiqueta)
 modelo$importance
-mal_clasificados <- datos_test[predicciones!= datos_test$etiqueta, ]
+mal_clasificados <- datos_validation[predicciones!= datos_validation$etiqueta, ]
 par(mfrow=c(2,3), mar=c(0.1, 0.1, 0.1, 0.1))
 for (i in 1:dim(mal_clasificados)[1]){
   plot(image_read(mal_clasificados[i, "ruta"]))
@@ -587,18 +722,52 @@ for (i in 1:dim(mal_clasificados)[1]){
   legend("top", legend = paste0("Etiqueta real:\n", aux), bg = "transparent", bty = "n", text.col = '#a44')
 }
 ```
+Probamos a hacer pca con esas 11 variables: 
+```{r}
+
+pca2 <- prcomp(
+  ~ R_mediana + G_mediana + B_mediana + H_cos_mediana + H_sin_mediana + S_mediana + V_mediana + Ratio_Azul + Brillo + Contraste + Sobel_mean,
+  data=datos_entrenamiento, 
+  center=TRUE, 
+  scale=TRUE
+  )
+
+```
+
+Probamos a hacer pca y coger todas las componentes:
 
 ```{r}
-# Creamos el conjunto de entrenamiento formado por las 6 primeras componentes principales
+# Creamos el conjunto de entrenamiento con todas las componentes principales
 datos_pca2_train <- data.frame(
   etiqueta = datos_entrenamiento$etiqueta, 
   pca2$x
-  ) %>% select("etiqueta", paste0("PC",1:6))
+  ) 
+
+```
+
+```{r}
+# Calculamos la proporción de varianza explicada y las proporciones acumuladas
+prop_varianza <- pca2$sdev^2 / sum(pca2$sdev^2)
+prop_varianza_acum <- cumsum(prop_varianza)
+
+# Representamos la proporción de varianza explicada acumulada
+ggplot(data = data.frame(prop_varianza_acum, pc = 1:11),
+       aes(x = pc, y = prop_varianza_acum, group = 1)) +
+  geom_point(color='skyblue') +
+  geom_line(color = 'skyblue') +
+  theme_bw() +
+  labs(x = "Número de componentes principales",
+       y = "Proporción de varianza explicada acumulada")
+```
+
+
+
+```{r}
 
 # Calculamos el modelo
 set.seed(42)
 modelo_pca2 <- randomForest(
-  etiqueta ~  PC1 + PC2 + PC3 + PC4 + PC5 + PC6,
+  etiqueta ~  PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PC11,
   data = datos_pca2_train,
   ntree = 100
 )
@@ -609,11 +778,40 @@ datos_pca_test <- data.frame(
   etiqueta = datos_test$etiqueta,
   ruta = datos_test$ruta,
   datos_pca_test
-) %>% select("etiqueta", "ruta", paste0("PC",1:6))
+) 
 
 # Evaluar el modelo en el conjunto de prueba
 predicciones_pca2 <- predict(modelo_pca2, newdata = datos_pca_test)
 confusionMatrix(predicciones_pca2, datos_pca_test$etiqueta)
+modelo_pca2$importance
+```
+```{r}
+
+# Creamos el conjunto de entrenamiento formado por las 7 primeras componentes principales
+datos_pca2_train_7 <- data.frame(
+  etiqueta = datos_entrenamiento$etiqueta, 
+  pca2$x
+  ) %>% select("etiqueta", paste0("PC",1:7))
+
+# Calculamos el modelo
+set.seed(42)
+modelo_pca2 <- randomForest(
+  etiqueta ~  PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7,
+  data = datos_pca2_train_6,
+  ntree = 100
+)
+
+# Calculamos el conjunto de test
+datos_pca_test <- predict(pca2, newdata = datos_test) 
+datos_pca_test_6 <- data.frame(
+  etiqueta = datos_test$etiqueta,
+  ruta = datos_test$ruta,
+  datos_pca_test
+) %>% select("etiqueta", "ruta", paste0("PC",1:7))
+
+# Evaluar el modelo en el conjunto de prueba
+predicciones_pca2 <- predict(modelo_pca2, newdata = datos_pca_test_6)
+confusionMatrix(predicciones_pca2, datos_pca_test_6$etiqueta)
 modelo_pca2$importance
 ```
 
@@ -626,95 +824,6 @@ for (i in 1:dim(mal_clasificados)[1]){
   legend("top", legend = paste0("Etiqueta real:\n", aux), bg = "transparent", bty = "n", text.col = '#a44')
 }
 ```
-# ADRIANA:
-
-
-
-
-# 16 variables sin bloques --> accuracy 0.73
-
-```{r}
-library(dplyr)
-library(caret)
-library(randomForest)
-
-# --- 1. Preparar los datos eliminando los bloques ---
-
-# Partimos de tus datos completos ya cargados y con características extraídas:
-# datos_entrenamiento (train + validation unidos)
-# datos_test
-
-# Usamos dplyr::select con un signo menos y 'starts_with' para borrar
-# todo lo que empiece por "Bloque_" y también la columna "ruta" que no sirve para entrenar.
-
-datos_train_reducido <- datos_entrenamiento %>%
-  select(-starts_with("Bloque_"), -ruta)
-
-datos_test_reducido <- datos_test %>%
-  select(-starts_with("Bloque_"), -ruta)
-
-# Verificamos con qué variables nos quedamos
-cat("Variables restantes para el modelo:\n")
-print(names(datos_train_reducido))
-
-
-# --- 2. Entrenar Random Forest con el set reducido (SIN PCA) ---
-
-set.seed(42)
-# Aumentamos un poco los árboles (ntree=500) para que sea más estable
-modelo_reducido <- randomForest(
-  etiqueta ~ .,           # Usa todas las variables que quedan
-  data = datos_train_reducido,
-  ntree = 100,
-  importance = TRUE       # Para ver qué variable gana ahora
-)
-
-
-# --- 3. Evaluar con el set de Test ---
-
-# Hacemos las predicciones
-predicciones_reducido <- predict(modelo_reducido, newdata = datos_test_reducido)
-
-# Mostramos la matriz de confusión
-print("Matriz de Confusión (Modelo Reducido sin Bloques):")
-print(confusionMatrix(predicciones_reducido, datos_test_reducido$etiqueta))
-
-
-# --- 4. Ver la importancia de las variables ---
-# ¿Qué características son las reinas ahora que no están los bloques?
-varImpPlot(modelo_reducido,
-           main = "Importancia de Variables (Sin Bloques Espaciales)")
-```
-
-
-
-# 16 variables + 16 bloques --> accuracy 0.8
-```{r}
-# Entrenar con TODAS las variables originales, sin PCA
-set.seed(42)
-modelo_full <- randomForest(
-  etiqueta ~ ., 
-  data = select(datos_entrenamiento, -ruta), # Quitamos la ruta, usamos todo lo demás
-  ntree = 100,     
-  importance = TRUE
-)
-
-# Predicción directa
-predicciones_full <- predict(modelo_full, newdata = datos_test)
-confusionMatrix(predicciones_full, datos_test$etiqueta)
-
-# Y lo más importante: ¿Qué variable manda ahora?
-varImpPlot(modelo_full)
-```
-
-
-
-
-
-
-
-
-
 
 
 ## Probamos cositas nuevas:
@@ -1008,21 +1117,83 @@ g<-ggplot(data = data.frame(prop_varianza_acum, pc = 1:15),
 g
 ```
 
+# ADRIANA:
+
+
+
+
+# 16 variables sin bloques --> accuracy 0.73
+
 ```{r}
-library(waveslim)
-img_raw <- readJPEG("imagenes_recortadas/train/Meteorológico/Nublado/5_recorte.jpg")
+library(dplyr)
+library(caret) #
+library(randomForest)
 
-# 2. Convert to grayscale if it's a color image (RGB)
-# Wavelet transforms are typically applied to single channels
+# --- 1. Preparar los datos eliminando los bloques ---
 
-img_gray <- 0.2126 * img_raw[,,1] + 0.7152 * img_raw[,,2] + 0.0722 * img_raw[,,3]
-img_denoise <- denoise.modwt.2d(img_gray, wf = "d4", rule = "hard")
-img_denoise2 <- denoise.dwt.2d(img_gray)
-par(mfrow = c(1,3))
-plot(as.raster(img_gray))
-plot(as.raster(img_denoise))
-plot(as.raster(img_denoise2))
-plot(as.raster(abs(img_gray-img_denoise)))
-plot(as.raster(abs(img_gray-img_denoise2)))
+# Partimos de tus datos completos ya cargados y con características extraídas:
+# datos_entrenamiento (train + validation unidos)
+# datos_test
+
+# Usamos dplyr::select con un signo menos y 'starts_with' para borrar
+# todo lo que empiece por "Bloque_" y también la columna "ruta" que no sirve para entrenar.
+
+datos_train_reducido <- datos_entrenamiento %>%
+  select(-starts_with("Bloque_"), -ruta)
+
+datos_test_reducido <- datos_test %>%
+  select(-starts_with("Bloque_"), -ruta)
+
+# Verificamos con qué variables nos quedamos
+cat("Variables restantes para el modelo:\n")
+print(names(datos_train_reducido))
+
+
+# --- 2. Entrenar Random Forest con el set reducido (SIN PCA) ---
+
+set.seed(42)
+# Aumentamos un poco los árboles (ntree=500) para que sea más estable
+modelo_reducido <- randomForest(
+  etiqueta ~ .,           # Usa todas las variables que quedan
+  data = datos_train_reducido,
+  ntree = 100,
+  importance = TRUE       # Para ver qué variable gana ahora
+)
+
+
+# --- 3. Evaluar con el set de Test ---
+
+# Hacemos las predicciones
+predicciones_reducido <- predict(modelo_reducido, newdata = datos_test_reducido)
+
+# Mostramos la matriz de confusión
+print("Matriz de Confusión (Modelo Reducido sin Bloques):")
+print(confusionMatrix(predicciones_reducido, datos_test_reducido$etiqueta))
+
+
+# --- 4. Ver la importancia de las variables ---
+# ¿Qué características son las reinas ahora que no están los bloques?
+varImpPlot(modelo_reducido,
+           main = "Importancia de Variables (Sin Bloques Espaciales)")
 ```
 
+
+
+# 16 variables + 16 bloques --> accuracy 0.8
+```{r}
+# Entrenar con TODAS las variables originales, sin PCA
+set.seed(42)
+modelo_full <- randomForest(
+  etiqueta ~ ., 
+  data = select(datos_entrenamiento, -ruta), # Quitamos la ruta, usamos todo lo demás
+  ntree = 100,     
+  importance = TRUE
+)
+
+# Predicción directa
+predicciones_full <- predict(modelo_full, newdata = datos_test)
+confusionMatrix(predicciones_full, datos_test$etiqueta)
+
+# Y lo más importante: ¿Qué variable manda ahora?
+varImpPlot(modelo_full)
+```

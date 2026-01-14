@@ -337,6 +337,35 @@ corrplot(cor_matrix, method="circle", type="upper", tl.col = "black")
 ```
 
 
+```{r, fig.width=15, fig.height=15}
+datos_long_bloques <- pivot_longer(
+  datos_train, 
+  cols = starts_with("Bloque_"), 
+  names_to = "Feature", values_to = "Valor"
+  )
+
+# Representamos los histogramas de las variables
+f <- ggplot(datos_long_bloques, aes(x = Valor, fill = etiqueta)) +
+  geom_histogram(position = "identity", alpha = 0.6, bins = 30) +
+  scale_fill_manual(values = c("grey", "skyblue"), labels = c("Nublado", "Despejado")) +
+  facet_wrap(~ Feature, scales = "free", ncol = 4, nrow = 4) +
+  theme_minimal() +
+  labs(title = "Histogramas por canal y clase",
+       x = "Valor",
+       y = "Frecuencia",
+       fill = "Clase")
+
+ggsave("bloques_despejado_nublado.png", 
+       plot = f, 
+       width = 15, 
+       height = 15, 
+       units = "in", 
+       dpi = 300)
+
+f
+```
+
+
 ## Aplicación de PCA y selección del modelo
 
 

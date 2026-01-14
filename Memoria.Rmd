@@ -386,10 +386,21 @@ Realizando una inspección visual de las imágenes mal clasificadas, como se eje
 
 ## Resultados en Clasificación Meteorológica
 
+Hemos evaluado el modelo del apartado 5.2 sobre un total de 100 imágenes de test, siendo 50 de la clase nublado y 50 de las clase Despejado. Realizando las predicciones y comparando con las etiquetas reales obtenemos las siguientes métricas de evaluación:
 
-| Exactitud | Sensibilidad | Especifidad | Precisión |   F1  |
+| Exactitud | Sensibilidad | Especificidad | Precisión |   F1  |
 |:---------:|:------------:|:-----------:|:---------:|:-----:|
 |   0.810   |     0.640    |      0.980  |   0.969   | 0.771 |
+Table: Estadísticos de la matriz de confusión para el test del clasificador meteorológico binario. 
+
+El modelo seleccionado para la distinción entre cielosnublados y despejados eclasifica nuestras imágenes de test con una exactitud balanceada del 81%. Fijándonos en la matriz de confusión comprobamos que solo clasifica erróneamente una imagen del cielo despejado, mientras que clasifica 18 imágenes de cielos nublados incorrectamente. La mayoría de las imágenes de cielos nublados mal clasificadas o bien son recortes muy homogéneos, o bien son trozos de cielo azul (recorte no adecuado), habiendo solo una imagen de nubes bien definidas que haya sido mal clasificada. Por otra parte la única imagen de cielo despejado mal clasificada presenta un cielo grisáceo y un tercio de la imagen es una arboleda, cuya presencia puede haber confundido al clasificador. Dicha imagen y otras tres mal clasificadas de la clase Nublado pueden encontrarse en la Figura \ref{fig:figuraDN}.
+
+```{r figuraDN, echo=FALSE, fig.cap="Imágenes mal clasificadas para el modelo meteorológico", out.width="80%", fig.align="center", fig.height=2.75}
+
+knitr::include_graphics("mal_clasificadas_despejado_nublado.png")
+```
+
+
 
 ## Conclusiones y Líneas Futuras  
 

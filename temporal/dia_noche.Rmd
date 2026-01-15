@@ -36,7 +36,7 @@ La primera característica es la mediana de la intensidad de los canales RGB (fu
 
 ```{r, include=FALSE}
 # Ruta base imágenes
-ruta_base_imagenes <- "imagenes/train"
+ruta_base_imagenes <- "../imagenes/train"
 
 # Ruta imágenes día/noche
 ruta_noche <- file.path(ruta_base_imagenes, "Temporal/Noche")
@@ -67,7 +67,7 @@ datos_test <- datos_imagenes[-indices_entrenamiento, ]
 
 ```{r, include=FALSE}
 # Cargamos las funciones de lectura de imágenes y extracción de características
-source("funciones_extraccion_caracteristicas.R")
+source("../funciones_extraccion_caracteristicas.R")
 
 ####### LECTURA IMÁGENES ########
 lista_train <- leer_imagenes(datos_train)
@@ -91,7 +91,7 @@ boxplotRGB <- ggplot(datos_long, aes(x = Característica, y = Valor, fill = etiq
   theme_minimal()
 
 boxplotRGB
-ggsave('boxplotRGB.png', plot=boxplotRGB, width=6, height=4)
+ggsave('../figuras/boxplotRGB.png', plot=boxplotRGB, width=6, height=4)
 
 histogramaRGB <- ggplot(datos_long, aes(x = Valor, fill = etiqueta)) +
   geom_histogram(position = "identity", alpha = 0.6, bins = 30) +
@@ -103,7 +103,7 @@ histogramaRGB <- ggplot(datos_long, aes(x = Valor, fill = etiqueta)) +
        y = "Frecuencia",
        fill = "Clase")
 histogramaRGB
-ggsave('histogramasRGB.png', plot=histogramaRGB, width=6, height=4)
+ggsave('../figuras/histogramasRGB.png', plot=histogramaRGB, width=6, height=4)
 ```
 
 ```{r, include=FALSE}
@@ -175,7 +175,7 @@ boxplotHSV <- ggplot(datos_long_hsv, aes(x = Característica, y = Valor, fill = 
   theme_minimal()
 
 boxplotHSV
-ggsave('boxplotHSV.png', plot=boxplotHSV, width=6, height=4)
+ggsave('../figuras/boxplotHSV.png', plot=boxplotHSV, width=6, height=4)
 
 histogramaHSV <- ggplot(datos_long_hsv, aes(x = Valor, fill = etiqueta)) +
   geom_histogram(position = "identity", alpha = 0.6, bins = 30) +
@@ -187,7 +187,7 @@ histogramaHSV <- ggplot(datos_long_hsv, aes(x = Valor, fill = etiqueta)) +
        y = "Frecuencia",
        fill = "Clase")
 
-ggsave('histogramaHSV.png', plot=histogramaHSV, width=6, height=4)
+ggsave('../figuras/histogramaHSV.png', plot=histogramaHSV, width=6, height=4)
 
 histogramaHSV
 ```
@@ -245,7 +245,7 @@ histogramaSOBEL <- ggplot(datos_train_sobel, aes(x = Sobel_mean, fill = as.facto
 
 histogramaSOBEL
 
-ggsave('histogramaSOBEL.png', plot=histogramaSOBEL, width=6, height=4)
+ggsave('../figuras/histogramaSOBEL.png', plot=histogramaSOBEL, width=6, height=4)
 ```
 
 
@@ -262,7 +262,7 @@ boxplotLUZ <- ggplot(datos_train_fuentes_luz, aes(x = as.factor(etiqueta), y = F
   theme_minimal()
 
 boxplotLUZ
-ggsave('boxplotLUZ.png', plot=boxplotLUZ, width=6, height=4)
+ggsave('../figuras/boxplotLUZ.png', plot=boxplotLUZ, width=6, height=4)
 
 histogramaLUZ <- ggplot(datos_train_fuentes_luz, aes(x = Fuentes_luz, fill = as.factor(etiqueta))) +
   geom_histogram(position = "identity", alpha = 0.6, bins = 30) +
@@ -274,7 +274,7 @@ histogramaLUZ <- ggplot(datos_train_fuentes_luz, aes(x = Fuentes_luz, fill = as.
        y = "Frecuencia",
        fill = "Clase")
 histogramaLUZ
-ggsave('histogramaLUZ.png', plot=histogramaLUZ, width=6, height=4)
+ggsave('../figuras/histogramaLUZ.png', plot=histogramaLUZ, width=6, height=4)
 
 ```
 
@@ -306,7 +306,7 @@ histogramaENTROPIA <- ggplot(datos_train_entropia, aes(x = Entropia, fill = as.f
        fill = "Clase")
 
 histogramaENTROPIA
-ggsave('histogramaENTROPIA.png', plot=histogramaENTROPIA, width=6, height=4)
+ggsave('../figuras/histogramaENTROPIA.png', plot=histogramaENTROPIA, width=6, height=4)
 ```
 
 
@@ -327,7 +327,7 @@ histogramaPIXEL_OSC <- ggplot(datos_train_pixeles_osc, aes(x = Pixeles_oscuros, 
        fill = "Clase")
 
 histogramaPIXEL_OSC
-ggsave('histogramaPIXEL_OSC.png', plot=histogramaPIXEL_OSC, width=6, height=4)
+ggsave('../figuras/histogramaPIXEL_OSC.png', plot=histogramaPIXEL_OSC, width=6, height=4)
 ```
 
 La séptima característica (`extraer_rango_dinamico_V`) mide el rango del canal V, es decir, cálcula la diferencia entre el valor máximo de V y el valor mínimo de V de cada imagen. Un rango de 1 indica que la imagen tiene píxeles donde hay ausencia de luz (negro) hasta la máxima presencia de luz (blanco). Lo habitual es encontrar un rango más amplio en imágenes de día, aunque en las imágenes nocturas pueden haber luces artificiales.
@@ -346,7 +346,7 @@ histogramaRANGO_V <- ggplot(datos_train_rango_V, aes(x = Rango_dinamico_V, fill 
        fill = "Clase")
 
 histogramaRANGO_V
-ggsave('histogramaRANGO_V.png', plot=histogramaRANGO_V, width=6, height=4)
+ggsave('../figuras/histogramaRANGO_V.png', plot=histogramaRANGO_V, width=6, height=4)
 ```
 
 La octava característica (`extraer_blur_V`) consiste en calcular la media del canal V una vez aplicado un filtro pasobajo gaussiano (blur) para suavizar la imagen y deliminar variaciones bruscas o ruido de alta frecuencia. Esto podría ayudar a separar mejor un día nublado (gris) de una noche iluminada.
@@ -365,7 +365,7 @@ histogramaBLUR <- ggplot(datos_train_blur, aes(x = V_blurred_mean, fill = as.fac
        fill = "Clase")
 
 histogramaBLUR
-ggsave('histogramaBLUR.png', plot=histogramaBLUR, width=6, height=4)
+ggsave('../figuras/histogramaBLUR.png', plot=histogramaBLUR, width=6, height=4)
 ```
 
 La última característica es el cálculo de la desviación estándar de las intensidades del canal V (`extraer_sd_V`). Nos permite determinar la dispersión del brillo de una imagen con respecto a su media. De día esperamos una desviación mayor debido a la gran variedad de objetos que nos podemos encontrar en las imágenes como sombras, edificios, árboles, etc. Podemos verlo gráficamente a través del boxplot siguiente.
@@ -385,7 +385,7 @@ boxplotSDV<-ggplot(datos_train_sd, aes(x = as.factor(etiqueta), y = sd_V, fill =
   theme_minimal()
 
 boxplotSDV
-ggsave('boxplotSDV.png', plot=boxplotSDV, width=6, height=4)
+ggsave('../figuras/boxplotSDV.png', plot=boxplotSDV, width=6, height=4)
 
 histogramaSDV<-ggplot(datos_train_sd, aes(x = sd_V, fill = as.factor(etiqueta))) +
   geom_histogram(position = "identity", alpha = 0.6, bins = 30) +
@@ -398,7 +398,7 @@ histogramaSDV<-ggplot(datos_train_sd, aes(x = sd_V, fill = as.factor(etiqueta)))
        fill = "Clase")
 
 histogramaSDV
-ggsave('histogramaSDV.png', plot=histogramaSDV, width=6, height=4)
+ggsave('../figuras/histogramaSDV.png', plot=histogramaSDV, width=6, height=4)
 
 
 ```
@@ -489,6 +489,7 @@ resultado_rfe <- rfe(x = caracteristicas_num,
 print(resultado_rfe)
 
 ```
+
 ```{r}
 # Definimos las ganadoras
 variables_ganadoras <- c("G_mediana", "V_mediana",  "etiqueta",  "R_mediana",  "B_mediana", "sd_V")
@@ -532,13 +533,13 @@ cat("Accuracy en VALIDACIÓN: ", 90.15, "%\n") # El valor que me dijiste antes
 
 <!-- ## Entrenamiento con todas las imágenes en lugar de dividir train/test para el test con las nuestras -->
 <!-- ```{r, include=FALSE} -->
-<!-- source("funciones_extraccion_caracteristicas.R") -->
+<!-- source("../funciones_extraccion_caracteristicas.R") -->
 <!-- # Ruta base imágenes -->
-<!-- ruta_base_imagenes <- "imagenes/train" -->
+<!-- ruta_base_imagenes <- "../imagenes/train" -->
 
 <!-- # Ruta imágenes día/noche -->
-<!-- ruta_noche <- file.path(ruta_base_imagenes, "daynight/nighttime") -->
-<!-- ruta_dia <- file.path(ruta_base_imagenes, "daynight/daytime") -->
+<!-- ruta_noche <- file.path(ruta_base_imagenes, "Temporal/Noche") -->
+<!-- ruta_dia <- file.path(ruta_base_imagenes, "Temporal/Día") -->
 
 <!-- # Lectura del nombre de las imágenes -->
 <!-- archivos_noche <- list.files(path = ruta_noche, pattern = "\\.jpe?g$", full.names = TRUE, recursive = FALSE) -->

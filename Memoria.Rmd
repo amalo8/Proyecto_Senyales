@@ -88,12 +88,12 @@ Gracias a este preprocesado, fue posible detectar y corregir inconsistencias sig
 A continuación, la Figura \ref{fig:figura1} ilustra ejemplos de estas muestras descartadas, donde se aprecia cómo imágenes teóricamente nubladas contenían áreas de cielo despejado predominantes.
 
 ```{r figura1, echo=FALSE, fig.align='center', out.width="50%", fig.cap="Imagen original vs Recorte en imágenes nubladas realmente despejadas"}
-knitr::include_graphics("figura1.png")
+knitr::include_graphics("figuras/figura1.png")
 ```
 En la Figura \ref{fig:figura2} se muestran ejemplos adicionales del funcionamiento del algoritmo de recorte, ilustrando casos exitosos tanto para la clase de despejado como para la de nublado.
 
 ```{r figura2, echo=FALSE, fig.align='center', out.width="50%", fig.cap="Recortes Exitosos Despejado y Nublado"}
-knitr::include_graphics("figura2.png")
+knitr::include_graphics("figuras/figura2.png")
 ```
 
 
@@ -124,11 +124,11 @@ Con estas características esperaríamos valores bajos en las medianas RGB para 
 ```{r figura3, echo=FALSE, fig.cap="Diagrama de cajas (izquierda) e histogramas (derecha) de medianas RGB", out.width="100%", fig.align="center", fig.height=2.75}
 library(png)
 par(mfrow = c(1, 2), mar = c(0, 0, 0, 0)) 
-img1 <- readPNG("boxplotRGB.png")
+img1 <- readPNG("figuras/boxplotRGB.png")
 plot.new() 
 rasterImage(img1, 0, 0, 1, 1)
 
-img2 <- readPNG("histogramasRGB.png")
+img2 <- readPNG("figuras/histogramasRGB.png")
 plot.new()
 rasterImage(img2, 0, 0, 1, 1)
 
@@ -143,11 +143,11 @@ Es importante destacar que la mediana de V es la que más información nos puede
 ```{r figura4, echo=FALSE, fig.cap="Diagrama de cajas (izquierda) e histogramas (derecha) de medianas HSV", out.width="100%", fig.align="center", fig.width=15, fig.height=4}
 library(png)
 par(mfrow = c(1, 2), mar = c(0, 0, 0, 0)) 
-img1 <- readPNG("boxplotHSV.png")
+img1 <- readPNG("figuras/boxplotHSV.png")
 plot.new() 
 rasterImage(img1, 0, 0, 1, 1)
 
-img2 <- readPNG("histogramaHSV.png")
+img2 <- readPNG("figuras/histogramaHSV.png")
 plot.new()
 rasterImage(img2, 0, 0, 1, 1)
 
@@ -164,15 +164,15 @@ La novena característica es la entropía (`extraer_entropia`). A partir de la f
 ```{r figura_triple, echo=FALSE, fig.cap="Histogramas de las variables Sobel, fuentes de luz y entropía", fig.width=15, fig.height=4, out.width="100%", fig.align="center"}
 par(mfrow = c(1, 3), mar = c(0, 0.5, 2, 0.5)) 
 
-img1 <- readPNG("histogramaSOBEL.png")
+img1 <- readPNG("figuras/histogramaSOBEL.png")
 plot(1:10, type="n", axes=FALSE, xlab="", ylab="", main="Característica detección de bordes (Sobel)")
 rasterImage(img1, 1, 1, 10, 10)
 
-img2 <- readPNG("histogramaLUZ.png")
+img2 <- readPNG("figuras/histogramaLUZ.png")
 plot(1:10, type="n", axes=FALSE, xlab="", ylab="", main="Característica detección fuentes de luz")
 rasterImage(img2, 1, 1, 10, 10)
 
-img3 <- readPNG("histogramaENTROPIA.png") 
+img3 <- readPNG("figuras/histogramaENTROPIA.png") 
 plot(1:10, type="n", axes=FALSE, xlab="", ylab="", main="Característica entropía")
 rasterImage(img3, 1, 1, 10, 10)
 
@@ -188,15 +188,15 @@ La duodécima característica (`extraer_blur_V`) consiste en calcular la media d
 ```{r figura_triple2, echo=FALSE, fig.cap="Histogramas de las variables píxeles oscuros, rango de V y media de V con filtro blur", fig.width=15, fig.height=4, out.width="100%", fig.align="center", fig.pos="H"}
 par(mfrow = c(1, 3), mar = c(0, 0.5, 2, 0.5)) 
 
-img1 <- readPNG("histogramaPIXEL_OSC.png")
+img1 <- readPNG("figuras/histogramaPIXEL_OSC.png")
 plot(1:10, type="n", axes=FALSE, xlab="", ylab="", main="Característica porcentaje de píxeles oscuros")
 rasterImage(img1, 1, 1, 10, 10)
 
-img2 <- readPNG("histogramaRANGO_V.png")
+img2 <- readPNG("figuras/histogramaRANGO_V.png")
 plot(1:10, type="n", axes=FALSE, xlab="", ylab="", main="Característica rango de V")
 rasterImage(img2, 1, 1, 10, 10)
 
-img3 <- readPNG("histogramaBLUR.png") 
+img3 <- readPNG("figuras/histogramaBLUR.png") 
 plot(1:10, type="n", axes=FALSE, xlab="", ylab="", main="Característica de media de V aplicando filtro gaussiano (blur)")
 rasterImage(img3, 1, 1, 10, 10)
 
@@ -207,11 +207,11 @@ La última característica es el cálculo de la desviación estándar de las int
 ```{r figura6, echo=FALSE, fig.cap="Diagrama de cajas (izquierda) e histogramas (derecha) de la desviación estándar de V", out.width="70%", fig.align="center", fig.width=12, fig.height=4}
 library(png)
 par(mfrow = c(1, 2), mar = c(0, 0, 0, 0)) 
-img1 <- readPNG("boxplotSDV.png")
+img1 <- readPNG("figuras/boxplotSDV.png")
 plot.new() 
 rasterImage(img1, 0, 0, 1, 1)
 
-img2 <- readPNG("histogramaSDV.png")
+img2 <- readPNG("figuras/histogramaSDV.png")
 plot.new()
 rasterImage(img2, 0, 0, 1, 1)
 
@@ -247,7 +247,7 @@ A continuación, se incorporó la variable `Porcentaje_Calidos`, diseñada para 
 ```{r figura_c2, echo=FALSE, fig.cap="Diagrama de cajas de la proporción de tonos cálidos", out.width="80%", fig.align="center", fig.width=15, fig.height=8}
 library(png)
 par(mfrow = c(1, 1), mar = c(0.5, 0.5, 0.5, 0.5)) 
-img1 <- readPNG("figuras/temporal_multiclase/boxplot_modelo_con_tonos.png")
+img1 <- readPNG("figuras/boxplot_modelo_con_tonos.png")
 plot.new() 
 rasterImage(img1, 0, 0, 1, 1)
 ```
@@ -294,21 +294,21 @@ Empecemos por los valores medianos del espacio RGB: al representar sus histogram
 
 ```{r figura7, echo=FALSE, fig.cap="Histogramas y diagramas de caja de los canales RGB", out.width="90%", fig.align="center", fig.height=2.75}
 
-knitr::include_graphics("RGB_despejado_nublado.png")
+knitr::include_graphics("figuras/RGB_despejado_nublado.png")
 ```
 
 Al representar los histogramas de los 4 valores extraídos de la representación de las imágenes en el espacio HSV (izquierda, Figura \ref{fig:figura8}), podemos observar que todas, excepto $\cos H$ parecen presentar una distribución normal. En el diagrama de cajas (derecha, Figura \ref{fig:figura8}) podemos observar que la mayor distancia entre clases la presenta el canal S.
 
 ```{r figura8, echo=FALSE, fig.cap="Histogramas y diagramas de caja de los canales HSV", out.width="90%", fig.align="center", fig.height=2.75}
 
-knitr::include_graphics("HSV_despejado_nublado.png")
+knitr::include_graphics("figuras/HSV_despejado_nublado.png")
 ```
 
 Como podemos ver en los histogramas de la Figura \ref{fig:figura9}, la variable `Brillo` presenta una marcada distribución normal, mientras que las demás variables distan mucho de hacerlo, sobre todo `Ratio_Azul`. El histograma de la variable `Brillo` nos muestra que no es capaz de distinguir claramente entre clases, ya que las medianas de ambas poblaciones están muy próximas, lo que denota que el brillo entre imágenes de cielos despejados y cielos nublados es bastante similar. De forma contraria, y aunque no siga una distribución gaussiana, podemos ver en los histogramas de los porcentajes de píxeles azules y grises una diferenciación entre cielos despejados y nublados clara, teniendo la mayoría de imágenes de cielos despejados ratios muy altos (cerca de 1 en `Ratio_Azul`), mientras que la mayoría de cielos nublados tiene ratios muy bajos (cerca de 0 en `Ratio_Azul`). Contrariamente a lo que cabría esperar, los histogramas de los ratios de sombras y blancos se superponen, lo cual podría indicar que todas las imágenes, independientemente de su clase, presentan rangos de saturación y valor muy similares, cosa poco intuitiva porque la variable de HSV que mejor distinguía las clases era la saturación (S). 
 
 ```{r figura9, echo=FALSE, fig.cap="Histogramas de brillo, contraste y Sobel, diagrama de caja de brillo", out.width="100%", fig.align="center", fig.height=2.75}
 
-knitr::include_graphics("bcr_despejado_nublado.png")
+knitr::include_graphics("figuras/bcr_despejado_nublado.png")
 ```
 
 
@@ -316,7 +316,7 @@ Por esto último, para cada imagen, hemos calculado el valor medio de la saturac
 
 ```{r figura10, echo=FALSE, fig.cap="Histogramas de la saturación (S) media por bloque", out.width="100%", fig.align="center", fig.pos="H"}
 
-knitr::include_graphics("bloques_despejado_nublado.png")
+knitr::include_graphics("figuras/bloques_despejado_nublado.png")
 ```
 
 ## Aplicación de PCA y Selección de Modelo
@@ -327,12 +327,12 @@ Es por esto que, para no proporcionar información redundante, e intentar descri
 
 ```{r figura11, echo=FALSE, fig.cap="Mapa de correlaciones entre las variables para la clasificación meteorológica", out.width="80%", fig.align="center", fig.height=2.75, fig.pos="H"}
 
-knitr::include_graphics("corrplot.png")
+knitr::include_graphics("figuras/corrplot.png")
 ```
 
 ```{r figura12, echo=FALSE, fig.cap="Proporciones y proporciones acumuladas de varianza explicada por el PCA", out.width="80%", fig.align="center", fig.height=2.75, fig.pos="H"}
 
-knitr::include_graphics("pca_varianzas.png")
+knitr::include_graphics("figuras/pca_varianzas.png")
 ```
 
 Después de entrenar nuestro modelo con las 15 primeras componentes resultado de la PCA, en la etapa de validación el modelo ha alcanzado un accuracy del 95,62%. Además, al analizar la importancia de las características mediante el índice \textit{MeanDecreaseGini}, se observa que las componentes principales influyen más significativamente en orden descendente (es decir, primero `PC1`, después `PC2`, y así sucesivamente), por su propia naturaleza.
@@ -360,7 +360,7 @@ Encontramos que el modelo seleccionado para la clasificación binaria es robusto
 
 ```{r figura15, echo=FALSE, fig.cap="Imagen mal clasificada para el modelo binario Día/Noche", out.width="70%", fig.align="center", fig.height=2.75,fig.pos="H"}
 
-knitr::include_graphics("figuras/test/Mal_dn_combinado.png")
+knitr::include_graphics("figuras/Mal_dn_combinado.png")
 ```
 
 Podemos comprobar que la mayoría de las características de la imagen mal clasificada se encuentran en un rango intermedio entre las características de las imágenes bien clasificadas de día y noche, teniendo valores de `V_mediana`, `R_mediana` y `G_mediana` altos para ser una imagen de noche. Esto es debido a que, aunque sea una imagen nocturna, está muy iluminada y presenta colores vivos, hecho que puede confundir al clasificador.
@@ -383,7 +383,7 @@ Dado que temporalmente el crepúsculo es el momento que se encuentra entre el d�
  
 ```{r figura13, echo=FALSE, fig.cap="Imágenes mal clasificadas para el modelo multiclase Día/Noche/Crepúsculo", out.width="80%", fig.align="center", fig.height=2.75}
 
-knitr::include_graphics("figuras/test/mal_multiclase_plano.png")
+knitr::include_graphics("figuras/mal_multiclase_plano.png")
 ```
   
 Realizando una inspección visual de las imágenes mal clasificadas, como se ejemplifica en la Figura \ref{fig:figura13}, encontramos que las imágenes de Noche mal clasificadas como Crepúsculo presentan buena iluminación (para tratarse de una imagen nocturna), fuentes de luz claras y cierta presencia de tonos rojizos, similarmente las única imagen de Noche mal clasificada como Día presenta también buena iluminación y tonos muy vivos. En cuanto a Crepúsculo la mayoría de las imágenes mal clasificadas como Día presentan una importante proporción de tonos azules en el cielo, mientras que la única imagen predicha como Noche presenta tonos muy oscuros en gran parte de la imagen. Finalmente, para la categoría Día no se encuentra ninguna imagen erróneamente etiquetada como Noche, pero sí algunas para las que se ha predicho la categoría Crepúsculo, en nuestro conjunto de test las imágenes para las que se ha encontrado este error presentan una parte sombreada en la parte inferior y horizontes claramente definidos, que quizá puede resultar similar al paisaje característico de una imagen durante el crepúsculo.  
@@ -402,7 +402,7 @@ El modelo seleccionado para la distinción entre cielos nublados y despejados cl
 
 ```{r figuraDN, echo=FALSE, fig.cap="Imágenes mal clasificadas para el modelo meteorológico", out.width="80%", fig.align="center", fig.height=2.75,fig.pos="H"}
 
-knitr::include_graphics("mal_clasificadas_despejado_nublado.png")
+knitr::include_graphics("figuras/mal_clasificadas_despejado_nublado.png")
 ```
 
 

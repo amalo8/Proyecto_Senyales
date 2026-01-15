@@ -14,7 +14,7 @@ El sistema resuelve dos problemas de clasificación distintos:
 A continuación se detalla el contenido de este repositorio:
 
 ```text
-├── figuras/                               # Gráficos generados para el informe (boxplots, matrices, etc.)
+├── brainstorming.txt                      # Notas e ideas previas
 ├── imagenes/                              # Dataset de Imágenes Originales
 │   ├── test/                              # Imágenes de prueba (fotos propias)
 │   │   ├── Meteorológico/                 
@@ -31,7 +31,9 @@ A continuación se detalla el contenido de este repositorio:
 │   │   └── Temporal/                      
 |   |       ├── Día/                 
 |   |       ├── Noche/                 
-│   │       └── Crepúsculo/ 
+│   │       └── Crepúsculo/
+├── preprocesado.Rmd                       # Script para el escalado y recorte de imágenes
+├── funciones_extraccion_caracteristicas.R # Script con las funciones de extracción de características
 ├── temporal/                              # Scripts de experimentación temporal
 │   ├── imagenes_escaladas/                # Imágenes de test reescaladas (224px)
 │   ├── test/                              # Imágenes de prueba (fotos propias)
@@ -58,13 +60,11 @@ A continuación se detalla el contenido de este repositorio:
 │   ├── rf_dia_noche_crep.RData            # Modelo Multiclase (+Crepúsculo)
 │   ├── rf_despejado_nublado.RData         # Modelo Meteorológico (Despejado vs Nublado)
 │   └── rf_..._pca.RData                   # Variaciones de modelos usando PCA
+├── figuras/                               # Gráficos generados para el informe (boxplots, matrices, etc.)
 ├── Memoria.pdf                            # Documento final del proyecto (Entregable)
 ├── Memoria.Rmd                            # Código fuente del informe en RMarkdown
 ├── Proyecto_Senyales.Rproj                # Archivo de proyecto de RStudio
 ├── README.md                              # Este archivo
 ├── apa.csl                                # Estilo de citas para la bibliografía
 ├── bibliografia.bib                       # Archivo de referencias bibliográficas
-├── brainstorming.txt                      # Notas e ideas previas
-├── funciones_extraccion_caracteristicas.R # Script con las funciones de extracción de características
-└── preprocesado.Rmd                       # Script para el escalado y recorte de imágenes
 ```

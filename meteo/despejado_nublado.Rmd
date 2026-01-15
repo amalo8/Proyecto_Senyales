@@ -19,7 +19,7 @@ library(GGally, quietly = T)
 library(corrplot)
 library(patchwork)
 # cargamos las funciones de lectura y extracción de características de imágenes
-source("funciones_extraccion_caracteristicas.R")
+source("../funciones_extraccion_caracteristicas.R")
 ```
 
 
@@ -154,7 +154,7 @@ g <- ggplot(datos_long, aes(x = Feature, y = Valor, fill = etiqueta)) +
 
 f+g
 
-ggsave("RGB_despejado_nublado.png", 
+ggsave("../figuras/RGB_despejado_nublado.png", 
        plot = f+g, 
        width = 15, 
        height = 5, 
@@ -216,7 +216,7 @@ g<-ggplot(datos_long_hsv, aes(x = Feature, y = Valor, fill = etiqueta)) +
   labs(title = "Separación de clases usando HSV",
        y = "Intensidad Mediana (0-1)") +
   theme_minimal()
-ggsave("HSV_despejado_nublado.png", 
+ggsave("../figuras/HSV_despejado_nublado.png", 
        plot = f+g, 
        width = 15, 
        height = 5, 
@@ -309,7 +309,7 @@ f <- ggplot(datos_long_bcr, aes(x = Valor, fill = etiqueta)) +
        y = "Frecuencia",
        fill = "Clase")
 
-ggsave("bcr_despejado_nublado.png", 
+ggsave("../figuras/bcr_despejado_nublado.png", 
        plot = f, 
        width = 15, 
        height = 5, 
@@ -355,7 +355,7 @@ f <- ggplot(datos_long_bloques, aes(x = Valor, fill = etiqueta)) +
        y = "Frecuencia",
        fill = "Clase")
 
-ggsave("bloques_despejado_nublado.png", 
+ggsave("../figuras/bloques_despejado_nublado.png", 
        plot = f, 
        width = 15, 
        height = 15, 
@@ -403,21 +403,21 @@ g<-ggplot(data = data.frame(prop_varianza_acum, pc = 1:31),
   labs(x = "Número de componentes principales",
        y = "Proporción de varianza explicada acumulada")
 
-ggsave("varianza.png", 
+ggsave("../figuras/varianza.png", 
        plot = f, 
        width = 15, 
        height = 5, 
        units = "in", 
        dpi = 300)
 
-ggsave("varianza_acumulada.png", 
+ggsave("../figuras/varianza_acumulada.png", 
        plot = g, 
        width = 15, 
        height = 5, 
        units = "in", 
        dpi = 300)
 
-ggsave("pca_varianzas.png", 
+ggsave("../figuras/pca_varianzas.png", 
        plot = f+g, 
        width = 15, 
        height = 5, 
@@ -452,7 +452,7 @@ datos_pca_validacion <- data.frame(
   datos_pca_validacion
 ) 
 
-# Evaluar el modelo en el conjunto de prueba
+# Evaluar el modelo en el conjunto de validacion
 predicciones_pca <- predict(modelo_pca, newdata = datos_pca_validacion)
 confusionMatrix(predicciones_pca, datos_pca_validacion$etiqueta)
 modelo_pca$importance

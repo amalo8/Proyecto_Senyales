@@ -601,3 +601,21 @@ for (i in 1:dim(mal_clasificados)[1]){
 }
 ```
 
+
+# Interpretación del PCA 
+
+```{r}
+comp_ppales <- pca2$rotation
+
+for(i in 1:15){
+  cat("--- Componente principal",i,"---\n")
+  var_imp <- names(comp_ppales[,i])[abs(comp_ppales[,i]/max(abs(comp_ppales[,i])))> 0.9]
+  for(j in 1:length(var_imp)){
+    cat(var_imp[j],"\n")
+  }
+  cat("\n")
+}
+
+```
+
+En el código anterior hemos mostrado por pantalla las variables que más influyen en cada una de las quince componentes principales. Si nos fijamos en la primera, vemos que las variables más influyente de la primera componente principal (que, a su vez es la más influyente en el modelo según el criterio _MeanDecreaseGini_) son la saturación mediana y la saturación por bloques. Esto nos revela que nuestro modelo se guía principalmente por la intensidad de los colores de la imagen y el cambio de esta dependiendo del segmente de la imagen. La segunda componente está sobre todo influenciada por los valores medianos de V, B y G, es decir, por la luminosidad mediana de la imagen y los valores de azul y verde. La tercera componente se guía por el contraste de la imagen y la desviación estándar de V, mientras que la cuarta está más influenciada por el seno del canal H y la quinta, por el ratio de sombras.

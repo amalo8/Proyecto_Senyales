@@ -13,6 +13,7 @@ El sistema resuelve dos problemas de clasificación distintos:
 
 A continuación se detalla el contenido de este repositorio:
 
+```text
 ├── figuras/                               # Gráficos generados para el informe (boxplots, matrices, etc.)
 ├── imagenes/                              # Dataset de Imágenes Originales
 │   ├── test/                              # Imágenes de prueba (fotos propias)
@@ -66,3 +67,4 @@ A continuación se detalla el contenido de este repositorio:
 ├── brainstorming.txt                      # Notas e ideas previas
 ├── funciones_extraccion_caracteristicas.R # Script con las funciones de extracción de características
 └── preprocesado.Rmd                       # Script para el escalado y recorte de imágenes
+```

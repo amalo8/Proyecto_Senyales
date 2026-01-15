@@ -470,6 +470,24 @@ for (i in 1:dim(mal_clasificados)[1]){
 }
 ```
 
+# Interpretación del PCA del modelo para validación
+
+```{r}
+comp_ppales <- pca$rotation
+
+for(i in c(1,2,6,4,5)){
+  cat("--- Componente principal",i,"---\n")
+  var_imp <- names(comp_ppales[,i])[abs(comp_ppales[,i]/max(abs(comp_ppales[,i])))> 0.9]
+  for(j in 1:length(var_imp)){
+    cat(var_imp[j],"\n")
+  }
+  cat("\n")
+}
+
+```
+
+En el código anterior hemos mostrado por pantalla las variables que más influyen en cada una de las quince componentes principales en el clasificador según el criterio _MeanDecreaseGini_. Si nos fijamos en la primera, vemos que las variables más influyente de la primera componente principal (que, a su vez es la más influyente en el modelo) son la saturación mediana y la saturación por bloques. Esto nos revela que nuestro modelo se guía principalmente por la intensidad de los colores de la imagen y el cambio de esta dependiendo del segmento de la imagen. La segunda componente está sobre todo influenciada por los valores medianos de V, B y G, es decir, por la luminosidad mediana de la imagen y los canales azul y verde. La tercera variable más importante del modelo se guía por el porcentaje de píxeles blancos, mientras que la cuarta está más influenciada por el seno del canal H y la quinta, por el ratio de sombras.
+
 
 ### Test con nuestras fotos
 
@@ -602,12 +620,12 @@ for (i in 1:dim(mal_clasificados)[1]){
 ```
 
 
-# Interpretación del PCA 
+# Interpretación del PCA del modelo final
 
 ```{r}
 comp_ppales <- pca2$rotation
 
-for(i in 1:15){
+for(i in c(1,2,4,6,9)){
   cat("--- Componente principal",i,"---\n")
   var_imp <- names(comp_ppales[,i])[abs(comp_ppales[,i]/max(abs(comp_ppales[,i])))> 0.9]
   for(j in 1:length(var_imp)){
@@ -618,4 +636,4 @@ for(i in 1:15){
 
 ```
 
-En el código anterior hemos mostrado por pantalla las variables que más influyen en cada una de las quince componentes principales. Si nos fijamos en la primera, vemos que las variables más influyente de la primera componente principal (que, a su vez es la más influyente en el modelo según el criterio _MeanDecreaseGini_) son la saturación mediana y la saturación por bloques. Esto nos revela que nuestro modelo se guía principalmente por la intensidad de los colores de la imagen y el cambio de esta dependiendo del segmente de la imagen. La segunda componente está sobre todo influenciada por los valores medianos de V, B y G, es decir, por la luminosidad mediana de la imagen y los valores de azul y verde. La tercera componente se guía por el contraste de la imagen y la desviación estándar de V, mientras que la cuarta está más influenciada por el seno del canal H y la quinta, por el ratio de sombras.
+En el código anterior hemos mostrado por pantalla las variables que más influyen en cada una de las quince componentes principales empleadas en el modelo final. Fijándonos detenidamente podemos comprobar que, al igual que en el modelo usado en la fase de test, las dos primeras componentes más importantes dentro del modelo están influenciadas por exactamente las mismas variables que antes influenciaban las dos variables más importantes en el modelo de validación: el valor mediano y por bloques de saturación, el brillo y la mediana de los canales azules y verde. Después, la tercer variable más importante en el modelo es el seno de H, la cuarta está influenciada principalmente por el ratio de blanco y, la quinta, por el valor mediano de H y el ratio de azul. Todo esto nos indica que el modelo final se guía principalmente por la intensidad de los colores del cielo y los propios colores (principalmente del color azul).

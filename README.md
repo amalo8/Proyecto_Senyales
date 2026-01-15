@@ -63,6 +63,7 @@ A continuación se detalla el contenido de este repositorio:
 ├── figuras/                               # Gráficos generados para el informe (boxplots, matrices, etc.)
 ├── Memoria.pdf                            # Documento final del proyecto (Entregable)
 ├── Memoria.Rmd                            # Código fuente del informe en RMarkdown
+├── Clasificador de imágenes               # Presentación del trabajo
 ├── Proyecto_Senyales.Rproj                # Archivo de proyecto de RStudio
 ├── README.md                              # Este archivo
 ├── apa.csl                                # Estilo de citas para la bibliografía

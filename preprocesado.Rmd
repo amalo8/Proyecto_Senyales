@@ -23,7 +23,7 @@ ReescalarImagenes <- function(dir_origen, dir_destino, nuevo_ancho = 224) {
   
   archivos <- list.files(dir_origen, full.names = TRUE)
   
-  # Filtramos para procesar solo imágenes (jpg, png, jpeg, etc) por si hay ficheros ocultos
+  # Filtramos para procesar solo imágenes (jpg, png, jpeg, etc)
   archivos <- archivos[grepl("\\.(jpg|jpeg|png|bmp)$", archivos, ignore.case = TRUE)]
   
   cat(sprintf("Procesando %d imágenes de: %s\n", length(archivos), basename(dir_origen)))
@@ -54,13 +54,8 @@ ReescalarImagenes <- function(dir_origen, dir_destino, nuevo_ancho = 224) {
 ```
 
 ```{r}
-
-# ==============================================================================
-# EJECUCIÓN DEL PROCESO
-# ==============================================================================
-
 # Definimos la carpeta raíz de destino
-root_destino <- "imagenes_escaladas"
+root_destino <- "temporal/imagenes_escaladas"
 
 # 1. Procesar DIA
 ReescalarImagenes(
@@ -74,7 +69,7 @@ ReescalarImagenes(
   dir_destino = file.path(root_destino, "test/Temporal/Noche")
 )
 
-# 3. Procesar AMANECER (Sunrise)
+# 3. Procesar CREPUSCULO
 ReescalarImagenes(
   dir_origen  = "imagenes/test/Temporal/Crepúsculo",
   dir_destino = file.path(root_destino, "test/Temporal/Crepúsculo")
@@ -92,27 +87,27 @@ RecorteCielo <- function(ruta_entrada, salida_px = 224) {
   W <- info$width
   H <- info$height
   
-  # --- LÍMITE ESTRICTO: 40% SUPERIOR ---
+  # LÍMITE: 40% SUPERIOR 
   alto_limite <- floor(H * 0.40)
   
   # 1. Tamaño del Cuadrado
-  # Intentamos que sea 1/3 del ancho de la foto...
+  # Intentamos que sea 1/3 del ancho de la foto
   lado_box <- floor(W / 3)
   
-  # ...PERO si ese tamaño hace que nos pasemos del 40% de altura,
-  # lo recortamos. El cuadrado nunca será más alto que la zona permitida.
+  # pero si ese tamaño hace que nos pasemos del 40% de altura,lo recortamos. 
+  # El cuadrado nunca será más alto que la zona permitida.
   if (lado_box > alto_limite) {
     lado_box <- alto_limite
   }
   
-  # Seguridad mínima por si la imagen es diminuta
+  # Seguridad mínima por si la imagen demasiado pequeña
   if(lado_box < 10) lado_box <- min(W, alto_limite)
   
   # 2. Coordenadas X (Horizontal): Izquierda, Centro, Derecha
   xs <- c(0, floor(W/2 - lado_box/2), W - lado_box)
   
   # 3. Coordenadas Y (Vertical): 
-  # Calculamos cuál es el punto más bajo donde puede EMPEZAR el cuadrado
+  # Calculamos cuál es el punto más bajo donde puede empezar el cuadrado
   # para que al terminar NO se pase del límite del 40%.
   y_max_posible <- alto_limite - lado_box
   
@@ -121,7 +116,7 @@ RecorteCielo <- function(ruta_entrada, salida_px = 224) {
   # - Si hay espacio, buscamos también justo en el límite inferior permitido
   ys <- c(0)
   if (y_max_posible > 10) { 
-    # Añadimos la posición más baja permitida para tener más variedad
+    # Añadimos la posición más baja permitida
     ys <- c(0, y_max_posible) 
   }
   
@@ -132,7 +127,7 @@ RecorteCielo <- function(ruta_entrada, salida_px = 224) {
   for (x in xs) {
     for (y in ys) {
       
-      # Clamping de seguridad (para no salirnos por 1px por redondeos)
+      # Coordenadas reales (aseguramos que no se salga de la imagen)
       x_real <- max(0, min(x, W - lado_box))
       y_real <- max(0, min(y, y_max_posible)) 
       
@@ -148,15 +143,13 @@ RecorteCielo <- function(ruta_entrada, salida_px = 224) {
       desviacion <- sd(datos_gris) 
       brillo <- mean(datos_gris)
       
-      # Penalización: Preferimos ligeramente lo que esté más arriba (y=0)
-      # porque suele ser cielo más puro.
+      # Penalización: Preferimos lo que esté más arriba (y=0) porque suele ser cielo más puro.
       penalizacion <- (y_real / H) * 20
       
       score <- desviacion + penalizacion
-      
-      # CONDICIONES PARA ELEGIR MEJOR:
+
       # - Brillo > 30: Que no sea negro oscuro.
-      # - Score mínimo: Buscamos la zona más lisa (menos nubes contrastadas o ruido).
+      # - Buscamos la zona más lisa (menos nubes o ruido).
       if (brillo >= 20 && score < mejor_score) {
         mejor_score <- score
         mejor_recorte <- trozo
@@ -173,10 +166,9 @@ RecorteCielo <- function(ruta_entrada, salida_px = 224) {
 
 
 ```{r}
-# --- CONFIGURACIÓN ---
 # Rutas de origen y destino
 path_origen  <- "imagenes/train/Meteorológico/Despejado"
-path_destino <- "imagenes_recortadas/train/Meteorológico/Despejado"
+path_destino <- "meteo/imagenes_recortadas/train/Meteorológico/Despejado"
 TAMAÑO_FINAL <- 224 # Tamaño de salida (px). Todas serán cuadradas de este tamaño.
 
 # Crear la carpeta de destino si no existe
@@ -187,8 +179,6 @@ if(!dir.exists(path_destino)) {
 
 files <- list.files(path_origen, full.names = TRUE)
 
-# Ajusta el número de imágenes (usa length(files) para todas)
-#n_imgs <- min(20, length(files)) 
 n_imgs <- length(files) 
 
 rutas_proceso <- files[1:n_imgs]
@@ -199,12 +189,9 @@ for(i in seq_along(rutas_proceso)){
   
   ruta_img <- rutas_proceso[i]
   
-  # --- NOMBRE DEL ARCHIVO ---
   nombre_base <- file_path_sans_ext(basename(ruta_img))
   nombre_final <- paste0(nombre_base, "_recorte.jpg")
-  
-  # --- PROCESAMIENTO NUEVO ---
-  # Usamos tryCatch para que si una imagen falla, no se pare todo el bucle
+
   tryCatch({
     
     # 1. Llamamos a la nueva función de cuadrícula
@@ -212,9 +199,9 @@ for(i in seq_along(rutas_proceso)){
     img_recortada <- RecorteCielo(ruta_img, salida_px = TAMAÑO_FINAL)
     
     # 2. Guardado
-    if(!is.null(img_recortada)){ # (La función siempre devuelve algo, pero por seguridad)
+    if(!is.null(img_recortada)){ 
       
-      # Aplanamos fondo (por si acaso viene de un PNG con transparencia)
+      # Aplanamos fondo (por si acaso viene de un PNG)
       img_listo <- image_background(img_recortada, "white")
       
       # Guardamos
@@ -235,12 +222,9 @@ for(i in seq_along(rutas_proceso)){
 cat("--- Proceso finalizado ---\n")
 ```
 
+# OTRAS PRUEBAS
 
-
-#QUITAR ESTOS CODIGOS A LA HORA DE ENTREGAR
-
-# Función de auditoría visual para detectar "falsos nublados"
-
+#FUNCIONES PARA TRATAR DE ENCONTRAR IMAGENES MUY POCO NUBLADAS 
 
 ```{r}
 library(magick)
@@ -251,7 +235,7 @@ library(tools)
 # ==============================================================================
 
 # 1. Dónde están los recortes que quieres revisar
-dir_recortes <- "imagenes_recortadas/train/Meteorológico/Despejado"
+dir_recortes <- "meteo/imagenes_recortadas/train/Meteorológico/Despejado"
 
 # 2. Dónde están las fotos ORIGINALES (El dataset de train/test original)
 
@@ -367,6 +351,9 @@ AuditoriaVisual <- function() {
 # Ejecutar la función
 AuditoriaVisual()
 ```
+
+
+
 ```{r}
 library(tools)
 

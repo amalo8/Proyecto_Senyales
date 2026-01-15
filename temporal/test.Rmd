@@ -69,7 +69,7 @@ datos_imagenes <- rbind(df_noche, df_dia, df_amanecer)
 
 Extracción de características:  
 ```{r}
-source("funciones_extraccion_caracteristicas.R")
+source("../funciones_extraccion_caracteristicas.R")
 
 ######## Lectura de las imágenes ########
 lista_test <- leer_imagenes(datos_imagenes)
@@ -81,7 +81,7 @@ datos_test <- datos_imagenes %>% extraer_rgb(lista_test) %>% extraer_hsv(lista_t
 Cargamos el modelo que hemos desarrollado y los datos extraídos para realizar el test:  
 ```{r}
 # Modelo a utilizar
-load("datosR/rf_dia_noche.RData")
+load("../modelos/rf_dia_noche.RData")
 # Cojo los mismos datos que para dia/noche/crepúsculo pero solamente las columnas que utilizamos para día/noche y solamente las filas con etiquetas 0/1
 datos_test_dn <- datos_test[datos_test$etiqueta==0|datos_test$etiqueta==1,c("ruta","etiqueta","R_mediana", "G_mediana", "B_mediana", "H_cos_mediana", "H_sin_mediana", "S_mediana", "V_mediana","sd_V")]
 
@@ -96,7 +96,7 @@ print(cm_rf_daynight)
 cat("Precisión del modelo Random Forest (Día, Noche):", cm_rf_daynight$overall['Accuracy'] * 100, "%\n")
 
 # Algo de aquí está cambiando las rutas y no sé por qué así que de momento las voy a volver a cambiar a lo cutre
-datos_test_dn$ruta <- gsub("imagenes/test/dianocheamanecer/","imagenes_escaladas/test/Temporal/",datos_test_dn$ruta)
+datos_test_dn$ruta <- gsub("../imagenes/test/dianocheamanecer/","imagenes_escaladas/test/Temporal/",datos_test_dn$ruta)
 datos_test_dn$ruta <- gsub("Dia","Día", datos_test_dn$ruta)
 datos_test_dn$ruta <- gsub(".jpeg",".jpg", datos_test_dn$ruta)
 ```
@@ -154,7 +154,7 @@ plot_info <- plot_grid(
   theme(plot.background = element_rect(fill = "white", color = NA))
 
 plot_info
-ggsave("figuras/test/Conf_dn.png", plot=plot_info)
+ggsave("figuras/Conf_dn.png", plot=plot_info)
 ```
 
 
@@ -170,7 +170,7 @@ length(imagenes_fallidas)
 
 library(magick)
 
-#png("figuras/test/Mal_clas_dn.png")
+#png("figuras/Mal_clas_dn.png")
 categorias <- c("Noche", "Día")
 for(i in 1:length(imagenes_fallidas)){
   img <- image_read(imagenes_fallidas[i])
@@ -203,7 +203,7 @@ ggplot(datos_long, aes(x = Feature, y = Valor, fill = etiqueta)) +
    labs(title = "Características de las imágenes test en función de su clasificación") + 
    theme_minimal() + scale_x_discrete(guide = guide_axis(angle = 90)) +
   xlab('Característica')
-ggsave("figuras/test/Mal_noche.png")
+ggsave("figuras/Mal_noche.png")
 ```
 
 
@@ -229,7 +229,7 @@ datos_test <- rbind(df_noche, df_dia, df_amanecer)
 ```
 
 ```{r}
-source("funciones_extraccion_caracteristicas.R")
+source("../funciones_extraccion_caracteristicas.R")
 
 lista_test <- leer_imagenes(datos_test)
 
@@ -245,7 +245,7 @@ datos_test$etiqueta <- factor(datos_test$etiqueta, levels=c(0,1,2))
 
 Haremos el test con el modelo PCA desarrollado, para ello cargamos el modelo y el resultado de la PCA, y aplicamos el cambio de características a nuestro conjunto de test.
 ```{r}
-load("datosR/rf_dia_noche_crep_full.RData")
+load("../modelos/rf_dia_noche_crep_full.RData")
 ```
 
 Hacemos el test: 
@@ -311,7 +311,7 @@ plot_info <- plot_grid(
   theme(plot.background = element_rect(fill = "white", color = NA))
 plot_info
 
-ggsave("figuras/test/matriz_conf_dnc.png")
+ggsave("figuras/matriz_conf_dnc.png")
 
 # Consultamos cm_pca$byClass
 print(cm_dnc$byClass)
@@ -350,7 +350,7 @@ etiquetas_reales_guardar <- etiquetas_reales[indices_guardar]
 
 categorias <- c("Noche", "Día", "Crepúsculo")
 for(i in 1:length(imagenes_guardar)){
-  nombre_archivo <- paste0("figuras/test/fallida_multiclase_",i,".png")
+  nombre_archivo <- paste0("figuras/fallida_multiclase_",i,".png")
   png(nombre_archivo)
   if(girar[i]){
     img <- image_rotate(image_read(imagenes_guardar[i]),90)
@@ -440,6 +440,7 @@ boxplot_caracteristicas(correctos_3, fallidos_3)
 boxplot_caracteristicas(correctos_4, fallidos_4)
 # No veo nada claro, este modelo parece más complejo y por ello no se sigue tan bien en base a boxplots
 ```
+
 ```{r}
 # Quizá con las características normales?
 datos_resultados <- datos_test[,3:ncol(datos_test)]
@@ -513,5 +514,5 @@ correctos_rep <- correctos[,c(indices_carac, length(correctos))] # length(correc
 fallidos_rep <- fallidos[,c(indices_carac, length(fallidos))]
 
 boxplot_caracteristicas(correctos_rep, fallidos_rep)
-ggsave("figuras/test/carac_mal_multiclase.png")
+ggsave("figuras/carac_mal_multiclase.png")
 ```

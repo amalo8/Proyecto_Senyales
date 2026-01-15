@@ -574,6 +574,6 @@ cat("Accuracy en VALIDACIÓN: ", 90.15, "%\n") # El valor que me dijiste antes
 <!-- set.seed(42) -->
 <!-- rf_dia_noche <- randomForest(x = train_x, y = train_y, ntree = 100) -->
 
-<!-- save(rf_dia_noche, file="rf_dia_noche.RData") -->
+<!-- save(rf_dia_noche, file="../modelos/rf_dia_noche.RData") -->
 <!-- ``` -->
 

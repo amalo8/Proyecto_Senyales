@@ -31,7 +31,7 @@ Desde el punto de vista visual, el crepúsculo combina elementos propios de amba
 
 ```{r}
 # Definir la ruta base
-ruta_base_imagenes <- "imagenes/train"
+ruta_base_imagenes <- "../imagenes/train"
 
 # Ruta imágenes día/noche/crepúsculo
 ruta_noche <- file.path(ruta_base_imagenes, "Temporal/Noche")
@@ -64,7 +64,7 @@ datos_test_multi <- datos_imagenes_multi[-indices_entrenamiento_multi, ]
 
 ```{r}
 # cargamos las funciones de lectura y extracción de características de imágenes
-source("funciones_extraccion_caracteristicas.R")
+source("../funciones_extraccion_caracteristicas.R")
 ```
 
 En esta sección abordamos el problema de la clasificación automática de imágenes del cielo en tres categorías: Día, Noche y Crepúsculo. A diferencia del caso binario día/noche, la inclusión de la clase crepúsculo introduce un escenario intermedio con características visuales más ambiguas, lo que requiere un análisis más detallado tanto del color como de la distribución espacial de la luminosidad en la imagen.
@@ -143,7 +143,7 @@ p_box <- ggplot(df_long, aes(x = clase, y = Valor, fill = clase)) +
        x = "Clase", y = "Valor", fill = "Clase")
 
 p_box
-ggsave("figuras/temporal_multiclase/boxplot_modelo_base_3clases.png", p_box, width = 10, height = 6)
+ggsave("figuras/boxplot_modelo_base_3clases.png", p_box, width = 10, height = 6)
 ```
 La figura muestra que las variables RGB y V separan claramente día y noche, mientras que el crepúsculo aparece en valores intermedios. El brillo (V_mediana) y su variabilidad (sd_V) son especialmente discriminantes, y las componentes de H reflejan los tonos cálidos característicos del crepúsculo. Esto justifica el uso de RGB + HSV + sd(V) como modelo base.
 
@@ -156,7 +156,7 @@ p_hist <- ggplot(df_long, aes(x = Valor, fill = clase)) +
        x = "Valor", y = "Frecuencia", fill = "Clase")
 
 p_hist
-ggsave("figuras/temporal_multiclase/hist_modelo_base_3clases.png", p_hist, width = 10, height = 6)
+ggsave("figuras/hist_modelo_base_3clases.png", p_hist, width = 10, height = 6)
 ```
 
 
@@ -172,7 +172,7 @@ p_cm <- ggplot(cm_tab, aes(x = Real, y = Prediccion, fill = Freq)) +
        x = "Real", y = "Predicción")
 
 p_cm
-ggsave("figuras/temporal_multiclase/confusion_matrix_rf_3clases.png", p_cm, width = 6, height = 5)
+ggsave("figuras/confusion_matrix_rf_3clases.png", p_cm, width = 6, height = 5)
 ```
 
 La matriz de confusión muestra que las clases Noche y Día son clasificadas con alta precisión, mientras que la mayoría de los errores se concentran en la clase Crepúsculo. Esto es coherente con su naturaleza visual intermedia, ya que combina regiones iluminadas del cielo con zonas oscuras del suelo. Por tanto, este resultado justifica la necesidad de incorporar características espaciales, como gradientes verticales y descomposición por bloques, para capturar la estructura de iluminación en la imagen.
@@ -196,7 +196,7 @@ p_imp <- ggplot(imp_df, aes(x = reorder(Variable, MeanDecreaseGini),
        x = "", y = "MeanDecreaseGini", fill = "Importancia")
 
 p_imp
-ggsave("figuras/temporal_multiclase/importancia_rf_3clases.png", p_imp, width = 7, height = 5)
+ggsave("figuras/importancia_rf_3clases.png", p_imp, width = 7, height = 5)
 ```
 
 ### Nuevas Características para detectar el Crepúsculo
@@ -262,7 +262,7 @@ p_box <- ggplot(df_long, aes(x=clase, y=Valor, fill=clase)) +
        x="Clase", y="Valor")
 
 p_box
-ggsave("figuras/temporal_multiclase/boxplot_modelo_con_tonos.png", p_box, width=12, height=7)
+ggsave("figuras/boxplot_modelo_con_tonos.png", p_box, width=12, height=7)
 ```
 Los boxplots muestran que el crepúsculo se caracteriza por un valor intermedio de brillo (V), una mayor variabilidad de la luminosidad (sd(V)) y una proporción significativamente más alta de tonos cálidos. Estas diferencias, junto con los canales RGB y HSV, explican por qué el modelo RGB+HSV+sd(V)+tonos cálidos es capaz de separar de forma efectiva las tres clases.
 
@@ -319,7 +319,7 @@ p_grad <- ggplot(datos_train_multi_bandas,
   theme_minimal(base_size = 13)
 
 p_grad
-ggsave("figuras/temporal_multiclase/boxplot_gradiente_V_bandas.png", p_grad, width = 6, height = 4)
+ggsave("figuras/boxplot_gradiente_V_bandas.png", p_grad, width = 6, height = 4)
 ```
 El gradiente vertical del canal V por bandas captura cómo cambia el brillo entre la parte superior e inferior de la imagen.
 En las imágenes diurnas este gradiente es mayor debido al contraste entre cielo brillante y suelo oscuro, mientras que en el crepúsculo la transición es más suave.
@@ -339,7 +339,7 @@ p_hist_grad <- ggplot(datos_train_multi_bandas,
   )
 
 p_hist_grad
-ggsave("figuras/temporal_multiclase/histograma_gradiente_V_bandas.png", p_hist_grad, width = 6, height = 4)
+ggsave("figuras/histograma_gradiente_V_bandas.png", p_hist_grad, width = 6, height = 4)
 ```
 
 Además de los gradientes por bandas, se ha probado un enfoque alternativo basado en dividir la imagen en tres bloques horizontales (superior, medio e inferior), con el objetivo de capturar de forma más explícita la estructura espacial típica del crepúsculo.
@@ -415,7 +415,7 @@ p_bloques <- ggplot(df_bloques_long,
 
 p_bloques
 ggsave(
-  filename = "figuras/temporal_multiclase/boxplot_bloques_3x1.png",
+  filename = "figuras/boxplot_bloques_3x1.png",
   plot = p_bloques,
   width = 14, 
   height = 8,
@@ -439,7 +439,7 @@ p_H_bloques<- ggplot(df_H, aes(clase, Valor, fill=clase)) +
        subtitle="cos(H) y sin(H) en bandas superior, media e inferior")
 p_H_bloques
 ggsave(
-  filename = "figuras/temporal_multiclase/boxplot_H_bloques_3x1.png",
+  filename = "figuras/boxplot_H_bloques_3x1.png",
   plot = p_H_bloques,
   width = 14,
   height = 7,
@@ -469,7 +469,7 @@ p_SD_V_bloques<- ggplot(df_V, aes(clase, SD_V, fill=clase)) +
        subtitle="Bloques superior, medio e inferior")
 p_SD_V_bloques
 ggsave(
-  filename = "figuras/temporal_multiclase/boxplot_SDV_bloques_3x1.png",
+  filename = "figuras/boxplot_SDV_bloques_3x1.png",
   plot = p_SD_V_bloques,
   width = 12,
   height = 6,
@@ -548,7 +548,7 @@ p_extremos <- ggplot(df_extremos_long, aes(x = clase, y = Valor, fill = clase)) 
         plot.title = element_text(face = "bold"))
 
 p_extremos
-ggsave("figuras/temporal_multiclase/boxplot_extremos_bloques_3x1.png", p_extremos, width = 14, height = 8, dpi = 300)
+ggsave("figuras/boxplot_extremos_bloques_3x1.png", p_extremos, width = 14, height = 8, dpi = 300)
 
 ```
 La distribución de píxeles extremadamente oscuros y brillantes por bloques 3×1 revela un patrón vertical característico del crepúsculo: mayor luminosidad en la banda central (horizonte), valores intermedios en la superior y presencia moderada de luces en la inferior. Este patrón lo diferencia tanto del día como de la noche y explica la mejora del modelo al incorporar estas variables.
@@ -582,7 +582,7 @@ p_osc_zonas<- ggplot(df_osc, aes(x = Zona, y = Porc_Oscuros, fill = clase)) +
   )
 p_osc_zonas
 ggsave(
-  filename = "figuras/temporal_multiclase/boxplot_pixeles_oscuros_zonas.png",
+  filename = "figuras/boxplot_pixeles_oscuros_zonas.png",
   plot = p_osc_zonas,
   width = 10,
   height = 6,
@@ -618,7 +618,7 @@ p_brill_zonas <- ggplot(df_brill, aes(x = Zona, y = Porc_Brillantes, fill = clas
 
 p_brill_zonas
 ggsave(
-  filename = "figuras/temporal_multiclase/boxplot_pixeles_brillantes_zonas.png",
+  filename = "figuras/boxplot_pixeles_brillantes_zonas.png",
   plot = p_brill_zonas,
   width = 10,
   height = 6,
@@ -738,7 +738,7 @@ for (i in 1:14) {
 # library(magick)
 # 
 # # Ruta base imágenes
-ruta_base_imagenes <- "imagenes/train"
+ruta_base_imagenes <- "../imagenes/train"
 
 # Ruta imágenes día/noche
 ruta_noche <- file.path(ruta_base_imagenes, "Temporal/Noche")
@@ -784,7 +784,7 @@ print(grid_imagenes)
 Cargamos, leemos y etiquetamos los datos: 
 ```{r}
 # Extracción de características
-source("funciones_extraccion_caracteristicas.R")
+source("../funciones_extraccion_caracteristicas.R")
 
 ####### LECTURA IMÁGENES ########
 lista_train <- leer_imagenes(datos_train)
@@ -836,7 +836,7 @@ rf_dia_noche_crep <- randomForest(
 ```
 
 ```{r}
-save(rf_dia_noche_crep,vars_finales,file = "datosR/rf_dia_noche_crep_full.RData")
+save(rf_dia_noche_crep,vars_finales,file = "../modelos/rf_dia_noche_crep_full.RData")
 ```
 
 Modelo con PCA
@@ -853,7 +853,7 @@ rf_pca <- randomForest(etiqueta ~ ., data=train_pca, ntree=100)
 ```
 
 ```{r}
-save(pca_resultado,rf_pca,vars_finales,n_comp,file = "datosR/rf_dia_noche_crep_pca.RData")
+save(pca_resultado,rf_pca,vars_finales,n_comp,file = "../modelos/rf_dia_noche_crep_pca.RData")
 ```
 
 
